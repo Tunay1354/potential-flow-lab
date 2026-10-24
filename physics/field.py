@@ -70,6 +70,20 @@ def pressure_coefficient(u, v, v_ref: float) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
+# Fluid region
+# ---------------------------------------------------------------------------
+def fluid_mask(elements: Iterable[FlowElement], z) -> np.ndarray:
+    """True where fluid exists (intersection of every element's fluid_region)."""
+    z = as_complex_array(z)
+    fluid = np.ones(z.shape, dtype=bool)
+    for e in active(elements):
+        region = e.fluid_region(z)
+        if region is not None:
+            fluid &= region
+    return fluid
+
+
+# ---------------------------------------------------------------------------
 # Singularities
 # ---------------------------------------------------------------------------
 def singular_points(elements: Iterable[FlowElement]) -> list[complex]:
@@ -141,7 +155,7 @@ class FieldResult:
     v: np.ndarray
     speed: np.ndarray
     cp: np.ndarray | None    # None when there is no reference speed
-    mask: np.ndarray         # True = not part of the plotted flow (near a singularity)
+    mask: np.ndarray         # True = not part of the plotted flow (near a singularity / not fluid)
     v_ref: float | None
 
 
@@ -152,7 +166,7 @@ def compute_field(elements: Sequence[FlowElement], xlim, ylim, nx: int = 200, ny
     Z = grid.Z
     if mask_radius is None:
         mask_radius = 1.5 * grid.spacing
-    mask = singularity_mask(elements, Z, mask_radius)
+    mask = singularity_mask(elements, Z, mask_radius) | ~fluid_mask(elements, Z)
 
     w = complex_velocity(elements, Z)
     u, v = w.real.copy(), -w.imag

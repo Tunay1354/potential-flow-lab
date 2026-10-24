@@ -99,6 +99,18 @@ LAYOUT = {
     "dividing_streamline_width": 2.4,
     "arrow_size_px": 9,
     "corner_radius_px": 6,
+    "recompute_delay_ms": 120,      # wait after zoom/pan before streamlines are recomputed
+}
+
+# ---------------------------------------------------------------------------
+# Element markers on the plot (symbol names from pyqtgraph: o, d, s, t, +, x ...)
+# "filled": False draws only the outline (ring).
+# ---------------------------------------------------------------------------
+MARKERS = {
+    "source":  {"symbol": "o", "size": 11, "filled": True},     # sink uses color el_sink
+    "vortex":  {"symbol": "o", "size": 18, "filled": False},
+    "doublet": {"symbol": "d", "size": 13, "filled": True},
+    "default": {"symbol": "x", "size": 10, "filled": True},     # any future element type
 }
 
 

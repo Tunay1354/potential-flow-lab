@@ -7,12 +7,15 @@ from PySide6.QtGui import QAction, QActionGroup, QFont, QKeySequence
 from PySide6.QtWidgets import (QApplication, QDockWidget, QLabel, QMainWindow, QMessageBox, QToolBar,
                                QToolButton)
 
-from . import demo_flow
+from physics import reference_speed, velocity
+from physics.field import fluid_mask, singular_points
+
 from .canvas import PlotCanvas
 from .dialogs import ElementDialog
 from .element_specs import ELEMENT_SPECS, SPEC_BY_KEY
 from .icons import make_app_icon, make_element_icon
-from .panels import ElementsPanel, SettingsPanel
+from .panels import ElementsPanel, SettingsPanel, element_icon, element_title
+from .scene import starter_scene
 from .theme import DARK, DEFAULT_THEME, FONT, LAYOUT, LIGHT, build_stylesheet
 
 PRESETS = ["Non-lifting cylinder", "Lifting (rotating) cylinder", "Rankine half-body",
@@ -26,8 +29,11 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(LAYOUT["window_title"] + " — untitled")
         self.resize(*LAYOUT["window_size"])
 
+        # the flow elements (Phase 2 will replace this list by a FlowModel with undo/redo)
+        self.elements = starter_scene()
+
         # central plot
-        self.canvas = PlotCanvas(self.theme, self)
+        self.canvas = PlotCanvas(self.theme, self.elements, self)
         self.setCentralWidget(self.canvas)
         self.canvas.bar.message.connect(self.flash)
         self.canvas.probe.connect(self._update_probe)
@@ -36,11 +42,19 @@ class MainWindow(QMainWindow):
         self.elements_panel = ElementsPanel(self.theme)
         self.elements_panel.edit_requested.connect(lambda k: self.open_element_dialog(k, editing=True))
         self.elements_panel.message.connect(self.flash)
+        self.elements_panel.enabled_changed.connect(self._set_enabled)
         self.dock_elements = self._dock("Elements", self.elements_panel)
         self.dock_elements.widget().setMinimumHeight(LAYOUT["elements_panel_min_height"])
 
         self.settings_panel = SettingsPanel()
         self.settings_panel.message.connect(self.flash)
+        sp, cv = self.settings_panel, self.canvas
+        sp.density_changed.connect(cv.set_density)
+        sp.line_width_changed.connect(cv.set_line_width)
+        sp.arrows_changed.connect(cv.set_arrows)
+        sp.view_edited.connect(cv.set_view)
+        sp.fit_requested.connect(cv.fit_view)
+        cv.view_changed.connect(sp.set_view)
         self.dock_settings = self._dock("Plot settings", self.settings_panel)
         self.splitDockWidget(self.dock_elements, self.dock_settings, Qt.Vertical)
         self.resizeDocks([self.dock_elements, self.dock_settings], [LAYOUT["right_panel_width"]] * 2,
@@ -50,7 +64,9 @@ class MainWindow(QMainWindow):
         self._build_toolbar()
         self._build_menus()
         self._build_statusbar()
+        self.canvas.computed.connect(self._update_status)
         self.apply_theme(self.theme)
+        self.elements_panel.set_elements(self.elements)
 
     # ------------------------------------------------------------------ building blocks
     def _dock(self, title, widget):
@@ -125,11 +141,10 @@ class MainWindow(QMainWindow):
         m.addSeparator()
         hdr = m.addAction("Current elements:")
         hdr.setEnabled(False)
-        from .panels import DEMO_ELEMENTS
-        for key, name, params, _ in DEMO_ELEMENTS:
-            sub = m.addMenu(make_element_icon(key, self.theme, 48), f"{name}   ({params})")
+        for el in self.elements:
+            sub = m.addMenu(element_icon(el, self.theme), f"{element_title(el)}   ({el.summary()})")
             e = sub.addAction("Edit…")
-            e.triggered.connect(lambda _=False, k=key: self.open_element_dialog(k, editing=True))
+            e.triggered.connect(lambda _=False, k=el.TYPE: self.open_element_dialog(k, editing=True))
             sub.addAction("Duplicate").triggered.connect(lambda: self.flash("Prototype: not connected yet."))
             sub.addAction("Delete").triggered.connect(lambda: self.flash("Prototype: not connected yet."))
         m.addSeparator()
@@ -191,7 +206,7 @@ class MainWindow(QMainWindow):
         sb = self.statusBar()
         self.probe_label = QLabel("Move the mouse over the plot")
         self.probe_label.setObjectName("ProbeLabel")
-        self.count_label = QLabel("3 elements  |  no walls  |  Prototype (demo flow)")
+        self.count_label = QLabel("")
         sb.addPermanentWidget(self.probe_label)
         sb.addPermanentWidget(self.count_label)
 
@@ -210,14 +225,36 @@ class MainWindow(QMainWindow):
             self.probe_label.setText("Move the mouse over the plot")
             return
         x, y = pos
-        if demo_flow.inside_body(x, y):
-            self.probe_label.setText(f"x = {x:6.2f}   y = {y:6.2f}   │   inside body")
+        z = complex(x, y)
+        where = f"x = {x:7.3f}   y = {y:7.3f}   │   "
+        near = [p for p in singular_points(self.elements) if abs(z - p) < 0.5 * self._probe_radius()]
+        if near:
+            self.probe_label.setText(where + "singular point (velocity → ∞)")
             return
-        u, v = demo_flow.velocity(x, y)
+        if not fluid_mask(self.elements, z):
+            self.probe_label.setText(where + "outside the fluid region")
+            return
+        u, v = velocity(self.elements, x, y)
+        u, v = float(u), float(v)
         V = float(np.hypot(u, v))
-        cp = 1.0 - (V / demo_flow.V_INF) ** 2
-        self.probe_label.setText(f"x = {x:6.2f}   y = {y:6.2f}   │   u = {float(u):6.3f}   "
-                                 f"v = {float(v):6.3f}   |V| = {V:6.3f}   Cp = {cp:6.3f}")
+        text = where + f"u = {u:7.3f}   v = {v:7.3f}   |V| = {V:7.3f}"
+        v_ref = reference_speed(self.elements)
+        text += f"   Cp = {1.0 - (V / v_ref) ** 2:7.3f}" if v_ref else "   Cp: no V∞"
+        self.probe_label.setText(text)
+
+    def _probe_radius(self):
+        (x0, x1), _ = self.canvas.vb.viewRange()
+        return (x1 - x0) / 200.0
+
+    def _set_enabled(self, row, enabled):
+        self.elements[row].enabled = enabled
+        self.canvas.recompute()
+
+    def _update_status(self, n_lines, ms):
+        n = len(self.elements)
+        on = sum(e.enabled for e in self.elements)
+        self.count_label.setText(f"{n} elements ({on} active)  |  {n_lines} streamlines in {ms:.0f} ms"
+                                 f"  |  editing not connected yet")
 
     def apply_theme(self, theme):
         self.theme = theme

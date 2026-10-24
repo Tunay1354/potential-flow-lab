@@ -2,8 +2,13 @@
 
 Interactive 2D potential-flow simulator (Aerodynamics semester project, IZTECH Mechanical Engineering).
 
-**Durum:** Arayüz prototipi + fizik çekirdeği Faz 1a (uniform flow, source/sink, vortex, doublet).
-Arayüz henüz fizik motoruna bağlı değil; ekrandaki akış geçici bir demodur.
+**Durum:** Faz 1b — fizik çekirdeği (uniform flow, source/sink, vortex, doublet) ve streamline motoru
+hazır; plot gerçek motorla çiziliyor ve zoom/pan sonrası yeniden hesaplanıyor. Element ekleme/düzenleme
+butonları Faz 2'de bağlanacak (şimdilik başlangıç sahnesi: lifting cylinder).
+
+Şu an çalışanlar: zoom (mouse tekerleği) / pan (sürükleme), Fit view, Elements listesindeki tik kutuları
+(elementi geçici olarak kapatma), Plot settings → View range, Density, Line width, Direction arrows,
+Arrows per line, alttaki probe (u, v, |V|, Cp), View → Theme.
 
 ## Kurulum (Windows, VS Code) — bir kez
 
@@ -34,12 +39,13 @@ Güncelleme geldiğinde: GitHub Desktop'ta **Fetch origin → Pull origin**.
 | Klasör / dosya | İçerik |
 |---|---|
 | `main.py` | Programı başlatır |
-| `app/` | Arayüz (prototip). Renkler/boyutlar: `app/theme.py` |
+| `app/` | Arayüz. Renkler/boyutlar/marker'lar: `app/theme.py`, başlangıç sahnesi: `app/scene.py` |
 | `physics/` | Fizik motoru — GUI'den bağımsız, sadece NumPy |
 | `physics/base.py` | Tüm elementlerin ortak temel sınıfı (`FlowElement`) |
 | `physics/elements/` | Her element ayrı dosya: `uniform.py`, `source.py`, `vortex.py`, `doublet.py` |
 | `physics/registry.py` | Hangi element tipleri var (yeni element otomatik eklenir) |
-| `physics/field.py` | Superposition (w = Σ wₖ), grid hesabı, Cp, singularity masking |
+| `physics/field.py` | Superposition (w = Σ wₖ), grid hesabı, Cp, singularity masking, fluid region |
+| `physics/streamlines.py` | Eşit aralıklı streamline'lar (Jobard–Lefer, RK4) ve ok yerleri |
 | `physics/diagnostics.py` | Flux, circulation, yüzey kuvvetleri (L′, D′) ölçümleri |
 | `tests/` | Otomatik doğrulama testleri (`pytest`) |
 | `scripts/verify_physics.py` | Rapor için doğrulama tablosu |

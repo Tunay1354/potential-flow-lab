@@ -69,6 +69,12 @@ class FlowElement:
         """u + i v at infinity contributed by this element (only the uniform flow has one)."""
         return None
 
+    def fluid_region(self, z: np.ndarray) -> np.ndarray | None:
+        """Boolean array, True where fluid exists according to this element.
+        None = no restriction (default). Walls (fluid on one side) and sector flow
+        (fluid only inside the wedge) override this."""
+        return None
+
     # ------------------------------------------------------------------ checks
     def check(self) -> list[Issue]:
         """Generic checks from PARAMS (finite values, min/max). Subclasses add their own."""
@@ -110,9 +116,15 @@ class FlowElement:
     def summary(self) -> str:
         """Short text for the element list, e.g. 'm = 1, (0, 0)'."""
         parts = []
+        keys = {p.key for p in self.PARAMS}
         for p in self.PARAMS:
             val = getattr(self, p.key)
-            parts.append(f"{p.symbol} = {_fmt(val)}{'°' if p.is_angle else ''}")
+            if p.key == "x0" and "y0" in keys:            # position shown as (x0, y0)
+                parts.append(f"at ({_fmt(val)}, {_fmt(getattr(self, 'y0'))})")
+            elif p.key == "y0" and "x0" in keys:
+                continue
+            else:
+                parts.append(f"{p.symbol} = {_fmt(val)}{'°' if p.is_angle else ''}")
         return ",  ".join(parts)
 
 

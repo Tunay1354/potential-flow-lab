@@ -8,17 +8,22 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout
 
 from .icons import make_element_icon
 
-# Demo content of the list (in the real program this comes from the FlowModel)
-DEMO_ELEMENTS = [
-    ("uniform", "Uniform flow", "V∞ = 1,  α = 0°", 1),
-    ("doublet", "Doublet", "μ = 1,  (0, 0),  δ = 0°", 1),
-    ("vortex", "Vortex", "Γ = −2 (cw),  (0, 0)", 1),
-]
+
+def element_icon(element, theme, size=48):
+    """Toolbar-style icon of an element instance (sinks get the inward-arrow icon)."""
+    return make_element_icon(element.TYPE, theme, size, sign=-1 if getattr(element, "is_sink", False) else 1)
+
+
+def element_title(element) -> str:
+    if element.TYPE == "source":
+        return "Sink" if element.is_sink else "Source"
+    return element.NAME
 
 
 class ElementsPanel(QWidget):
     """List of all elements with visibility checkbox and Edit / Duplicate / Delete."""
-    edit_requested = Signal(str)
+    edit_requested = Signal(str)             # element TYPE (dialogs are not connected to the model yet)
+    enabled_changed = Signal(int, bool)      # row index, ticked?
     message = Signal(str)
 
     def __init__(self, theme: dict, parent=None):
@@ -37,6 +42,7 @@ class ElementsPanel(QWidget):
         self.tree.setToolTip("Untick an element to hide it temporarily without deleting it.\n"
                              "Double-click to edit.")
         self.tree.itemDoubleClicked.connect(lambda it, _c: self.edit_requested.emit(it.data(0, Qt.UserRole)))
+        self.tree.itemChanged.connect(self._item_changed)
         lay.addWidget(self.tree, 1)
 
         row = QHBoxLayout()
@@ -53,17 +59,32 @@ class ElementsPanel(QWidget):
         self.btn_dup.clicked.connect(lambda: self.message.emit("Prototype: Duplicate is not connected yet."))
         self.btn_del.clicked.connect(lambda: self.message.emit("Prototype: Delete is not connected yet."))
 
-        self.apply_theme(theme)
+        self.theme = theme
+        self.elements = []
 
     def apply_theme(self, theme: dict):
+        self.theme = theme
+        self.set_elements(self.elements)
+
+    def set_elements(self, elements: list):
+        self.elements = elements
+        current = self.tree.currentIndex().row()
+        self.tree.blockSignals(True)
         self.tree.clear()
-        for key, name, params, enabled in DEMO_ELEMENTS:
-            it = QTreeWidgetItem([name, params])
-            it.setIcon(0, make_element_icon(key, theme, 48))
-            it.setCheckState(0, Qt.Checked if enabled else Qt.Unchecked)
-            it.setData(0, Qt.UserRole, key)
+        for e in elements:
+            it = QTreeWidgetItem([element_title(e), e.summary()])
+            it.setIcon(0, element_icon(e, self.theme))
+            it.setCheckState(0, Qt.Checked if e.enabled else Qt.Unchecked)
+            it.setData(0, Qt.UserRole, e.TYPE)
+            it.setToolTip(1, e.summary())
             self.tree.addTopLevelItem(it)
-        self.tree.setCurrentItem(self.tree.topLevelItem(0))
+        if elements:
+            self.tree.setCurrentItem(self.tree.topLevelItem(min(max(current, 0), len(elements) - 1)))
+        self.tree.blockSignals(False)
+
+    def _item_changed(self, item, column):
+        if column == 0:
+            self.enabled_changed.emit(self.tree.indexOfTopLevelItem(item), item.checkState(0) == Qt.Checked)
 
     def _edit_selected(self):
         it = self.tree.currentItem()
@@ -74,6 +95,11 @@ class ElementsPanel(QWidget):
 class SettingsPanel(QScrollArea):
     """Plot limits, streamline density, layers, animation, computation quality."""
     message = Signal(str)
+    view_edited = Signal(tuple, tuple)       # (xmin, xmax), (ymin, ymax) typed by the user
+    fit_requested = Signal()
+    density_changed = Signal(float)
+    line_width_changed = Signal(float)
+    arrows_changed = Signal(bool, int)       # show arrows?, arrows per line
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -100,20 +126,29 @@ class SettingsPanel(QScrollArea):
         grid.addWidget(QLabel("to"), 1, 2)
         grid.addWidget(self.ymax, 1, 3)
         fit = QPushButton("Fit to elements")
-        fit.clicked.connect(lambda: self.message.emit("Prototype: Fit to elements is not connected yet."))
+        fit.clicked.connect(self.fit_requested)
         grid.addWidget(fit, 2, 0, 1, 4)
+        for sp in (self.xmin, self.xmax, self.ymin, self.ymax):
+            sp.editingFinished.connect(self._view_typed)
         lay.addWidget(g)
 
         # --- Streamlines ----------------------------------------------------
         g = QGroupBox("Streamlines")
         f = QFormLayout(g)
-        f.addRow("Density", self._slider(1, 10, 5, "Number of streamlines"))
-        f.addRow("Line width", self._slider(1, 5, 2))
-        arrows = QCheckBox("Direction arrows")
-        arrows.setChecked(True)
-        f.addRow(arrows)
-        f.addRow("Arrows per line", self._slider(1, 5, 1))
+        self.s_density = self._slider(1, 10, 5, "Number of streamlines")
+        self.s_width = self._slider(1, 5, 2)
+        self.c_arrows = QCheckBox("Direction arrows")
+        self.c_arrows.setChecked(True)
+        self.s_arrows = self._slider(1, 5, 1)
+        f.addRow("Density", self.s_density)
+        f.addRow("Line width", self.s_width)
+        f.addRow(self.c_arrows)
+        f.addRow("Arrows per line", self.s_arrows)
         lay.addWidget(g)
+        self.s_density.valueChanged.connect(lambda v: self.density_changed.emit(v / 5.0))
+        self.s_width.valueChanged.connect(lambda v: self.line_width_changed.emit(0.6 + 0.4 * v))
+        self.c_arrows.toggled.connect(lambda on: self.arrows_changed.emit(on, self.s_arrows.value()))
+        self.s_arrows.valueChanged.connect(lambda v: self.arrows_changed.emit(self.c_arrows.isChecked(), v))
 
         # --- Layers ---------------------------------------------------------
         g = QGroupBox("Layers")
@@ -147,6 +182,21 @@ class SettingsPanel(QScrollArea):
         lay.addWidget(g)
 
         lay.addStretch(1)
+
+    def set_view(self, xr, yr):
+        """Show the current plot limits without triggering view_edited."""
+        for sp, val in ((self.xmin, xr[0]), (self.xmax, xr[1]), (self.ymin, yr[0]), (self.ymax, yr[1])):
+            if not sp.hasFocus():
+                sp.blockSignals(True)
+                sp.setValue(val)
+                sp.blockSignals(False)
+
+    def _view_typed(self):
+        xr, yr = (self.xmin.value(), self.xmax.value()), (self.ymin.value(), self.ymax.value())
+        if xr[0] < xr[1] and yr[0] < yr[1]:
+            self.view_edited.emit(xr, yr)
+        else:
+            self.message.emit("View range: minimum must be smaller than maximum.")
 
     @staticmethod
     def _spin(val):
