@@ -1,49 +1,53 @@
-# Potential Flow Lab — Arayüz prototipi
+# Potential Flow Lab
 
-Bu sürüm sadece **arayüzü görmek ve karar vermek** için. Butonların çoğu çalışmıyor;
-tıklayınca alttaki status bar'da "Prototype: … is not connected yet" yazar.
-Ekrandaki akış resmi geçici bir demodur (lifting cylinder), gerçek fizik motoru değildir.
+Interactive 2D potential-flow simulator (Aerodynamics semester project, IZTECH Mechanical Engineering).
 
-Çalışan kısımlar: toolbar'dan açılan parametre dialogları, Elements menüsü/listesinden
-"Edit…", View → Theme (Light/Dark), plot'ta zoom/pan (mouse tekerleği ve sürükleme),
-fare plot üzerindeyken alttaki probe (u, v, |V|, Cp), panelleri taşıma/kapatma.
+**Durum:** Arayüz prototipi + fizik çekirdeği Faz 1a (uniform flow, source/sink, vortex, doublet).
+Arayüz henüz fizik motoruna bağlı değil; ekrandaki akış geçici bir demodur.
 
-## Çalıştırma (Windows, VS Code)
+## Kurulum (Windows, VS Code) — bir kez
 
-1. Klasörü VS Code ile aç: **File → Open Folder…**
-2. Terminal aç: **Terminal → New Terminal**
-3. Python kurulu mu kontrol et:
-   ```
-   python --version
-   ```
-   3.10 veya daha yeni bir sürüm görmelisin. Görmüyorsan python.org'dan Python 3.12'yi kur ve
-   kurulumun ilk ekranında **"Add python.exe to PATH"** kutusunu işaretle, sonra VS Code'u kapatıp aç.
-4. Sanal ortam (virtual environment) oluştur ve aktive et:
+1. Repoyu GitHub Desktop ile clone'la, sonra **Repository → Open in Visual Studio Code**.
+2. **Terminal → New Terminal** ve sırayla:
    ```
    python -m venv .venv
    .venv\Scripts\activate
-   ```
-   PowerShell "running scripts is disabled" hatası verirse bir kez şunu çalıştır:
-   `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` (soruya `Y` de), sonra aktive etmeyi tekrar dene.
-5. Paketleri kur:
-   ```
    pip install -r requirements.txt
    ```
-6. Programı başlat:
-   ```
-   python main.py
-   ```
-Sonraki seferlerde sadece 4. adımdaki `.venv\Scripts\activate` ve `python main.py` yeterli.
+   - `python` bulunamazsa: python.org'dan Python 3.12 kur, ilk ekranda **"Add python.exe to PATH"** işaretle.
+   - PowerShell "running scripts is disabled" derse bir kez:
+     `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` (soruya `Y`).
 
-## Neyi değiştirmek için hangi dosya?
+## Her seferinde
 
-| Değiştirmek istediğin | Dosya |
+```
+.venv\Scripts\activate          # satırın başında (.venv) görünmeli
+python main.py                  # arayüzü aç
+pytest                          # fizik testlerini çalıştır
+python scripts/verify_physics.py   # analitik vs. sayısal doğrulama tablosu
+```
+Güncelleme geldiğinde: GitHub Desktop'ta **Fetch origin → Pull origin**.
+`requirements.txt` değiştiyse `pip install -r requirements.txt` komutunu tekrar çalıştır.
+
+## Klasör yapısı
+
+| Klasör / dosya | İçerik |
 |---|---|
-| Renkler, font, boyutlar, panel genişliği, ikon boyutu | `app/theme.py` |
-| Element isimleri, açıklamaları, formülleri, parametreleri, varsayılan değerler | `app/element_specs.py` |
-| Toolbar ikonlarının çizimi | `app/icons.py` |
-| Menüler, toolbar, panellerin yerleşimi, status bar | `app/main_window.py` |
-| Sağdaki Elements ve Plot settings panelleri | `app/panels.py` |
-| Parametre dialog'unun görünümü | `app/dialogs.py` |
-| Plot alanı ve üstündeki bar | `app/canvas.py` |
-| Demo akış (sonra silinecek) | `app/demo_flow.py` |
+| `main.py` | Programı başlatır |
+| `app/` | Arayüz (prototip). Renkler/boyutlar: `app/theme.py` |
+| `physics/` | Fizik motoru — GUI'den bağımsız, sadece NumPy |
+| `physics/base.py` | Tüm elementlerin ortak temel sınıfı (`FlowElement`) |
+| `physics/elements/` | Her element ayrı dosya: `uniform.py`, `source.py`, `vortex.py`, `doublet.py` |
+| `physics/registry.py` | Hangi element tipleri var (yeni element otomatik eklenir) |
+| `physics/field.py` | Superposition (w = Σ wₖ), grid hesabı, Cp, singularity masking |
+| `physics/diagnostics.py` | Flux, circulation, yüzey kuvvetleri (L′, D′) ölçümleri |
+| `tests/` | Otomatik doğrulama testleri (`pytest`) |
+| `scripts/verify_physics.py` | Rapor için doğrulama tablosu |
+
+## Notasyon (ders notlarıyla aynı)
+
+- F(z) = φ + iψ (complex potential), w = dF/dz = u − iv (complex velocity)
+- Source/sink: F = (m/2π) log(z − z₀), m > 0 source
+- Vortex: F = −i(Γ/2π) log(z − z₀), **Γ > 0 counter-clockwise**
+- Doublet: F = μ e^{iδ}/(z − z₀), μ = mε/π; uniform + doublet → cylinder, a = √(μ/V∞)
+- Cp = 1 − (V/V∞)²
