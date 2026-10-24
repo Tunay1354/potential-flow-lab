@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..base import FlowElement, Issue, ParamSpec, as_complex_array
+from ..base import FlowElement, Issue, ParamSpec, as_complex_array, normalize_angle, stable_cot
 from ..registry import register
 
 
@@ -48,6 +48,28 @@ class Doublet(FlowElement):
 
     def singular_points(self):
         return [self.z0]
+
+    def mirrored(self, wall):
+        """Image in a wall: same μ at the mirror point, axis mirrored: δ* = 2θ_w − δ."""
+        z = complex(wall.reflect(self.z0))
+        return Doublet(mu=self.mu, x0=z.real, y0=z.imag, delta=normalize_angle(2.0 * wall.theta_w - self.delta))
+
+    def periodic_complex_velocity(self, z, period):
+        """Σ −c/(z − z0 − nP)² = −c (π/P)² csc²(π(z − z0)/P),   csc² = 1 + cot²."""
+        u = np.pi * (as_complex_array(z) - self.z0) / period
+        return -self._c() * (np.pi / period) ** 2 * (1.0 + stable_cot(u) ** 2)
+
+    def periodic_complex_potential(self, z, period):
+        u = np.pi * (as_complex_array(z) - self.z0) / period
+        return self._c() * (np.pi / period) * stable_cot(u)
+
+    @classmethod
+    def batch_complex_velocity(cls, elements, z):
+        z = as_complex_array(z)
+        z0 = np.array([e.z0 for e in elements])
+        c = np.array([e._c() for e in elements])
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return np.sum(-c / (z[..., None] - z0) ** 2, axis=-1)
 
     def check(self):
         issues = super().check()

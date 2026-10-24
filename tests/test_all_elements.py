@@ -80,3 +80,38 @@ def test_non_finite_parameter_is_rejected(type_key):
 def test_unknown_type_raises():
     with pytest.raises(ValueError):
         element_from_dict({"type": "black_hole"})
+
+
+# ---------------------------------------------------------------- walls / images (all element types)
+from physics import SymmetryWall, complex_velocity  # noqa: E402
+
+FLOW_TYPES = [t for t in TYPES if not ELEMENT_TYPES[t].IS_BOUNDARY]
+
+
+@pytest.mark.parametrize("type_key", FLOW_TYPES)
+def test_batch_velocity_equals_sum_of_singles(type_key):
+    a, b = make(type_key), make(type_key)
+    for p in ELEMENT_TYPES[type_key].PARAMS:
+        if p.key == "x0":
+            setattr(b, p.key, -1.1)
+    z = PX + 1j * PY
+    np.testing.assert_allclose(type(a).batch_complex_velocity([a, b], z),
+                               a.complex_velocity(z) + b.complex_velocity(z), rtol=1e-12, atol=1e-14)
+
+
+@pytest.mark.parametrize("type_key", FLOW_TYPES)
+def test_image_rule_satisfies_plane_theorem(type_key):
+    """Any element that can be mirrored must satisfy  w_total = w(z) + e^{−2iθ} conj(w(z*))."""
+    el = make(type_key)
+    wall = SymmetryWall(xw=0.0, yw=-1.5, theta_w=12.0)
+    try:
+        image = el.mirrored(wall)
+    except NotImplementedError:
+        pytest.skip(f"{type_key} cannot be mirrored (reported as an error to the user)")
+    if image is None:                                    # freestream: must not be imaged
+        assert el.freestream_velocity() is not None
+        return
+    z = PX + 1j * PY
+    expected = el.complex_velocity(z) + np.exp(-2j * np.radians(wall.theta_w)) * \
+        np.conj(el.complex_velocity(wall.reflect(z)))
+    np.testing.assert_allclose(complex_velocity([wall, el], z), expected, rtol=1e-11, atol=1e-12)

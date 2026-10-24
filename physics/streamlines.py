@@ -28,6 +28,7 @@ import numpy as np
 
 from .base import FlowElement
 from .field import active, complex_velocity, fluid_mask, singular_points
+from .images import resolve
 
 BASE_LINES_ACROSS = 26          # ~ number of line spacings across the view at density 1
 STOP_RATIO = 0.5                # a line stops at STOP_RATIO * d from another line
@@ -71,15 +72,19 @@ class _Raster:
 def trace_streamlines(elements: Sequence[FlowElement], xlim, ylim, density: float = 1.0,
                       arrows_per_line: int = 1, seed: int = 0, batch_size: int = 48,
                       max_length_factor: float = 4.0) -> StreamlineSet:
-    els = active(elements)
+    els = active(elements)              # user's elements (walls give the fluid region)
+    flows = resolve(els)                # flow elements + wall images (give the velocity)
     x0, x1 = map(float, xlim)
     y0, y1 = map(float, ylim)
     W, H = x1 - x0, y1 - y0
     out = StreamlineSet()
-    if not els or W <= 0 or H <= 0:
+    if not flows or W <= 0 or H <= 0:
         return out
 
-    d = math.sqrt(W * H) / (BASE_LINES_ACROSS * max(density, 0.05))
+    # line spacing from the FLUID area in view (walls / wedges may hide part of the view)
+    gx, gy = np.meshgrid(np.linspace(x0, x1, 33), np.linspace(y0, y1, 33))
+    fluid_fraction = max(float(np.mean(fluid_mask(els, gx + 1j * gy))), 0.02)
+    d = math.sqrt(W * H * fluid_fraction) / (BASE_LINES_ACROSS * max(density, 0.05))
     d_stop = STOP_RATIO * d
     h = d / 3.0                                   # integration step (arc length) far from singularities
     out.separation = d
@@ -90,7 +95,8 @@ def trace_streamlines(elements: Sequence[FlowElement], xlim, ylim, density: floa
     # typical speed in the view -> threshold for stagnation points
     gx, gy = np.meshgrid(np.linspace(x0, x1, 17), np.linspace(y0, y1, 17))
     with np.errstate(invalid="ignore"):
-        sp = np.abs(complex_velocity(els, gx + 1j * gy))
+        sp = np.abs(complex_velocity(flows, gx + 1j * gy))
+    sp = sp[fluid_mask(els, gx + 1j * gy)]
     sp = sp[np.isfinite(sp)]
     if sp.size == 0 or np.nanmedian(sp) == 0:
         return out
@@ -105,7 +111,7 @@ def trace_streamlines(elements: Sequence[FlowElement], xlim, ylim, density: floa
 
     def direction(z):
         """Unit direction (complex) and speed of the flow at z."""
-        vel = np.conj(complex_velocity(els, z))          # u + i v
+        vel = np.conj(complex_velocity(flows, z))        # u + i v
         speed = np.abs(vel)
         with np.errstate(divide="ignore", invalid="ignore"):
             return vel / speed, speed

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..base import FlowElement, Issue, ParamSpec, as_complex_array
+from ..base import FlowElement, Issue, ParamSpec, as_complex_array, stable_cot, stable_log_sin
 from ..registry import register
 
 
@@ -43,6 +43,28 @@ class Source(FlowElement):
 
     def singular_points(self):
         return [self.z0]
+
+    def mirrored(self, wall):
+        """Image in a wall: source of the SAME strength at the mirror point."""
+        z = complex(wall.reflect(self.z0))
+        return Source(m=self.m, x0=z.real, y0=z.imag)
+
+    def periodic_complex_velocity(self, z, period):
+        """Row of copies every P:  Σ 1/(z − z0 − nP) = (π/P) cot(π(z − z0)/P)."""
+        u = np.pi * (as_complex_array(z) - self.z0) / period
+        return self.m / (2.0 * np.pi) * (np.pi / period) * stable_cot(u)
+
+    def periodic_complex_potential(self, z, period):
+        u = np.pi * (as_complex_array(z) - self.z0) / period
+        return self.m / (2.0 * np.pi) * stable_log_sin(u)
+
+    @classmethod
+    def batch_complex_velocity(cls, elements, z):
+        z = as_complex_array(z)
+        z0 = np.array([e.z0 for e in elements])
+        c = np.array([e.m for e in elements]) / (2.0 * np.pi)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return np.sum(c / (z[..., None] - z0), axis=-1)
 
     def check(self):
         issues = super().check()

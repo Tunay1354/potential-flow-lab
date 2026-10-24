@@ -8,6 +8,10 @@ Notation (course notes):
 Every element only has to say what its w(z) is. Superposition (adding the
 elements together) is done in field.py, so a new element type never needs
 to touch any other file except its own (plus one import line in elements/__init__.py).
+
+Boundaries (symmetry walls) are also elements, but they produce no velocity
+themselves: they make images of the flow elements (images.py) and restrict
+the fluid region.
 """
 from __future__ import annotations
 
@@ -29,6 +33,7 @@ class ParamSpec:
     minimum: float = -math.inf
     maximum: float = math.inf
     is_angle: bool = False      # stored in degrees
+    choices: tuple[str, ...] = ()   # non-empty -> the value is an index into this tuple
 
 
 @dataclass(frozen=True)
@@ -49,6 +54,7 @@ class FlowElement:
     TYPE: ClassVar[str] = ""                      # unique key used in saved files, e.g. "source"
     NAME: ClassVar[str] = ""                      # human readable, e.g. "Source / sink"
     PARAMS: ClassVar[tuple[ParamSpec, ...]] = ()
+    IS_BOUNDARY: ClassVar[bool] = False           # True for walls: no velocity of its own
 
     enabled: bool = True                          # unticked in the list -> ignored in the sum
 
@@ -75,12 +81,41 @@ class FlowElement:
         (fluid only inside the wedge) override this."""
         return None
 
+    def mirrored(self, wall) -> "FlowElement | None":
+        """Image of this element in a straight wall (method of images).
+        Return None if the element needs no image (e.g. a freestream parallel to the wall).
+        Element types that cannot be mirrored keep this default and are reported as an error."""
+        raise NotImplementedError(f"{self.NAME} cannot be mirrored in a wall")
+
+    def periodic_complex_velocity(self, z: np.ndarray, period: complex) -> np.ndarray:
+        """Σ_n w(z − n·P) over all integers n (infinite row of copies, period P).
+        Needed for the images between two parallel walls; elements that cannot do it keep this default."""
+        raise NotImplementedError(f"{self.NAME} cannot be placed between parallel walls")
+
+    def periodic_complex_potential(self, z: np.ndarray, period: complex) -> np.ndarray:
+        raise NotImplementedError(f"{self.NAME} cannot be placed between parallel walls")
+
+    @classmethod
+    def batch_complex_velocity(cls, elements: list, z: np.ndarray) -> np.ndarray:
+        """Σ w_k(z) for several elements of THIS type. Subclasses may vectorise it
+        (important when walls create many images); the default simply loops."""
+        z = as_complex_array(z)
+        w = np.zeros(z.shape, dtype=np.complex128)
+        for e in elements:
+            w += e.complex_velocity(z)
+        return w
+
     # ------------------------------------------------------------------ checks
     def check(self) -> list[Issue]:
         """Generic checks from PARAMS (finite values, min/max). Subclasses add their own."""
         issues = []
         for p in self.PARAMS:
             val = getattr(self, p.key)
+            if p.choices:
+                if not (isinstance(val, (int, np.integer)) or float(val).is_integer()) \
+                        or not 0 <= int(val) < len(p.choices):
+                    issues.append(Issue("error", f"{p.name}: invalid choice {val!r}."))
+                continue
             if not math.isfinite(val):
                 issues.append(Issue("error", f"{p.name} ({p.symbol}) must be a finite number."))
             elif val < p.minimum or val > p.maximum:
@@ -123,6 +158,8 @@ class FlowElement:
                 parts.append(f"at ({_fmt(val)}, {_fmt(getattr(self, 'y0'))})")
             elif p.key == "y0" and "x0" in keys:
                 continue
+            elif p.choices:
+                parts.append(f"{p.name.lower()}: {p.choices[int(val)]}")
             else:
                 parts.append(f"{p.symbol} = {_fmt(val)}{'°' if p.is_angle else ''}")
         return ",  ".join(parts)
@@ -134,3 +171,31 @@ def _fmt(x: float) -> str:
 
 def as_complex_array(z) -> np.ndarray:
     return np.asarray(z, dtype=np.complex128)
+
+
+def stable_cot(u: np.ndarray) -> np.ndarray:
+    """cot(u) for complex u without overflow when |Im u| is large (cot -> ∓i)."""
+    u = as_complex_array(u)
+    up = u.imag > 0
+    q = np.exp(np.where(up, 2j * u, -2j * u))          # |q| <= 1
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return np.where(up, 1j * (q + 1) / (q - 1), 1j * (1 + q) / (1 - q))
+
+
+def stable_log_sin(u: np.ndarray) -> np.ndarray:
+    """log(sin u) for complex u without overflow (up to multiples of 2πi)."""
+    u = as_complex_array(u)
+    up = u.imag > 0
+    q = np.exp(np.where(up, 2j * u, -2j * u))
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return np.where(up, -1j * u + np.log((q - 1) / 2j), 1j * u + np.log((1 - q) / 2j))
+
+
+def normalize_angle(deg: float) -> float:
+    """Angle in degrees mapped to (−180°, 180°]."""
+    a = math.fmod(deg, 360.0)
+    if a <= -180.0:
+        a += 360.0
+    elif a > 180.0:
+        a -= 360.0
+    return a

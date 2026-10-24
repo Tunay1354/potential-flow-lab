@@ -7,7 +7,7 @@ from PySide6.QtGui import QAction, QActionGroup, QFont, QKeySequence
 from PySide6.QtWidgets import (QApplication, QDockWidget, QLabel, QMainWindow, QMessageBox, QToolBar,
                                QToolButton)
 
-from physics import reference_speed, velocity
+from physics import check_scene, reference_speed, velocity
 from physics.field import fluid_mask, singular_points
 
 from .canvas import PlotCanvas
@@ -15,11 +15,8 @@ from .dialogs import ElementDialog
 from .element_specs import ELEMENT_SPECS, SPEC_BY_KEY
 from .icons import make_app_icon, make_element_icon
 from .panels import ElementsPanel, SettingsPanel, element_icon, element_title
-from .scene import starter_scene
+from .scene import PRESETS, starter_scene
 from .theme import DARK, DEFAULT_THEME, FONT, LAYOUT, LIGHT, build_stylesheet
-
-PRESETS = ["Non-lifting cylinder", "Lifting (rotating) cylinder", "Rankine half-body",
-           "Rankine oval", "Corner flow (90° sector)", "Source near a wall", "Vortex near a wall"]
 
 
 class MainWindow(QMainWindow):
@@ -67,6 +64,7 @@ class MainWindow(QMainWindow):
         self.canvas.computed.connect(self._update_status)
         self.apply_theme(self.theme)
         self.elements_panel.set_elements(self.elements)
+        self._update_issues()
 
     # ------------------------------------------------------------------ building blocks
     def _dock(self, title, widget):
@@ -132,23 +130,9 @@ class MainWindow(QMainWindow):
         self._act(m, "Duplicate selected element", "Ctrl+D")
         self._act(m, "Delete selected element", QKeySequence.Delete)
 
-        # Elements (the menu required by the assignment)
-        m = mb.addMenu("E&lements")
-        add = m.addMenu("Add")
-        for spec in ELEMENT_SPECS:
-            a = add.addAction(make_element_icon(spec.key, self.theme, 48), spec.name)
-            a.triggered.connect(lambda _=False, k=spec.key: self.open_element_dialog(k))
-        m.addSeparator()
-        hdr = m.addAction("Current elements:")
-        hdr.setEnabled(False)
-        for el in self.elements:
-            sub = m.addMenu(element_icon(el, self.theme), f"{element_title(el)}   ({el.summary()})")
-            e = sub.addAction("Edit…")
-            e.triggered.connect(lambda _=False, k=el.TYPE: self.open_element_dialog(k, editing=True))
-            sub.addAction("Duplicate").triggered.connect(lambda: self.flash("Prototype: not connected yet."))
-            sub.addAction("Delete").triggered.connect(lambda: self.flash("Prototype: not connected yet."))
-        m.addSeparator()
-        self._act(m, "Delete all elements")
+        # Elements (the menu required by the assignment) — rebuilt whenever the scene changes
+        self.elements_menu = mb.addMenu("E&lements")
+        self._rebuild_elements_menu()
 
         # View
         m = mb.addMenu("&View")
@@ -184,9 +168,14 @@ class MainWindow(QMainWindow):
 
         # Presets
         m = mb.addMenu("&Presets")
-        for p in PRESETS:
-            a = m.addAction(p)
-            a.triggered.connect(lambda _=False, p=p: self.flash(f"Prototype: preset “{p}” is not connected yet."))
+        for name, make in PRESETS.items():
+            if name == "—":
+                m.addSeparator()
+                continue
+            a = m.addAction(name if make else f"{name}   (Phase 1d)")
+            a.setEnabled(make is not None)
+            if make:
+                a.triggered.connect(lambda _=False, n=name, mk=make: self.load_scene(*mk(), title=n))
 
         # Help
         m = mb.addMenu("&Help")
@@ -202,12 +191,33 @@ class MainWindow(QMainWindow):
         a.triggered.connect(lambda _=False, t=text: self.flash(f"Prototype: “{t}” is not connected yet."))
         return a
 
+    def _rebuild_elements_menu(self):
+        m = self.elements_menu
+        m.clear()
+        add = m.addMenu("Add")
+        for spec in ELEMENT_SPECS:
+            a = add.addAction(make_element_icon(spec.key, self.theme, 48), spec.name)
+            a.triggered.connect(lambda _=False, k=spec.key: self.open_element_dialog(k))
+        m.addSeparator()
+        hdr = m.addAction("Current elements:")
+        hdr.setEnabled(False)
+        for el in self.elements:
+            sub = m.addMenu(element_icon(el, self.theme), f"{element_title(el)}   ({el.summary()})")
+            e = sub.addAction("Edit…")
+            e.triggered.connect(lambda _=False, k=el.TYPE: self.open_element_dialog(k, editing=True))
+            sub.addAction("Duplicate").triggered.connect(lambda: self.flash("Prototype: not connected yet."))
+            sub.addAction("Delete").triggered.connect(lambda: self.flash("Prototype: not connected yet."))
+        m.addSeparator()
+        self._act(m, "Delete all elements")
+
     def _build_statusbar(self):
         sb = self.statusBar()
         self.probe_label = QLabel("Move the mouse over the plot")
         self.probe_label.setObjectName("ProbeLabel")
+        self.issue_label = QLabel("")
         self.count_label = QLabel("")
         sb.addPermanentWidget(self.probe_label)
+        sb.addPermanentWidget(self.issue_label)
         sb.addPermanentWidget(self.count_label)
 
     # ------------------------------------------------------------------ actions
@@ -219,6 +229,18 @@ class MainWindow(QMainWindow):
 
     def flash(self, text):
         self.statusBar().showMessage(text, 4000)
+
+    def load_scene(self, elements, view=None, title=""):
+        """Replace all elements (used by Presets; Phase 2 adds New / Open)."""
+        self.elements[:] = elements                  # same list object: canvas and panels keep it
+        self.elements_panel.set_elements(self.elements)
+        self._rebuild_elements_menu()
+        if title:
+            self.setWindowTitle(f"{LAYOUT['window_title']} — {title}")
+        if view:
+            self.canvas.set_view(*view)
+        self.canvas.recompute()
+        self._update_issues()
 
     def _update_probe(self, pos):
         if pos is None:
@@ -249,6 +271,28 @@ class MainWindow(QMainWindow):
     def _set_enabled(self, row, enabled):
         self.elements[row].enabled = enabled
         self.canvas.recompute()
+        self._update_issues()
+
+    def _update_issues(self):
+        """Scene check (walls, invalid positions...) shown in the status bar; details in the tooltip."""
+        issues = check_scene(self.elements)
+        errors = [s for s in issues if s.is_error]
+        warnings = [s for s in issues if not s.is_error]
+        if errors:
+            text = f"✖ {len(errors)} error{'s' if len(errors) > 1 else ''}"
+            color = self.theme["danger"]
+        elif warnings:
+            text = f"⚠ {len(warnings)} warning{'s' if len(warnings) > 1 else ''}"
+            color = self.theme["el_doublet"]
+        else:
+            text, color = "✓ scene OK", self.theme["el_sector"]
+        self.issue_label.setText(text)
+        self.issue_label.setStyleSheet(f"color: {color}; font-weight: 600;")
+        tips = []
+        for s in issues:
+            who = f"{element_title(self.elements[s.index])}: " if s.index is not None else ""
+            tips.append(f"{'✖' if s.is_error else '⚠'} {who}{s.message}")
+        self.issue_label.setToolTip("\n".join(tips) if tips else "No problems found.")
 
     def _update_status(self, n_lines, ms):
         n = len(self.elements)
@@ -265,6 +309,8 @@ class MainWindow(QMainWindow):
             act.setIcon(make_element_icon(key, theme))
         self.canvas.apply_theme(theme)
         self.elements_panel.apply_theme(theme)
+        if hasattr(self, "issue_label"):
+            self._update_issues()
 
     def _show_conventions(self):
         QMessageBox.information(self, "Sign conventions",

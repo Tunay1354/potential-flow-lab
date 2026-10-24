@@ -4,6 +4,9 @@ field.py — superposition of elements and evaluation on a grid.
 The professor's requirement "superpose velocity components, not streamline
 images" is implemented here: the complex velocities w_k of all enabled
 elements are added,  w = Σ w_k,  and only then u = Re(w), v = −Im(w).
+
+Symmetry walls: before summing, the element list is "resolved" (images.py):
+every flow element gets its images in the walls, so the walls become streamlines.
 """
 from __future__ import annotations
 
@@ -13,6 +16,7 @@ from typing import Iterable, Sequence
 import numpy as np
 
 from .base import FlowElement, as_complex_array
+from .images import resolve
 
 
 # ---------------------------------------------------------------------------
@@ -24,11 +28,12 @@ def active(elements: Iterable[FlowElement]) -> list[FlowElement]:
 
 
 def complex_velocity(elements: Iterable[FlowElement], z) -> np.ndarray:
-    """w(z) = Σ w_k(z) = u − i v."""
+    """w(z) = Σ w_k(z) = u − i v   (sum over flow elements and their wall images)."""
     z = as_complex_array(z)
+    flows = resolve(elements)
     w = np.zeros(z.shape, dtype=np.complex128)
-    for e in active(elements):
-        w += e.complex_velocity(z)
+    for cls, group in flows.groups.items():
+        w += cls.batch_complex_velocity(group, z)
     return w
 
 
@@ -42,7 +47,7 @@ def complex_potential(elements: Iterable[FlowElement], z) -> np.ndarray:
     """F(z) = Σ F_k(z) = φ + i ψ  (ψ of sources and φ of vortices contain branch cuts)."""
     z = as_complex_array(z)
     F = np.zeros(z.shape, dtype=np.complex128)
-    for e in active(elements):
+    for e in resolve(elements):
         F += e.complex_potential(z)
     return F
 
@@ -168,7 +173,7 @@ def compute_field(elements: Sequence[FlowElement], xlim, ylim, nx: int = 200, ny
         mask_radius = 1.5 * grid.spacing
     mask = singularity_mask(elements, Z, mask_radius) | ~fluid_mask(elements, Z)
 
-    w = complex_velocity(elements, Z)
+    w = complex_velocity(resolve(elements), Z)
     u, v = w.real.copy(), -w.imag
     mask |= ~np.isfinite(u) | ~np.isfinite(v)
     u[mask] = np.nan

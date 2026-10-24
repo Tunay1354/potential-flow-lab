@@ -12,9 +12,10 @@ import time
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QButtonGroup, QFrame, QHBoxLayout, QLabel, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtCore import QPointF, Qt, QTimer, Signal
+from PySide6.QtGui import QBrush, QColor, QFont, QPen, QPolygonF
+from PySide6.QtWidgets import (QButtonGroup, QFrame, QGraphicsPolygonItem, QHBoxLayout, QLabel, QToolButton,
+                               QVBoxLayout, QWidget)
 
 from physics.streamlines import trace_streamlines
 
@@ -122,7 +123,7 @@ class PlotCanvas(QWidget):
         self._lines = pg.PlotCurveItem(connect="finite")
         self._lines.setZValue(1)
         self.plot.addItem(self._lines)
-        self._arrows, self._markers = [], []
+        self._arrows, self._markers, self._walls = [], [], []
 
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
@@ -227,6 +228,7 @@ class PlotCanvas(QWidget):
             self._arrows.append(a)
 
         self._draw_markers()
+        self._draw_walls((x0, x1), (y0, y1))
         self.computed.emit(len(result.lines), ms)
 
     def _draw_markers(self):
@@ -253,6 +255,52 @@ class PlotCanvas(QWidget):
             self.plot.addItem(item)
             self._markers.append(item)
 
+    def _draw_walls(self, xr, yr):
+        """Each wall: shaded solid side, the wall line, and hatch marks on the solid side."""
+        for it in self._walls:
+            self.plot.removeItem(it)
+        self._walls.clear()
+        t = self.theme
+        rect = [complex(xr[0], yr[0]), complex(xr[1], yr[0]), complex(xr[1], yr[1]), complex(xr[0], yr[1])]
+        diag = abs(rect[2] - rect[0])
+        for w in self.elements:
+            if not (w.enabled and w.IS_BOUNDARY):
+                continue
+            color = QColor(t["el_wall"])
+            # 1) light shading of the solid half-plane (part of the view where signed distance < 0)
+            poly = _clip_polygon(rect, lambda z, w=w: -float(w.signed_distance(z)))
+            if len(poly) >= 3:
+                fill = QColor(color)
+                fill.setAlpha(38 if t["name"] == "light" else 55)
+                item = QGraphicsPolygonItem(QPolygonF([QPointF(p.real, p.imag) for p in poly]))
+                item.setBrush(QBrush(fill))
+                item.setPen(QPen(Qt.NoPen))
+                item.setZValue(0.5)
+                self.plot.addItem(item)
+                self._walls.append(item)
+            # 2) the wall line
+            line = pg.InfiniteLine(pos=(w.xw, w.yw), angle=w.theta_w, movable=False,
+                                   pen=pg.mkPen(color, width=LAYOUT["wall_width"]))
+            line.setZValue(4)
+            self.plot.addItem(line)
+            self._walls.append(line)
+            # 3) hatch marks along the visible part of the wall
+            seg = _line_in_rect(w.point, w.direction, xr, yr)
+            if seg is None:
+                continue
+            spacing = diag / LAYOUT["wall_hatch_count"]
+            n = int(abs(seg[1] - seg[0]) / spacing)
+            if n < 1:
+                continue
+            tick = 0.6 * spacing * (-w.normal * np.exp(1j * np.pi / 4 * (1 if w.side == 0 else -1)))
+            base = seg[0] + (np.arange(n) + 0.5) * spacing * w.direction
+            xs = np.column_stack([base.real, (base + tick).real, np.full(n, np.nan)]).ravel()
+            ys = np.column_stack([base.imag, (base + tick).imag, np.full(n, np.nan)]).ravel()
+            hatch = pg.PlotCurveItem(xs, ys, connect="finite", pen=pg.mkPen(color, width=1.2))
+            hatch.setZValue(4)
+            self.plot.addItem(hatch)
+            self._walls.append(hatch)
+
     # ------------------------------------------------------------------ events
     def _range_changed(self, *_):
         (x0, x1), (y0, y1) = self.vb.viewRange()
@@ -265,3 +313,33 @@ class PlotCanvas(QWidget):
             return
         pt = self.vb.mapSceneToView(pos)
         self.probe.emit((pt.x(), pt.y()))
+
+
+# ---------------------------------------------------------------------- geometry helpers
+def _clip_polygon(poly, value):
+    """Part of a convex polygon (list of complex) where value(z) >= 0 (Sutherland–Hodgman, one edge)."""
+    out = []
+    n = len(poly)
+    for i in range(n):
+        a, b = poly[i], poly[(i + 1) % n]
+        va, vb = value(a), value(b)
+        if va >= 0:
+            out.append(a)
+        if (va >= 0) != (vb >= 0):
+            out.append(a + (b - a) * va / (va - vb))
+    return out
+
+
+def _line_in_rect(point, direction, xr, yr):
+    """Visible segment (two complex end points) of the infinite line point + t·direction, or None."""
+    t0, t1 = -np.inf, np.inf
+    for p, d, lo, hi in ((point.real, direction.real, xr[0], xr[1]), (point.imag, direction.imag, yr[0], yr[1])):
+        if abs(d) < 1e-15:
+            if p < lo or p > hi:
+                return None
+            continue
+        a, b = (lo - p) / d, (hi - p) / d
+        t0, t1 = max(t0, min(a, b)), min(t1, max(a, b))
+    if t0 >= t1:
+        return None
+    return point + t0 * direction, point + t1 * direction

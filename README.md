@@ -2,13 +2,14 @@
 
 Interactive 2D potential-flow simulator (Aerodynamics semester project, IZTECH Mechanical Engineering).
 
-**Durum:** Faz 1b — fizik çekirdeği (uniform flow, source/sink, vortex, doublet) ve streamline motoru
-hazır; plot gerçek motorla çiziliyor ve zoom/pan sonrası yeniden hesaplanıyor. Element ekleme/düzenleme
-butonları Faz 2'de bağlanacak (şimdilik başlangıç sahnesi: lifting cylinder).
+**Durum:** Faz 1c — fizik çekirdeği (uniform flow, source/sink, vortex, doublet), streamline motoru ve
+symmetry wall (method of images) hazır. Element ekleme/düzenleme butonları Faz 2'de bağlanacak;
+o zamana kadar sahneler **Presets** menüsünden yüklenebilir.
 
-Şu an çalışanlar: zoom (mouse tekerleği) / pan (sürükleme), Fit view, Elements listesindeki tik kutuları
-(elementi geçici olarak kapatma), Plot settings → View range, Density, Line width, Direction arrows,
-Arrows per line, alttaki probe (u, v, |V|, Cp), View → Theme.
+Şu an çalışanlar: Presets menüsü (duvarlı örnekler dahil), zoom (mouse tekerleği) / pan (sürükleme),
+Fit view, Elements listesindeki tik kutuları (elementi geçici olarak kapatma), Plot settings → View range,
+Density, Line width, Direction arrows, Arrows per line, alttaki probe (u, v, |V|, Cp), sahne kontrolü
+(status bar'da ✓ / ⚠ / ✖, ayrıntı için üzerine gel), View → Theme.
 
 ## Kurulum (Windows, VS Code) — bir kez
 
@@ -42,7 +43,9 @@ Güncelleme geldiğinde: GitHub Desktop'ta **Fetch origin → Pull origin**.
 | `app/` | Arayüz. Renkler/boyutlar/marker'lar: `app/theme.py`, başlangıç sahnesi: `app/scene.py` |
 | `physics/` | Fizik motoru — GUI'den bağımsız, sadece NumPy |
 | `physics/base.py` | Tüm elementlerin ortak temel sınıfı (`FlowElement`) |
-| `physics/elements/` | Her element ayrı dosya: `uniform.py`, `source.py`, `vortex.py`, `doublet.py` |
+| `physics/elements/` | Her element ayrı dosya: `uniform.py`, `source.py`, `vortex.py`, `doublet.py`, `wall.py` |
+| `physics/images.py` | Method of images: duvarlarda ardışık yansıtma, π/k köşeler, kanal (kapalı form) |
+| `physics/validation.py` | Sahne kontrolü: duvar arkasında/üstünde element, paralel olmayan uniform flow ... |
 | `physics/registry.py` | Hangi element tipleri var (yeni element otomatik eklenir) |
 | `physics/field.py` | Superposition (w = Σ wₖ), grid hesabı, Cp, singularity masking, fluid region |
 | `physics/streamlines.py` | Eşit aralıklı streamline'lar (Jobard–Lefer, RK4) ve ok yerleri |
@@ -57,3 +60,6 @@ Güncelleme geldiğinde: GitHub Desktop'ta **Fetch origin → Pull origin**.
 - Vortex: F = −i(Γ/2π) log(z − z₀), **Γ > 0 counter-clockwise**
 - Doublet: F = μ e^{iδ}/(z − z₀), μ = mε/π; uniform + doublet → cylinder, a = √(μ/V∞)
 - Cp = 1 − (V/V∞)²
+- Symmetry wall: z* = z_w + e^{2iθ_w} conj(z − z_w); image kuralları plane theorem'den
+  (F_total = F(z) + conj F(z*)): source → aynı m, vortex → −Γ, doublet → δ* = 2θ_w − δ,
+  uniform flow image'lanmaz (duvara paralel olmalı)

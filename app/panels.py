@@ -17,6 +17,8 @@ def element_icon(element, theme, size=48):
 def element_title(element) -> str:
     if element.TYPE == "source":
         return "Sink" if element.is_sink else "Source"
+    if element.TYPE == "wall":
+        return "Wall"
     return element.NAME
 
 

@@ -36,6 +36,11 @@ class Uniform(FlowElement):
     def freestream_velocity(self) -> complex:
         return np.conj(self._w())             # u + i v
 
+    def mirrored(self, wall):
+        """A freestream is not imaged: it must be parallel to the wall (checked in images.py).
+        (Applying the plane theorem to it would double its tangential part and cancel its normal part.)"""
+        return None
+
     def check(self):
         issues = super().check()
         if self.V == 0:

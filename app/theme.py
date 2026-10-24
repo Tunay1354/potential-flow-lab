@@ -100,6 +100,8 @@ LAYOUT = {
     "arrow_size_px": 9,
     "corner_radius_px": 6,
     "recompute_delay_ms": 120,      # wait after zoom/pan before streamlines are recomputed
+    "wall_width": 3.0,              # px
+    "wall_hatch_count": 70,         # hatch marks per view diagonal
 }
 
 # ---------------------------------------------------------------------------
