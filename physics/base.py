@@ -16,7 +16,7 @@ the fluid region.
 from __future__ import annotations
 
 import math
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, fields, replace
 from typing import ClassVar
 
 import numpy as np
@@ -55,6 +55,7 @@ class FlowElement:
     NAME: ClassVar[str] = ""                      # human readable, e.g. "Source / sink"
     PARAMS: ClassVar[tuple[ParamSpec, ...]] = ()
     IS_BOUNDARY: ClassVar[bool] = False           # True for walls: no velocity of its own
+    POSITION_KEYS: ClassVar[tuple[str, str] | None] = ("x0", "y0")   # parameters that place the element
 
     enabled: bool = True                          # unticked in the list -> ignored in the sum
 
@@ -155,6 +156,17 @@ class FlowElement:
     def from_dict(cls, data: dict) -> "FlowElement":
         names = {f.name for f in fields(cls)}
         return cls(**{k: v for k, v in data.items() if k in names})
+
+    def copy(self, **changes) -> "FlowElement":
+        """New element with some parameters changed (elements are never modified in place)."""
+        return replace(self, **changes)
+
+    def translated(self, dx: float, dy: float) -> "FlowElement":
+        """Copy moved by (dx, dy). Elements without a position (uniform flow) are returned unchanged."""
+        if not self.POSITION_KEYS:
+            return self.copy()
+        kx, ky = self.POSITION_KEYS
+        return self.copy(**{kx: getattr(self, kx) + dx, ky: getattr(self, ky) + dy})
 
     @classmethod
     def with_defaults(cls, **overrides) -> "FlowElement":

@@ -30,6 +30,7 @@ class SymmetryWall(FlowElement):
     TYPE = "wall"
     NAME = "Symmetry wall"
     IS_BOUNDARY = True
+    POSITION_KEYS = ("xw", "yw")
     PARAMS = (
         ParamSpec("xw", "x_w", "Point on wall x", "m", default=0.0),
         ParamSpec("yw", "y_w", "Point on wall y", "m", default=-1.5),

@@ -9,8 +9,12 @@ Field types (chosen from the Param description, nothing is hard-coded per elemen
   * 3+ choices                -> combo box
 
 values() returns the signed values ready for the physics element; set_values() fills the
-dialog from an existing element (used when editing). Both are used when the dialog is
-connected to the model in Phase 2.
+dialog from an existing element (used when editing). Fields the user did not touch keep their
+exact original value (no rounding to the displayed decimals).
+
+validator(values) -> list of (severity, text) is called on every change; it shows what the change
+would do to the scene (e.g. "source is behind the wall"). If there are errors the Apply button
+becomes "Apply anyway": the user can still apply (to build a scene step by step), but knowingly.
 """
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QButtonGroup, QComboBox, QDialog, QDoubleSpinBox, QFormLayout, QHBoxLayout,
@@ -46,10 +50,14 @@ class _RadioPair(QWidget):
 
 
 class ElementDialog(QDialog):
-    def __init__(self, spec: ElementSpec, theme: dict, editing=False, parent=None, values: dict | None = None):
+    def __init__(self, spec: ElementSpec, theme: dict, editing=False, parent=None, values: dict | None = None,
+                 validator=None):
         super().__init__(parent)
         self.spec = spec
         self.theme = theme
+        self.validator = validator
+        self._original = {}      # key -> exact value given by set_values()
+        self.has_errors = False
         self.setWindowTitle(("Edit — " if editing else "Add — ") + spec.name)
         self.setMinimumWidth(440)
         self.widgets = {}        # key -> spin box / combo box / _RadioPair
@@ -77,6 +85,7 @@ class ElementDialog(QDialog):
         formula.setObjectName("Formula")
         formula.setTextFormat(Qt.RichText)
         formula.setAlignment(Qt.AlignCenter)
+        formula.setVisible(bool(spec.formula))
         lay.addWidget(formula)
 
         # parameter fields
@@ -122,6 +131,14 @@ class ElementDialog(QDialog):
         self.info.setWordWrap(True)
         lay.addWidget(self.info)
 
+        # what this change would do to the scene (from physics.check_scene)
+        self.issues = QLabel("")
+        self.issues.setObjectName("IssueBox")
+        self.issues.setTextFormat(Qt.RichText)
+        self.issues.setWordWrap(True)
+        self.issues.setVisible(False)
+        lay.addWidget(self.issues)
+
         # buttons
         lay.addSpacing(4)
         row = QHBoxLayout()
@@ -132,6 +149,7 @@ class ElementDialog(QDialog):
         apply_.setDefault(True)
         cancel.clicked.connect(self.reject)
         apply_.clicked.connect(self.accept)
+        self.apply_button = apply_
         row.addWidget(cancel)
         row.addWidget(apply_)
         lay.addLayout(row)
@@ -154,6 +172,9 @@ class ElementDialog(QDialog):
                 val = w.value()
                 if p.key in self.signs and self.signs[p.key].index() == 1:
                     val = -val
+                orig = self._original.get(p.key)
+                if orig is not None and abs(val - round(orig, p.decimals)) < 0.5 * 10 ** -p.decimals:
+                    val = orig                   # untouched field: keep the exact original value
                 out[p.key] = val
         return out
 
@@ -163,6 +184,7 @@ class ElementDialog(QDialog):
             if p.key not in values:
                 continue
             val = values[p.key]
+            self._original[p.key] = val
             w = self.widgets[p.key]
             if isinstance(w, _RadioPair):
                 w.set_index(int(val))
@@ -220,3 +242,22 @@ class ElementDialog(QDialog):
             text = f"<span style='color:{bad}'>V∞ = 0 has no effect</span>"
         self.info.setText(text)
         self.info.setVisible(bool(text))
+        self._update_issues()
+
+    def _update_issues(self):
+        problems = self.validator(self.values()) if self.validator else []
+        errors = [m for sev, m in problems if sev == "error"]
+        warnings = [m for sev, m in problems if sev != "error"]
+        t = self.theme
+        lines = [f"<span style='color:{t['danger']}'>✖ {m}</span>" for m in errors]
+        lines += [f"<span style='color:{t['el_doublet']}'>⚠ {m}</span>" for m in warnings]
+        self.issues.setText("<br>".join(lines))
+        self.issues.setVisible(bool(lines))
+        self.has_errors = bool(errors)
+        b = self.apply_button
+        b.setText("Apply anyway" if errors else "Apply")
+        b.setObjectName("DangerPrimary" if errors else "Primary")
+        b.setToolTip("This change makes the scene physically inconsistent (see the red message)."
+                     if errors else "")
+        b.style().unpolish(b)
+        b.style().polish(b)

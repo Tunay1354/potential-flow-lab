@@ -106,12 +106,20 @@ class PlotCanvas(QWidget):
         self.arrows_per_line = 1
         self.show_arrows = True
         self.line_width = LAYOUT["streamline_width"]
+        self.selected = -1                       # index of the selected element (highlighted)
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
         self.bar = CanvasBar(self)
         lay.addWidget(self.bar)
+
+        # red strip shown while the scene has errors (e.g. a wall condition that cannot hold)
+        self.banner = QLabel("")
+        self.banner.setObjectName("ErrorBanner")
+        self.banner.setWordWrap(True)
+        self.banner.setVisible(False)
+        lay.addWidget(self.banner)
 
         pg.setConfigOptions(antialias=True)
         self.plot = pg.PlotWidget()
@@ -143,6 +151,25 @@ class PlotCanvas(QWidget):
     def set_elements(self, elements: list):
         self.elements = elements
         self.recompute()
+
+    def set_selected(self, index: int):
+        """Highlight one element (no streamline recomputation needed)."""
+        self.selected = index
+        self._draw_overlays()
+
+    def set_banner(self, text: str | None):
+        self.banner.setText(text or "")
+        self.banner.setVisible(bool(text))
+
+    def _selected_element(self):
+        if 0 <= self.selected < len(self.elements):
+            return self.elements[self.selected]
+        return None
+
+    def _draw_overlays(self):
+        (x0, x1), (y0, y1) = self.vb.viewRange()
+        self._draw_markers()
+        self._draw_walls((x0, x1), (y0, y1))
 
     def set_density(self, density: float):
         self.density = density
@@ -228,8 +255,7 @@ class PlotCanvas(QWidget):
             self.plot.addItem(a)
             self._arrows.append(a)
 
-        self._draw_markers()
-        self._draw_walls((x0, x1), (y0, y1))
+        self._draw_overlays()
         self.computed.emit(len(result.lines), ms)
 
     def _draw_markers(self):
@@ -255,6 +281,13 @@ class PlotCanvas(QWidget):
             item.setZValue(3)
             self.plot.addItem(item)
             self._markers.append(item)
+            if e is self._selected_element():               # selection ring
+                ring = pg.ScatterPlotItem([p.real for p in pts], [p.imag for p in pts],
+                                          size=style["size"] + LAYOUT["selection_ring_extra_px"], symbol="o",
+                                          brush=pg.mkBrush(None), pen=pg.mkPen(t["accent"], width=2.5))
+                ring.setZValue(3.5)
+                self.plot.addItem(ring)
+                self._markers.append(ring)
 
     def _draw_walls(self, xr, yr):
         """Symmetry walls and the sides of a sector flow.
@@ -277,10 +310,11 @@ class PlotCanvas(QWidget):
             self._add_shading(mode, poly, xr, yr, self.theme["el_sector"])
 
         # 2) symmetry walls: the part that borders the fluid
+        sel = self._selected_element()
         for w in walls:
             seg = visible_wall_segment(w, [o for o in walls if o is not w], xr, yr)
             if seg is not None:
-                self._add_wall_line(seg, w.normal, self.theme["el_wall"])
+                self._add_wall_line(seg, w.normal, self.theme["accent"] if w is sel else self.theme["el_wall"])
 
         # 3) sector sides: two rays from the vertex (fluid normal points into the wedge)
         for sec in sectors:
@@ -289,7 +323,8 @@ class PlotCanvas(QWidget):
                 d = complex(np.cos(np.radians(ang)), np.sin(np.radians(ang)))
                 seg = ray_in_rect(sec.z0, d, xr, yr)
                 if seg is not None:
-                    self._add_wall_line(seg, turn * d, self.theme["el_sector"], hatch=not plate)
+                    color = self.theme["accent"] if sec is sel else self.theme["el_sector"]
+                    self._add_wall_line(seg, turn * d, color, hatch=not plate)
                 if plate:
                     break                                   # both sides of the plate are the same ray
 

@@ -102,6 +102,7 @@ LAYOUT = {
     "recompute_delay_ms": 120,      # wait after zoom/pan before streamlines are recomputed
     "wall_width": 3.0,              # px
     "wall_hatch_count": 70,         # hatch marks per view diagonal
+    "selection_ring_extra_px": 12,  # selected element: ring this much larger than its marker
 }
 
 # ---------------------------------------------------------------------------
@@ -170,6 +171,11 @@ def build_stylesheet(t: dict) -> str:
         border-color: {t['accent']}; font-weight: 600; }}
     QPushButton#Primary:hover {{ background: {t['accent_hover']}; }}
     QPushButton#Danger {{ color: {t['danger']}; }}
+    QPushButton#DangerPrimary {{ background: {t['danger']}; color: #FFFFFF; border-color: {t['danger']};
+        font-weight: 600; }}
+    QLabel#IssueBox {{ padding: 6px 8px; border: 1px solid {t['border']}; border-radius: {r}px;
+        background: {t['window_bg']}; }}
+    QLabel#ErrorBanner {{ padding: 6px 12px; color: #FFFFFF; background: {t['danger']}; font-weight: 600; }}
 
     QLineEdit, QDoubleSpinBox, QSpinBox, QComboBox {{ border: 1px solid {t['border']};
         border-radius: {r}px; padding: 4px 6px; background: {t['panel_bg']}; }}

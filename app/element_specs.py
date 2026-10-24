@@ -1,9 +1,12 @@
 """
 element_specs.py — description of every element type.
 
-The parameter dialog, toolbar button and list entries are generated
-automatically from these specs. Adding a new element type later means
-adding ONE new entry here (and, in the real program, its physics class).
+These are the PRESENTATION details (texts, formula, units, sign radio buttons) of the physics
+parameters. The parameter KEYS, order and defaults must match the physics classes
+(physics/elements/*.py); tests/test_gui.py checks that.
+
+A new physics element type works even without an entry here: spec_for() then builds a plain
+dialog from the physics PARAMS. Add an entry only to make its dialog nicer.
 
 Notation follows the course notes:
   F(z) = phi + i psi,  w = dF/dz = u - i v,  Gamma > 0 counter-clockwise.
@@ -18,8 +21,8 @@ class Param:
     name: str           # long name, e.g. "Strength"
     unit: str = ""      # e.g. "m²/s", "°"
     default: float = 0.0
-    minimum: float = -1e6
-    maximum: float = 1e6
+    minimum: float = -1e9
+    maximum: float = 1e9
     decimals: int = 3
     step: float = 0.1
     tooltip: str = ""
@@ -47,7 +50,7 @@ ELEMENT_SPECS = [
                     "α = 90° gives a vertical flow.",
         formula="F(z) = V∞ e<sup>−iα</sup> z",
         params=[
-            Param("V", "V∞", "Speed", "m/s", 1.0, 0.0, 1e4, tooltip="Freestream speed (≥ 0)"),
+            Param("V", "V∞", "Speed", "m/s", 1.0, 0.0, 1e9, tooltip="Freestream speed (≥ 0)"),
             Param("alpha", "α", "Angle", "°", 0.0, -360, 360, decimals=1, step=5,
                   tooltip="Flow direction measured from +x axis, counter-clockwise"),
         ]),
@@ -57,7 +60,7 @@ ELEMENT_SPECS = [
                     "(m > 0), a sink pulls it in (m < 0).",
         formula="F(z) = (m / 2π) log(z − z<sub>0</sub>)",
         params=[
-            Param("m", "|m|", "Strength", "m²/s", 1.0, 0.0, 1e6,
+            Param("m", "|m|", "Strength", "m²/s", 1.0, 0.0, 1e9,
                   tooltip="Magnitude of the strength; choose source or sink below",
                   sign_labels=("Source", "Sink"), sign_title="Type"),
             Param("x0", "x<sub>0</sub>", "Position x", "m", 0.0),
@@ -69,7 +72,7 @@ ELEMENT_SPECS = [
                     "clockwise is Γ < 0 (course convention).",
         formula="F(z) = −i (Γ / 2π) log(z − z<sub>0</sub>)",
         params=[
-            Param("Gamma", "|Γ|", "Circulation", "m²/s", 1.0, 0.0, 1e6,
+            Param("Gamma", "|Γ|", "Circulation", "m²/s", 1.0, 0.0, 1e9,
                   tooltip="Magnitude of the circulation; choose the rotation below",
                   sign_labels=("Counter-clockwise", "Clockwise"), sign_title="Rotation"),
             Param("x0", "x<sub>0</sub>", "Position x", "m", 0.0),
@@ -92,7 +95,7 @@ ELEMENT_SPECS = [
                     "β = θ₂ − θ₁ is measured counter-clockwise (0° < β ≤ 360°). Only defined inside the wedge.",
         formula="F(z) = V [(z − z<sub>0</sub>) e<sup>−iθ₁</sup>]<sup>n</sup>,  n = π/β",
         params=[
-            Param("V", "|V|", "Strength constant", "", 1.0, 0.0, 1e6,
+            Param("V", "|V|", "Strength constant", "", 1.0, 0.0, 1e9,
                   tooltip="Magnitude of V; choose the flow direction below",
                   sign_labels=("θ₂ wall → θ₁ wall", "θ₁ wall → θ₂ wall"), sign_title="Direction"),
             Param("x0", "x<sub>0</sub>", "Vertex x", "m", 0.0),
@@ -108,10 +111,37 @@ ELEMENT_SPECS = [
         params=[
             Param("xw", "x<sub>w</sub>", "Point on wall x", "m", 0.0),
             Param("yw", "y<sub>w</sub>", "Point on wall y", "m", -1.5),
-            Param("theta_w", "θ<sub>w</sub>", "Wall angle", "°", 0.0, -180, 180, decimals=1, step=5),
+            Param("theta_w", "θ<sub>w</sub>", "Wall angle", "°", 0.0, -360, 360, decimals=1, step=5,
+                  tooltip="Direction of the wall line, measured from the +x axis"),
             Param("side", "", "Fluid side", "", 0, choices=["Left of wall direction",
                                                              "Right of wall direction"]),
         ]),
 ]
 
 SPEC_BY_KEY = {s.key: s for s in ELEMENT_SPECS}
+
+
+def spec_for(type_key: str) -> ElementSpec:
+    """Dialog description of an element type: the entry above, or one generated from the physics
+    PARAMS for element types that have no entry yet (so new physics elements work immediately)."""
+    if type_key in SPEC_BY_KEY:
+        return SPEC_BY_KEY[type_key]
+    from physics import ELEMENT_TYPES
+    cls = ELEMENT_TYPES[type_key]
+    params = []
+    for p in cls.PARAMS:
+        lo = max(p.minimum, -1e9)
+        hi = min(p.maximum, 1e9)
+        params.append(Param(p.key, p.symbol, p.name, p.unit, p.default, lo, hi,
+                            decimals=1 if p.is_angle else 3, step=5 if p.is_angle else 0.1,
+                            choices=list(p.choices)))
+    return ElementSpec(key=type_key, name=cls.NAME, color_key=f"el_{type_key}",
+                       description=(cls.__doc__ or "").strip().splitlines()[0] if cls.__doc__ else "",
+                       formula="", params=params)
+
+
+def toolbar_types() -> list[str]:
+    """Element types in toolbar order: the entries above first, then any other registered type."""
+    from physics import ELEMENT_TYPES
+    keys = [s.key for s in ELEMENT_SPECS if s.key in ELEMENT_TYPES]
+    return keys + [k for k in ELEMENT_TYPES if k not in keys]

@@ -15,6 +15,7 @@ from ..registry import register
 class Uniform(FlowElement):
     TYPE = "uniform"
     NAME = "Uniform flow"
+    POSITION_KEYS = None
     PARAMS = (
         ParamSpec("V", "V∞", "Speed", "m/s", default=1.0, minimum=0.0),
         ParamSpec("alpha", "α", "Angle", "°", default=0.0, minimum=-360.0, maximum=360.0, is_angle=True),

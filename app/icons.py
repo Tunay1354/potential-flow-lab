@@ -103,6 +103,12 @@ def _draw(key: str, p: QPainter, s: float, c: QColor, sign: int = 1):
         _arrow_head(p, QPointF(s * 0.8, s * 0.24), 0.0, head * 0.85, c)
 
 
+    else:                                            # element type without its own drawing
+        p.drawEllipse(QPointF(s * 0.5, s * 0.5), s * 0.32, s * 0.32)
+        p.setBrush(c)
+        p.setPen(Qt.NoPen)
+        p.drawEllipse(QPointF(s * 0.5, s * 0.5), s * 0.09, s * 0.09)
+
 def make_element_icon(key: str, theme: dict, size: int = 96, sign: int = 1) -> QIcon:
     """Icon for an element type. sign=-1 draws a sink (inward arrows) for 'source'
     and a clockwise vortex for 'vortex'."""
@@ -111,14 +117,14 @@ def make_element_icon(key: str, theme: dict, size: int = 96, sign: int = 1) -> Q
     p = QPainter(pm)
     p.setRenderHint(QPainter.Antialiasing)
     color_key = "el_sink" if (key == "source" and sign < 0) else _color_key(key)
-    _draw(key, p, float(size), QColor(theme[color_key]), sign)
+    _draw(key, p, float(size), QColor(theme.get(color_key, theme["plot_axis"])), sign)
     p.end()
     return QIcon(pm)
 
 
 def _color_key(key: str) -> str:
     from .element_specs import SPEC_BY_KEY
-    return SPEC_BY_KEY[key].color_key
+    return SPEC_BY_KEY[key].color_key if key in SPEC_BY_KEY else f"el_{key}"
 
 
 def make_app_icon(theme: dict, size: int = 128) -> QIcon:

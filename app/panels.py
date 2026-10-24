@@ -1,7 +1,8 @@
 """
 panels.py — right-side panels: Elements list and Plot settings.
 """
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox,
                                QHBoxLayout, QLabel, QPushButton, QScrollArea, QSlider, QTreeWidget,
                                QTreeWidgetItem, QVBoxLayout, QWidget)
@@ -24,9 +25,17 @@ def element_title(element) -> str:
 
 
 class ElementsPanel(QWidget):
-    """List of all elements with visibility checkbox and Edit / Duplicate / Delete."""
+    """List of all elements with visibility checkbox and Edit / Duplicate / Delete.
+    The panel never changes elements itself: it only emits requests, the main window turns them
+    into undoable commands of the scene model.
+
+    Requests are emitted LATER (next event-loop turn): a request rebuilds this list, and deleting the
+    list item whose own click / double-click / tick signal is still running would crash Qt."""
     edit_requested = Signal(int)             # row index of the element to edit
     enabled_changed = Signal(int, bool)      # row index, ticked?
+    duplicate_requested = Signal(int)
+    delete_requested = Signal(int)
+    selection_changed = Signal(int)          # −1 = nothing selected
     message = Signal(str)
 
     def __init__(self, theme: dict, parent=None):
@@ -43,9 +52,17 @@ class ElementsPanel(QWidget):
         self.tree.setAlternatingRowColors(True)
         self.tree.setColumnWidth(0, 138)
         self.tree.setToolTip("Untick an element to hide it temporarily without deleting it.\n"
-                             "Double-click to edit.")
-        self.tree.itemDoubleClicked.connect(lambda it, _c: self.edit_requested.emit(self.tree.indexOfTopLevelItem(it)))
+                             "Double-click or Enter: edit   ·   Delete: remove   ·   Ctrl+D: duplicate")
+        self.tree.itemDoubleClicked.connect(lambda it, _c: self._later(self.edit_requested,
+                                                                       self.tree.indexOfTopLevelItem(it)))
         self.tree.itemChanged.connect(self._item_changed)
+        self.tree.currentItemChanged.connect(lambda *_: self._selection_changed())
+        # keyboard shortcuts that only act while the list has focus
+        for key, fn in ((QKeySequence.Delete, self._delete_selected), (QKeySequence(Qt.Key_Backspace), self._delete_selected),
+                        (QKeySequence(Qt.Key_Return), self._edit_selected), (QKeySequence(Qt.Key_Enter), self._edit_selected)):
+            sc = QShortcut(key, self.tree)
+            sc.setContext(Qt.WidgetWithChildrenShortcut)
+            sc.activated.connect(fn)
         lay.addWidget(self.tree, 1)
 
         row = QHBoxLayout()
@@ -59,8 +76,11 @@ class ElementsPanel(QWidget):
         lay.addLayout(row)
 
         self.btn_edit.clicked.connect(self._edit_selected)
-        self.btn_dup.clicked.connect(lambda: self.message.emit("Prototype: Duplicate is not connected yet."))
-        self.btn_del.clicked.connect(lambda: self.message.emit("Prototype: Delete is not connected yet."))
+        self.btn_dup.clicked.connect(self._duplicate_selected)
+        self.btn_del.clicked.connect(self._delete_selected)
+        self.btn_edit.setToolTip("Edit the selected element (or double-click it)")
+        self.btn_dup.setToolTip("Copy the selected element, shifted by (0.5, 0.5)   [Ctrl+D]")
+        self.btn_del.setToolTip("Remove the selected element   [Delete]  —  Ctrl+Z brings it back")
 
         self.theme = theme
         self.elements = []
@@ -69,13 +89,17 @@ class ElementsPanel(QWidget):
         self.theme = theme
         self.set_elements(self.elements)
 
-    def set_elements(self, elements: list):
+    def current_row(self) -> int:
+        it = self.tree.currentItem()
+        return self.tree.indexOfTopLevelItem(it) if it is not None else -1
+
+    def set_elements(self, elements: list, select: int | None = None):
         self.elements = elements
-        current = self.tree.currentIndex().row()
+        current = self.tree.currentIndex().row() if select is None else select
         self.tree.blockSignals(True)
         self.tree.clear()
-        for e in elements:
-            it = QTreeWidgetItem([element_title(e), e.summary()])
+        for k, e in enumerate(elements):
+            it = QTreeWidgetItem([f"{k + 1}. {element_title(e)}", e.summary()])
             it.setIcon(0, element_icon(e, self.theme))
             it.setCheckState(0, Qt.Checked if e.enabled else Qt.Unchecked)
             it.setData(0, Qt.UserRole, e.TYPE)
@@ -84,15 +108,33 @@ class ElementsPanel(QWidget):
         if elements:
             self.tree.setCurrentItem(self.tree.topLevelItem(min(max(current, 0), len(elements) - 1)))
         self.tree.blockSignals(False)
+        self._selection_changed()
+
+    def _selection_changed(self):
+        row = self.current_row()
+        for b in (self.btn_edit, self.btn_dup, self.btn_del):
+            b.setEnabled(row >= 0)
+        self.selection_changed.emit(row)
+
+    @staticmethod
+    def _later(signal, *args):
+        QTimer.singleShot(0, lambda: signal.emit(*args))
 
     def _item_changed(self, item, column):
         if column == 0:
-            self.enabled_changed.emit(self.tree.indexOfTopLevelItem(item), item.checkState(0) == Qt.Checked)
+            self._later(self.enabled_changed, self.tree.indexOfTopLevelItem(item), item.checkState(0) == Qt.Checked)
 
     def _edit_selected(self):
-        it = self.tree.currentItem()
-        if it:
-            self.edit_requested.emit(self.tree.indexOfTopLevelItem(it))
+        if self.current_row() >= 0:
+            self._later(self.edit_requested, self.current_row())
+
+    def _duplicate_selected(self):
+        if self.current_row() >= 0:
+            self._later(self.duplicate_requested, self.current_row())
+
+    def _delete_selected(self):
+        if self.current_row() >= 0:
+            self._later(self.delete_requested, self.current_row())
 
 
 class SettingsPanel(QScrollArea):

@@ -83,7 +83,8 @@ def check_scene(elements: Sequence[FlowElement]) -> list[SceneIssue]:
     # 5) coincident singular points (allowed, e.g. doublet + vortex at a cylinder center)
     for i, j in coincident_singularities(elements):
         out.append(SceneIssue(j, Issue("warning", f"{elements[j].NAME} is at the same point as "
-                                                  f"{elements[i].NAME} (element {i + 1}).")))
+                                                  f"[{i + 1}] {elements[i].NAME}. This is allowed (e.g. doublet + "
+                                                  f"vortex of a lifting cylinder); the point itself is not plotted.")))
     return out
 
 

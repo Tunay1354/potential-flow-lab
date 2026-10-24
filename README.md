@@ -2,14 +2,26 @@
 
 Interactive 2D potential-flow simulator (Aerodynamics semester project, IZTECH Mechanical Engineering).
 
-**Durum:** Faz 1 tamam — fizik çekirdeği (uniform flow, source/sink, vortex, doublet, sector flow,
-symmetry wall), streamline motoru ve doğrulama testleri hazır. Element ekleme/düzenleme butonları
-Faz 2'de bağlanacak; o zamana kadar sahneler **Presets** menüsünden yüklenebilir.
+**Durum:** Faz 2a — fizik çekirdeği tamam; program artık tamamen kullanılabilir: elementler toolbar'dan
+eklenir, listeden / Elements menüsünden düzenlenir, gizlenir, çoğaltılır, silinir ve her değişiklik geri
+alınabilir (Ctrl+Z / Ctrl+Y). Dosyaya kaydet / aç Faz 2b'de gelecek.
 
-Şu an çalışanlar: Presets menüsü, zoom (mouse tekerleği) / pan (sürükleme), Fit view, Elements listesindeki
-tik kutuları (elementi geçici olarak kapatma), Plot settings → View range, Density, Line width,
-Direction arrows, Arrows per line, alttaki probe (u, v, |V|, Cp), sahne kontrolü (status bar'da ✓ / ⚠ / ✖,
-ayrıntı için üzerine gel), View → Theme, parametre dialogları (görsel; Apply henüz sahneyi değiştirmez).
+## Kullanım (kısa)
+
+| Ne | Nasıl |
+|---|---|
+| Element ekle | Soldaki toolbar ya da **Elements → Add** → değerleri gir → **Apply** |
+| Düzenle | Listede çift tıkla, Enter, **Edit…** butonu ya da **Elements → (element) → Edit…** |
+| Geçici gizle | Listede elementin tik kutusu |
+| Çoğalt | **Duplicate** butonu / Ctrl+D (kopya (0.5, 0.5) kaydırılır) |
+| Sil | **Delete** butonu / listede veya plot'ta Delete tuşu |
+| Geri al / yinele | **Edit → Undo / Redo**, Ctrl+Z / Ctrl+Y |
+| Hazır sahne | **Presets** menüsü (bu da geri alınabilir) |
+| Hepsini sil | **File → Clear all** veya **Elements → Delete all elements** (geri alınabilir) |
+
+Dialog, girdiğin değerin sahnede yaratacağı sorunları canlı gösterir (örn. "duvarın arkasında").
+Hata varsa buton **Apply anyway** olur; uygularsan plot'un üstünde kırmızı uyarı şeridi çıkar ve
+status bar'da ✖ görünür (ayrıntı için üzerine gel). Hatalar listedeki numarayla gösterilir: `[2] ...`.
 
 ## Kurulum (Windows, VS Code) — bir kez
 
@@ -43,6 +55,7 @@ Güncelleme geldiğinde: GitHub Desktop'ta **Fetch origin → Pull origin**.
 | `app/` | Arayüz. Renkler/boyutlar/marker'lar: `app/theme.py`, başlangıç sahnesi ve presetler: `app/scene.py` |
 | `app/dialogs.py` | Parametre penceresi (alanlar `app/element_specs.py`'den otomatik; işaretli değerler için Source/Sink, Counter-clockwise/Clockwise seçimi) |
 | `app/geometry.py` | Duvarların çizim geometrisi (köşelerde sadece akışkana bakan kısım çizilir) |
+| `model/` | Sahne modeli: element listesi, komutlar, undo/redo, değişiklik önizlemesi (Qt'siz) |
 | `physics/` | Fizik motoru — GUI'den bağımsız, sadece NumPy |
 | `physics/base.py` | Tüm elementlerin ortak temel sınıfı (`FlowElement`) |
 | `physics/elements/` | Her element ayrı dosya: `uniform.py`, `source.py`, `vortex.py`, `doublet.py`, `sector.py`, `wall.py` |
