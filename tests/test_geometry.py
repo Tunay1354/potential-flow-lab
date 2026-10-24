@@ -63,3 +63,27 @@ def test_fluid_polygon_and_clip():
     assert fluid_polygon([W(yw=0.0, side=1), W(yw=2.0, side=0)], XR, YR) == []   # no fluid
     half = clip_polygon(rect_polygon(XR, YR), lambda z: z.real)
     assert min(z.real for z in half) == pytest.approx(0.0)
+
+
+# ---------------------------------------------------------------- sector (wedge) walls
+from app.geometry import ray_in_rect, sector_shading  # noqa: E402
+from physics import SectorFlow  # noqa: E402
+
+
+def test_ray_clipping():
+    a, b = ray_in_rect(0j, 1 + 0j, XR, YR)
+    assert (a, b) == (pytest.approx(0j), pytest.approx(5 + 0j))
+    a, b = ray_in_rect(-10 + 0j, 1 + 0j, XR, YR)                 # starts outside, enters the view
+    assert (a.real, b.real) == pytest.approx((-5.0, 5.0))
+    assert ray_in_rect(0j, -1j, (-1, 1), (1, 2)) is None          # points away from the view
+    a, b = ray_in_rect(0j, np.exp(1j * np.pi / 4), XR, YR)
+    assert b == pytest.approx(4 + 4j)
+
+
+def test_sector_shading_modes():
+    mode, poly = sector_shading(SectorFlow(theta1=0.0, theta2=90.0), XR, YR)
+    assert mode == "cut" and min(z.real for z in poly) == pytest.approx(0.0)
+    mode, poly = sector_shading(SectorFlow(theta1=0.0, theta2=270.0), XR, YR)
+    xs, ys = [z.real for z in poly], [z.imag for z in poly]
+    assert mode == "fill" and min(xs) == pytest.approx(0.0) and max(ys) == pytest.approx(0.0)   # 4th quadrant
+    assert sector_shading(SectorFlow(theta1=0.0, theta2=360.0), XR, YR)[0] == "none"

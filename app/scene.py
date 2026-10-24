@@ -5,7 +5,7 @@ Each preset returns (elements, view) with view = ((xmin, xmax), (ymin, ymax)).
 Phase 2b will store presets as JSON files in the same format as File → Save;
 until then they are defined here.
 """
-from physics import Doublet, Source, SymmetryWall, Uniform, Vortex
+from physics import Doublet, SectorFlow, Source, SymmetryWall, Uniform, Vortex
 
 
 def starter_scene():
@@ -20,8 +20,18 @@ PRESETS = {
     "Lifting (rotating) cylinder": lambda: (starter_scene(), WIDE),
     "Rankine half-body": lambda: ([Uniform(V=1.0), Source(m=2.0)], ((-3.0, 5.0), (-3.0, 3.0))),
     "Rankine oval": lambda: ([Uniform(V=1.0), Source(m=3.0, x0=-1.0), Source(m=-3.0, x0=1.0)], WIDE),
-    "Corner flow (90° sector)": None,                                  # Phase 1d
     "—": None,
+    "Corner flow (90° sector, n = 2)": lambda: ([SectorFlow(V=1.0, theta1=0.0, theta2=90.0)],
+                                                ((-0.6, 3.4), (-0.6, 3.0))),
+    "Sector flow, β = 30° (n = 6)": lambda: ([SectorFlow(V=0.2, theta1=0.0, theta2=30.0)],
+                                             ((-0.3, 2.7), (-0.4, 1.8))),
+    "Flow around a 270° corner (n = 2/3)": lambda: ([SectorFlow(V=1.0, theta1=0.0, theta2=270.0)],
+                                                    ((-3.0, 3.0), (-2.4, 2.4))),
+    "Flow around the tip of a plate (β = 360°)": lambda: ([SectorFlow(V=1.0, theta1=0.0, theta2=360.0)],
+                                                          ((-3.0, 3.0), (-2.4, 2.4))),
+    "Source in a 90° corner flow": lambda: ([SectorFlow(V=1.0, theta1=0.0, theta2=90.0),
+                                             Source(m=2.0, x0=1.0, y0=1.0)], ((-0.6, 3.4), (-0.6, 3.0))),
+    "— ": None,
     "Source near a wall": lambda: ([SymmetryWall(yw=0.0), Source(m=2.0, y0=1.0)], ((-4.0, 4.0), (-1.0, 5.0))),
     "Vortex near a wall": lambda: ([SymmetryWall(yw=0.0), Vortex(Gamma=2.0, y0=1.0)], ((-4.0, 4.0), (-1.0, 5.0))),
     "Cylinder above the ground": lambda: ([SymmetryWall(yw=-1.6), Uniform(V=1.0), Doublet(mu=1.0)],

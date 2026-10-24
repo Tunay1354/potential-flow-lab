@@ -123,6 +123,15 @@ def trace_streamlines(elements: Sequence[FlowElement], xlim, ylim, density: floa
             bad |= np.min(np.abs(z[:, None] - sing[None, :]), axis=1) < r_sing
         return bad
 
+    barrier_elements = [e for e in els if e.crosses_boundary(np.zeros(1, complex), np.zeros(1, complex)) is not None]
+
+    def crossed(za, zb):
+        """Step za -> zb crosses a boundary with fluid on both sides (e.g. a plate)."""
+        out = np.zeros(za.shape, dtype=bool)
+        for e in barrier_elements:
+            out |= e.crosses_boundary(za, zb)
+        return out
+
     def local_step(z):
         """Arc-length step: h far away, smaller near singular points (where curvature ~ 1/r)."""
         if not sing.size:
@@ -160,6 +169,8 @@ def trace_streamlines(elements: Sequence[FlowElement], xlim, ylim, density: floa
             stop_before |= np.abs(z_new - z) < 0.5 * hz                          # no progress (trapped
             #                                                                      at a stagnation point)
             stop_before |= near_stop.test(z_new)                                 # too close to a line
+            if barrier_elements:
+                stop_before |= crossed(z, z_new)                                 # would cross a plate
             ok = ~stop_before
             ok_idx = idx[ok]
             zn = z_new[ok]

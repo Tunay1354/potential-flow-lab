@@ -15,6 +15,11 @@ The process stops when no new image appears ("closed"), or after `max_levels` le
                                            condition cannot be met exactly (error)
     * 3 or more walls                   -> truncated series if it does not close (warning)
 
+Sector (wedge) flow: its two sides are walls for the OTHER elements (implied_walls), so a source,
+vortex or doublet inside a wedge with β = 180°/k gets exact corner images; the sector flow itself is
+not imaged (it already satisfies its walls). Other β, several sectors, or a sector together with
+symmetry walls are reported as errors.
+
 Two parallel walls (a channel of width H) need infinitely many images: every element e and its
 mirror image e' in the first wall repeat with period P = 2H along the wall normal. These infinite
 rows are summed in closed form, e.g.  Σ_n 1/(z − a − nP) = (π/P) cot(π(z − a)/P),  so the
@@ -94,6 +99,29 @@ def build_image_system(elements, max_levels: int = DEFAULT_MAX_LEVELS) -> ImageS
     walls = [e for e in act if e.IS_BOUNDARY]
     originals = [e for e in act if not e.IS_BOUNDARY]
     system = ImageSystem(flows=list(originals), walls=walls)
+
+    # elements with walls of their own (sector flow): their sides act as walls for the others
+    domains = [e for e in originals if e.implied_walls() is not None]
+    if domains:
+        if len(domains) > 1:
+            system.issues.append(Issue("error", "Only one sector (wedge) flow can be used at a time: "
+                                                "each one defines its own fluid region."))
+            return system
+        if walls:
+            system.issues.append(Issue("error", "A sector (wedge) flow already has its own walls; it cannot "
+                                                "be combined with symmetry walls."))
+            return system
+        dom = domains[0]
+        others = [e for e in originals if e is not dom]
+        if not others:
+            return system                                   # the sector flow alone satisfies its walls
+        walls = dom.implied_walls()
+        if not walls:                                       # β > 180°: not an intersection of half-planes
+            system.issues.append(Issue(
+                "error", f"Other elements cannot be added to a sector flow with β = {dom.beta_deg:.4g}° > 180°: "
+                         f"its walls cannot be represented with images, so V·n = 0 would not hold."))
+            return system
+        system.walls = walls
     if not walls:
         return system
 
@@ -151,7 +179,8 @@ def build_image_system(elements, max_levels: int = DEFAULT_MAX_LEVELS) -> ImageS
     if inside and originals_ok:
         system.issues.append(Issue(
             "error", "With this wall arrangement an image falls inside the fluid, so V·n = 0 cannot be "
-                     "satisfied exactly (two walls must meet at an angle of 180°/k, e.g. 90°, 60°, 45°)."))
+                     "satisfied exactly (two walls, or the sides of a sector flow, must meet at an angle "
+                     "of 180°/k, e.g. 90°, 60°, 45°)."))
     elif not system.closed and originals_ok:
         system.issues.append(Issue(
             "warning", f"The image series does not close (e.g. parallel walls): truncated after "

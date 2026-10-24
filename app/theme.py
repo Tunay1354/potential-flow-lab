@@ -112,6 +112,7 @@ MARKERS = {
     "source":  {"symbol": "o", "size": 11, "filled": True},     # sink uses color el_sink
     "vortex":  {"symbol": "o", "size": 18, "filled": False},
     "doublet": {"symbol": "d", "size": 13, "filled": True},
+    "sector":  {"symbol": "s", "size": 9, "filled": True},      # vertex of the wedge
     "default": {"symbol": "x", "size": 10, "filled": True},     # any future element type
 }
 

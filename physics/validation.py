@@ -55,12 +55,28 @@ def check_scene(elements: Sequence[FlowElement]) -> list[SceneIssue]:
                     out.append(SceneIssue(i, Issue("error", f"{e.NAME} is behind the wall "
                                                             f"(θ_w = {w.theta_w:.4g}°), outside the fluid.")))
 
+    # 2b) the same for elements with a fluid region of their own (sector flow: inside the wedge)
+    domains = [e for _, e in act if not e.IS_BOUNDARY and e.implied_walls() is not None]
+    for i, e in act:
+        if e.IS_BOUNDARY or e in domains:
+            continue
+        for p in e.marker_points():
+            for d in domains:
+                dist = float(d.signed_distance(p))
+                tol = 1e-9 * (1.0 + abs(p))
+                if abs(dist) <= tol:
+                    out.append(SceneIssue(i, Issue("error", f"{e.NAME} lies on a wall of the {d.NAME.lower()}; "
+                                                            f"move it inside the wedge.")))
+                elif dist < 0:
+                    out.append(SceneIssue(i, Issue("error", f"{e.NAME} is outside the wedge of the "
+                                                            f"{d.NAME.lower()} (outside the fluid).")))
+
     # 3) the walls must leave some fluid
     if len(walls) >= 2 and not _fluid_exists(walls):
         out.append(SceneIssue(None, Issue("error", "The walls leave no fluid region (check their fluid sides).")))
 
     # 4) image system (uniform flow parallel to walls, exact / truncated images)
-    if walls:
+    if walls or domains:
         system = build_image_system(elements)
         out.extend(SceneIssue(None, iss) for iss in system.issues)
 

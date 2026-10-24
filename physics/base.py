@@ -81,6 +81,22 @@ class FlowElement:
         (fluid only inside the wedge) override this."""
         return None
 
+    def marker_points(self) -> list[complex]:
+        """Points where the GUI draws this element's marker (default: its singular points)."""
+        return self.singular_points()
+
+    def crosses_boundary(self, za: np.ndarray, zb: np.ndarray) -> np.ndarray | None:
+        """True where the straight step za -> zb crosses a boundary that has fluid on BOTH sides
+        (e.g. a thin plate). None = no such boundary. Used by the streamline tracer."""
+        return None
+
+    def implied_walls(self) -> list | None:
+        """Straight walls that belong to this element's own geometry (e.g. the two sides of a wedge).
+        None  -> the element has no walls (default).
+        list  -> the walls; other elements get images in them (images.py).
+        []    -> the element has walls, but they cannot be written as half-planes (no exact images)."""
+        return None
+
     def mirrored(self, wall) -> "FlowElement | None":
         """Image of this element in a straight wall (method of images).
         Return None if the element needs no image (e.g. a freestream parallel to the wall).

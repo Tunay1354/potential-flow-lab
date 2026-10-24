@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (QButtonGroup, QFrame, QGraphicsPathItem, QHBoxLay
 
 from physics.streamlines import trace_streamlines
 
-from .geometry import fluid_polygon, rect_polygon, visible_wall_segment
+from .geometry import fluid_polygon, ray_in_rect, rect_polygon, sector_shading, visible_wall_segment
 from .theme import FONT, LAYOUT, MARKERS
 
 
@@ -167,7 +167,7 @@ class PlotCanvas(QWidget):
 
     def fit_view(self):
         """Show all elements with some margin (default view if there is nothing to fit)."""
-        pts = [p for e in self.elements if e.enabled for p in e.singular_points()]
+        pts = [p for e in self.elements if e.enabled for p in e.marker_points()]
         if not pts:
             rng = LAYOUT["plot_initial_range"]
             self.set_view(rng["x"], rng["y"])
@@ -240,7 +240,7 @@ class PlotCanvas(QWidget):
         for e in self.elements:
             if not e.enabled:
                 continue
-            pts = e.singular_points()
+            pts = e.marker_points()
             if not pts:
                 continue
             style = MARKERS.get(e.TYPE, MARKERS["default"])
@@ -257,26 +257,55 @@ class PlotCanvas(QWidget):
             self._markers.append(item)
 
     def _draw_walls(self, xr, yr):
-        """Solid region shaded once (view minus fluid), each wall drawn only where it borders the
-        fluid (corners look like an L or a wedge), hatch marks on the solid side."""
+        """Symmetry walls and the sides of a sector flow.
+        Solid region shaded once; each wall drawn only where it borders the fluid (corners look like
+        an L or a wedge); hatch marks on the solid side. A plate (β = 360°) has fluid on both sides."""
         for it in self._walls:
             self.plot.removeItem(it)
         self._walls.clear()
         walls = [e for e in self.elements if e.enabled and e.IS_BOUNDARY]
-        if not walls:
+        sectors = [e for e in self.elements if e.enabled and e.TYPE == "sector"]
+        if not walls and not sectors:
             return
-        t = self.theme
-        color = QColor(t["el_wall"])
+        self._hatch_spacing = abs(complex(xr[1] - xr[0], yr[1] - yr[0])) / LAYOUT["wall_hatch_count"]
 
-        # 1) shading of everything that is not fluid: view rectangle with the fluid polygon cut out
+        # 1) shading of the solid region
+        if walls:
+            self._add_shading("cut", fluid_polygon(walls, xr, yr), xr, yr, self.theme["el_wall"])
+        for sec in sectors:
+            mode, poly = sector_shading(sec, xr, yr)
+            self._add_shading(mode, poly, xr, yr, self.theme["el_sector"])
+
+        # 2) symmetry walls: the part that borders the fluid
+        for w in walls:
+            seg = visible_wall_segment(w, [o for o in walls if o is not w], xr, yr)
+            if seg is not None:
+                self._add_wall_line(seg, w.normal, self.theme["el_wall"])
+
+        # 3) sector sides: two rays from the vertex (fluid normal points into the wedge)
+        for sec in sectors:
+            plate = sec.beta_deg >= 360.0 - 1e-9
+            for ang, turn in ((sec.theta1, 1j), (sec.theta1 + sec.beta_deg, -1j)):
+                d = complex(np.cos(np.radians(ang)), np.sin(np.radians(ang)))
+                seg = ray_in_rect(sec.z0, d, xr, yr)
+                if seg is not None:
+                    self._add_wall_line(seg, turn * d, self.theme["el_sector"], hatch=not plate)
+                if plate:
+                    break                                   # both sides of the plate are the same ray
+
+    def _add_shading(self, mode, poly, xr, yr, color):
+        if mode == "none":
+            return
         path = QPainterPath()
-        path.setFillRule(Qt.OddEvenFill)
-        path.addPolygon(QPolygonF([QPointF(z.real, z.imag) for z in rect_polygon(xr, yr)]))
-        fluid = fluid_polygon(walls, xr, yr)
-        if fluid:
-            path.addPolygon(QPolygonF([QPointF(z.real, z.imag) for z in fluid]))
+        if mode == "cut":                                   # view minus the fluid polygon
+            path.setFillRule(Qt.OddEvenFill)
+            path.addPolygon(QPolygonF([QPointF(z.real, z.imag) for z in rect_polygon(xr, yr)]))
+        if len(poly) >= 3:
+            path.addPolygon(QPolygonF([QPointF(z.real, z.imag) for z in poly]))
+        elif mode == "fill":
+            return
         fill = QColor(color)
-        fill.setAlpha(38 if t["name"] == "light" else 55)
+        fill.setAlpha(38 if self.theme["name"] == "light" else 55)
         shade = QGraphicsPathItem(path)
         shade.setBrush(QBrush(fill))
         shade.setPen(QPen(Qt.NoPen))
@@ -284,31 +313,28 @@ class PlotCanvas(QWidget):
         self.plot.addItem(shade)
         self._walls.append(shade)
 
-        diag = abs(complex(xr[1] - xr[0], yr[1] - yr[0]))
-        spacing = diag / LAYOUT["wall_hatch_count"]
-        for w in walls:
-            seg = visible_wall_segment(w, [o for o in walls if o is not w], xr, yr)
-            if seg is None:
-                continue
-            a, b = seg
-            # 2) the visible part of the wall
-            line = pg.PlotCurveItem([a.real, b.real], [a.imag, b.imag],
-                                    pen=pg.mkPen(color, width=LAYOUT["wall_width"]))
-            line.setZValue(4)
-            self.plot.addItem(line)
-            self._walls.append(line)
-            # 3) hatch marks on the solid side
-            n = int(abs(b - a) / spacing)
-            if n < 1:
-                continue
-            tick = 0.6 * spacing * (-w.normal * np.exp(1j * np.pi / 4 * (1 if w.side == 0 else -1)))
-            base = a + (np.arange(n) + 0.5) * spacing * (b - a) / abs(b - a)
-            xs = np.column_stack([base.real, (base + tick).real, np.full(n, np.nan)]).ravel()
-            ys = np.column_stack([base.imag, (base + tick).imag, np.full(n, np.nan)]).ravel()
-            hatch = pg.PlotCurveItem(xs, ys, connect="finite", pen=pg.mkPen(color, width=1.2))
-            hatch.setZValue(4)
-            self.plot.addItem(hatch)
-            self._walls.append(hatch)
+    def _add_wall_line(self, seg, fluid_normal, color, hatch=True):
+        """Thick line from seg[0] to seg[1]; hatch marks on the side opposite to `fluid_normal`."""
+        a, b = seg
+        color = QColor(color)
+        line = pg.PlotCurveItem([a.real, b.real], [a.imag, b.imag], pen=pg.mkPen(color, width=LAYOUT["wall_width"]))
+        line.setZValue(4)
+        self.plot.addItem(line)
+        self._walls.append(line)
+        length = abs(b - a)
+        n = int(length / self._hatch_spacing)
+        if not hatch or n < 1:
+            return
+        d = (b - a) / length
+        left = 1 if (np.conj(d) * fluid_normal).imag > 0 else -1      # fluid on the left of d?
+        tick = 0.6 * self._hatch_spacing * (-fluid_normal * np.exp(1j * np.pi / 4 * left))
+        base = a + (np.arange(n) + 0.5) * self._hatch_spacing * d
+        xs = np.column_stack([base.real, (base + tick).real, np.full(n, np.nan)]).ravel()
+        ys = np.column_stack([base.imag, (base + tick).imag, np.full(n, np.nan)]).ravel()
+        marks = pg.PlotCurveItem(xs, ys, connect="finite", pen=pg.mkPen(color, width=1.2))
+        marks.setZValue(4)
+        self.plot.addItem(marks)
+        self._walls.append(marks)
 
     # ------------------------------------------------------------------ events
     def _range_changed(self, *_):

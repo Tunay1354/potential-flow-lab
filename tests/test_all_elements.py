@@ -108,8 +108,10 @@ def test_image_rule_satisfies_plane_theorem(type_key):
         image = el.mirrored(wall)
     except NotImplementedError:
         pytest.skip(f"{type_key} cannot be mirrored (reported as an error to the user)")
-    if image is None:                                    # freestream: must not be imaged
-        assert el.freestream_velocity() is not None
+    if image is None:
+        # only two kinds of element may skip imaging: a freestream (must be parallel to the wall)
+        # and an element that already satisfies walls of its own (sector flow)
+        assert el.freestream_velocity() is not None or el.implied_walls() is not None
         return
     z = PX + 1j * PY
     expected = el.complex_velocity(z) + np.exp(-2j * np.radians(wall.theta_w)) * \

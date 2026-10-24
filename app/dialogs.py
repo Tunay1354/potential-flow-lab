@@ -197,16 +197,25 @@ class ElementDialog(QDialog):
                     f"→ rotates <b>counter-clockwise</b>, Γ = {g:+.3f}" if g > 0 else
                     f"→ rotates <b>clockwise</b>, Γ = {g:+.3f}")
         elif k == "sector":
-            beta = v["theta2"] - v["theta1"]
-            if beta <= 0 or beta > 360:
-                text = f"<span style='color:{bad}'>Need 0° &lt; β = θ₂ − θ₁ ≤ 360°</span>"
+            beta = (v["theta2"] - v["theta1"]) % 360.0          # same rule as physics: β in (0°, 360°]
+            if beta <= 1e-9:
+                beta = 360.0
+            n = 180.0 / beta
+            k_int = round(n)
+            flow = ("fluid comes in along the θ₂ wall and leaves along the θ₁ wall" if v["V"] > 0 else
+                    "fluid comes in along the θ₁ wall and leaves along the θ₂ wall" if v["V"] < 0 else
+                    f"<span style='color:{bad}'>|V| = 0 has no effect</span>")
+            text = f"β = <b>{beta:.4g}°</b>,&nbsp; n = π/β = <b>{n:.4g}</b>&nbsp; → {flow}"
+            if beta >= 360.0 - 1e-9:
+                text += "<br>β = 360°: flow around the tip of a semi-infinite plate (velocity → ∞ at the tip)"
+            elif beta > 180.0:
+                text += ("<br>β &gt; 180°: flow around a corner (velocity → ∞ at the vertex); "
+                         "other elements cannot be added to it")
+            elif abs(n - k_int) < 1e-9:
+                text += (f"<br><span style='color:{ok}'>β = 180°/{k_int} → sources, vortices and doublets "
+                         f"can be added inside the wedge (exact wall images)</span>")
             else:
-                n = 180.0 / beta
-                exact = abs(n - round(n)) < 1e-9
-                text = (f"β = <b>{beta:.1f}°</b>,&nbsp; n = π/β = <b>{n:.3f}</b>"
-                        + (f"<br><span style='color:{ok}'>β = π/{round(n)} → other elements can be "
-                           f"added with exact wall images</span>" if exact else
-                           "<br>β is not π/k → walls are not exact if other elements are added"))
+                text += "<br>β is not 180°/k → other elements cannot be added inside the wedge"
         elif k == "uniform" and v["V"] == 0:
             text = f"<span style='color:{bad}'>V∞ = 0 has no effect</span>"
         self.info.setText(text)

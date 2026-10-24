@@ -14,7 +14,7 @@ if hasattr(sys.stdout, "reconfigure"):          # Γ, θ, ∮ on any Windows con
     sys.stdout.reconfigure(encoding="utf-8")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from physics import Doublet, Source, SymmetryWall, Uniform, Vortex, velocity  # noqa: E402
+from physics import Doublet, SectorFlow, Source, SymmetryWall, Uniform, Vortex, complex_potential, velocity  # noqa: E402
 from physics.diagnostics import (circle_points, circulation_around_circle, flux_through_circle,  # noqa: E402
                                  polar_components, surface_forces)
 
@@ -102,6 +102,30 @@ add("Channel H = 2 + source (∞ images)", "max |V·n| on both walls", 0.0,
     max(max_vn(channel, ca, half=30), max_vn(channel, cb, half=30)))
 u, v = velocity(channel, 80.0, 1.0)
 add("Channel H = 2 + source (∞ images)", "u far downstream = m/(2H)", 0.25, float(u))
+
+# 5) Sector (wedge) flow ------------------------------------------------------------------
+sec = SectorFlow(V=1.0, theta1=0.0, theta2=90.0)
+u, v = velocity([sec], 1.5, 0.5)
+add("Sector β = 90° (n = 2), V = 1", "u = 2Vx at (1.5, 0.5)", 3.0, float(u))
+add("Sector β = 90° (n = 2), V = 1", "v = −2Vy at (1.5, 0.5)", -1.0, float(v))
+for beta in (30.0, 270.0):
+    s_ = SectorFlow(V=1.0, x0=0.5, y0=-0.5, theta1=20.0, theta2=20.0 + beta)
+    z = s_.z0 + np.linspace(0.05, 4.0, 200) * np.exp(1j * np.radians(20.0 + beta))
+    F_ = complex_potential([s_], z)
+    add(f"Sector β = {beta:.0f}° (n = {180 / beta:.4g})", "max |ψ| / max |F| on 2nd wall", 0.0,
+        float(np.max(np.abs(F_.imag)) / np.max(np.abs(F_))))
+r_ = 0.81
+s_ = SectorFlow(V=2.0, theta1=0.0, theta2=360.0)
+u, v = velocity([s_], r_ * np.cos(1.0), r_ * np.sin(1.0))
+add("Plate tip β = 360° (n = 1/2), V = 2", "|V| = (V/2) r^(−1/2), r = 0.81", 1.0 / np.sqrt(r_), float(np.hypot(u, v)))
+s_ = SectorFlow(V=1.0)
+both = [s_, Source(m=1.0, x0=1.0, y0=1.0)]
+worst = 0.0
+for ang in (0.0, 90.0):
+    z = np.linspace(0.05, 6.0, 400) * np.exp(1j * np.radians(ang))
+    uu, vv = velocity(both, z.real, z.imag)
+    worst = max(worst, float(np.max(np.abs(((uu + 1j * vv) * np.conj(1j * np.exp(1j * np.radians(ang)))).real))))
+add("Sector β = 90° + source (3 images)", "max |V·n| on both walls", 0.0, worst)
 
 # print -------------------------------------------------------------------------------
 w = [34, 28, 12, 22, 10]

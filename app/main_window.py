@@ -169,7 +169,7 @@ class MainWindow(QMainWindow):
         # Presets
         m = mb.addMenu("&Presets")
         for name, make in PRESETS.items():
-            if name == "—":
+            if name.strip() == "—":
                 m.addSeparator()
                 continue
             a = m.addAction(name if make else f"{name}   (Phase 1d)")

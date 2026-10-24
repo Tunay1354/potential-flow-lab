@@ -2,14 +2,14 @@
 
 Interactive 2D potential-flow simulator (Aerodynamics semester project, IZTECH Mechanical Engineering).
 
-**Durum:** Faz 1c — fizik çekirdeği (uniform flow, source/sink, vortex, doublet), streamline motoru ve
-symmetry wall (method of images) hazır. Element ekleme/düzenleme butonları Faz 2'de bağlanacak;
-o zamana kadar sahneler **Presets** menüsünden yüklenebilir.
+**Durum:** Faz 1 tamam — fizik çekirdeği (uniform flow, source/sink, vortex, doublet, sector flow,
+symmetry wall), streamline motoru ve doğrulama testleri hazır. Element ekleme/düzenleme butonları
+Faz 2'de bağlanacak; o zamana kadar sahneler **Presets** menüsünden yüklenebilir.
 
-Şu an çalışanlar: Presets menüsü (duvarlı örnekler dahil), zoom (mouse tekerleği) / pan (sürükleme),
-Fit view, Elements listesindeki tik kutuları (elementi geçici olarak kapatma), Plot settings → View range,
-Density, Line width, Direction arrows, Arrows per line, alttaki probe (u, v, |V|, Cp), sahne kontrolü
-(status bar'da ✓ / ⚠ / ✖, ayrıntı için üzerine gel), View → Theme.
+Şu an çalışanlar: Presets menüsü, zoom (mouse tekerleği) / pan (sürükleme), Fit view, Elements listesindeki
+tik kutuları (elementi geçici olarak kapatma), Plot settings → View range, Density, Line width,
+Direction arrows, Arrows per line, alttaki probe (u, v, |V|, Cp), sahne kontrolü (status bar'da ✓ / ⚠ / ✖,
+ayrıntı için üzerine gel), View → Theme, parametre dialogları (görsel; Apply henüz sahneyi değiştirmez).
 
 ## Kurulum (Windows, VS Code) — bir kez
 
@@ -45,7 +45,7 @@ Güncelleme geldiğinde: GitHub Desktop'ta **Fetch origin → Pull origin**.
 | `app/geometry.py` | Duvarların çizim geometrisi (köşelerde sadece akışkana bakan kısım çizilir) |
 | `physics/` | Fizik motoru — GUI'den bağımsız, sadece NumPy |
 | `physics/base.py` | Tüm elementlerin ortak temel sınıfı (`FlowElement`) |
-| `physics/elements/` | Her element ayrı dosya: `uniform.py`, `source.py`, `vortex.py`, `doublet.py`, `wall.py` |
+| `physics/elements/` | Her element ayrı dosya: `uniform.py`, `source.py`, `vortex.py`, `doublet.py`, `sector.py`, `wall.py` |
 | `physics/images.py` | Method of images: duvarlarda ardışık yansıtma, π/k köşeler, kanal (kapalı form) |
 | `physics/validation.py` | Sahne kontrolü: duvar arkasında/üstünde element, paralel olmayan uniform flow ... |
 | `physics/registry.py` | Hangi element tipleri var (yeni element otomatik eklenir) |
@@ -65,3 +65,11 @@ Güncelleme geldiğinde: GitHub Desktop'ta **Fetch origin → Pull origin**.
 - Symmetry wall: z* = z_w + e^{2iθ_w} conj(z − z_w); image kuralları plane theorem'den
   (F_total = F(z) + conj F(z*)): source → aynı m, vortex → −Γ, doublet → δ* = 2θ_w − δ,
   uniform flow image'lanmaz (duvara paralel olmalı)
+- Sector flow: ζ = (z − z₀)e^{−iθ₁}, F = Vζⁿ, n = π/β, β = θ₂ − θ₁ (saat yönünün tersine, (0°, 360°]);
+  V > 0: akış θ₂ duvarından girer, θ₁ duvarından çıkar. Akışkan bölgesi sadece wedge'in içi.
+  Branch cut wedge'in dışında (β = 360°'de plakanın kendisi).
+- Sector flow + diğer elementler (açıkça tanımlanmış politika):
+  wedge kenarları diğer elementler için duvardır; β = 180°/k ise source/vortex/doublet köşe image'larıyla
+  tam olarak eklenir (90°: 3 image); diğer β'larda, β > 180°'de, birden fazla sector'da, sector + symmetry
+  wall'da ve wedge dışındaki/kenarındaki elementlerde hata verilir. Uniform flow sadece β = 180° ve duvara
+  paralelse kabul edilir. Sector flow'un kendisi image'lanmaz (zaten kendi duvarlarını sağlar).

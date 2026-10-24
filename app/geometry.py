@@ -70,3 +70,36 @@ def visible_wall_segment(wall, other_walls, xr, yr, tol=1e-12):
     if t0 >= t1:
         return None
     return p + t0 * d, p + t1 * d
+
+
+def ray_in_rect(origin, direction, xr, yr):
+    """Visible part (two complex end points) of the ray origin + t·direction, t >= 0, or None."""
+    p, d = complex(origin), complex(direction)
+    t0, t1 = 0.0, np.inf
+    for pc, dc, lo, hi in ((p.real, d.real, xr[0], xr[1]), (p.imag, d.imag, yr[0], yr[1])):
+        if abs(dc) < 1e-15:
+            if pc < lo or pc > hi:
+                return None
+            continue
+        a, b = (lo - pc) / dc, (hi - pc) / dc
+        t0, t1 = max(t0, min(a, b)), min(t1, max(a, b))
+    if t0 >= t1:
+        return None
+    return p + t0 * d, p + t1 * d
+
+
+def sector_shading(sector, xr, yr):
+    """How to shade the solid (non-fluid) part of a sector flow in the view.
+    Returns ("cut", fluid_polygon)   -> shade the view minus this polygon   (β <= 180°, convex wedge)
+            ("fill", solid_polygon)  -> shade this polygon                  (180° < β < 360°)
+            ("none", [])             -> nothing to shade                    (β = 360°, a plate)"""
+    from physics import SymmetryWall
+    beta = sector.beta_deg
+    if beta >= 360.0 - 1e-9:
+        return "none", []
+    if beta <= 180.0 + 1e-9:
+        return "cut", fluid_polygon(sector.implied_walls(), xr, yr)
+    # the solid region is the convex wedge from θ2 to θ1 + 360°: left of θ2 and right of θ1
+    solid = [SymmetryWall(xw=sector.x0, yw=sector.y0, theta_w=sector.theta2, side=0),
+             SymmetryWall(xw=sector.x0, yw=sector.y0, theta_w=sector.theta1, side=1)]
+    return "fill", fluid_polygon(solid, xr, yr)

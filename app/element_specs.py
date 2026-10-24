@@ -88,11 +88,13 @@ ELEMENT_SPECS = [
         ]),
     ElementSpec(
         key="sector", name="Sector (wedge) flow", color_key="el_sector",
-        description="Flow inside a wedge with vertex z₀ and walls at θ₁ and θ₂. "
-                    "Opening angle β = θ₂ − θ₁ and n = π/β. Only defined inside the wedge.",
+        description="Flow inside a wedge with vertex z₀; the walls are at θ₁ and θ₂ and the opening angle "
+                    "β = θ₂ − θ₁ is measured counter-clockwise (0° < β ≤ 360°). Only defined inside the wedge.",
         formula="F(z) = V [(z − z<sub>0</sub>) e<sup>−iθ₁</sup>]<sup>n</sup>,  n = π/β",
         params=[
-            Param("V", "V", "Strength constant", "", 1.0),
+            Param("V", "|V|", "Strength constant", "", 1.0, 0.0, 1e6,
+                  tooltip="Magnitude of V; choose the flow direction below",
+                  sign_labels=("θ₂ wall → θ₁ wall", "θ₁ wall → θ₂ wall"), sign_title="Direction"),
             Param("x0", "x<sub>0</sub>", "Vertex x", "m", 0.0),
             Param("y0", "y<sub>0</sub>", "Vertex y", "m", 0.0),
             Param("theta1", "θ<sub>1</sub>", "First wall angle", "°", 0.0, -360, 360, decimals=1, step=5),
