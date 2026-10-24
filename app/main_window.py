@@ -37,7 +37,7 @@ class MainWindow(QMainWindow):
 
         # right panels (dock widgets -> user can move / float / close them)
         self.elements_panel = ElementsPanel(self.theme)
-        self.elements_panel.edit_requested.connect(lambda k: self.open_element_dialog(k, editing=True))
+        self.elements_panel.edit_requested.connect(lambda row: self.edit_element(row))
         self.elements_panel.message.connect(self.flash)
         self.elements_panel.enabled_changed.connect(self._set_enabled)
         self.dock_elements = self._dock("Elements", self.elements_panel)
@@ -204,7 +204,7 @@ class MainWindow(QMainWindow):
         for el in self.elements:
             sub = m.addMenu(element_icon(el, self.theme), f"{element_title(el)}   ({el.summary()})")
             e = sub.addAction("Edit…")
-            e.triggered.connect(lambda _=False, k=el.TYPE: self.open_element_dialog(k, editing=True))
+            e.triggered.connect(lambda _=False, el=el: self.edit_element(self.elements.index(el)))
             sub.addAction("Duplicate").triggered.connect(lambda: self.flash("Prototype: not connected yet."))
             sub.addAction("Delete").triggered.connect(lambda: self.flash("Prototype: not connected yet."))
         m.addSeparator()
@@ -221,11 +221,20 @@ class MainWindow(QMainWindow):
         sb.addPermanentWidget(self.count_label)
 
     # ------------------------------------------------------------------ actions
-    def open_element_dialog(self, key, editing=False):
-        dlg = ElementDialog(SPEC_BY_KEY[key], self.theme, editing, self)
+    def open_element_dialog(self, key, editing=False, element=None):
+        spec = SPEC_BY_KEY[key]
+        values = None
+        if element is not None:
+            values = {p.key: getattr(element, p.key) for p in spec.params if hasattr(element, p.key)}
+        dlg = ElementDialog(spec, self.theme, editing, self, values=values)
         if dlg.exec():
-            self.flash(f"Prototype: {SPEC_BY_KEY[key].name} would be "
-                       f"{'updated' if editing else 'added'} now.")
+            vals = ",  ".join(f"{k} = {v:g}" for k, v in dlg.values().items())
+            self.flash(f"Not connected yet (Phase 2). Dialog returned: {vals}")
+
+    def edit_element(self, row):
+        if 0 <= row < len(self.elements):
+            el = self.elements[row]
+            self.open_element_dialog(el.TYPE, editing=True, element=el)
 
     def flash(self, text):
         self.statusBar().showMessage(text, 4000)
@@ -326,6 +335,16 @@ class MainWindow(QMainWindow):
                           "<b>Potential Flow Lab</b> — UI prototype<br>"
                           "Interactive 2D incompressible, irrotational flow builder.<br><br>"
                           "Aerodynamics semester project, IZTECH Mechanical Engineering.")
+
+
+def setup_application(app):
+    """Settings that must be identical on every computer (Windows TR/EN, macOS)."""
+    from PySide6.QtCore import QLocale
+    # numbers always with a decimal POINT (1.000), whatever the system region is (TR uses 1,000)
+    QLocale.setDefault(QLocale(QLocale.English, QLocale.UnitedStates))
+    app.setApplicationName("Potential Flow Lab")
+    app.setStyle("Fusion")          # same look on Windows and macOS
+    app.setFont(default_font())
 
 
 def default_font():

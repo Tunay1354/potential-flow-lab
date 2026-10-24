@@ -23,7 +23,11 @@ class Param:
     decimals: int = 3
     step: float = 0.1
     tooltip: str = ""
-    choices: list = field(default_factory=list)   # non-empty -> combo box
+    choices: list = field(default_factory=list)   # 2 choices -> radio buttons, more -> combo box
+    # Signed parameter: the user enters the MAGNITUDE and picks the sign with two radio buttons
+    # (positive label, negative label). The dialog returns the signed value.
+    sign_labels: tuple = ()
+    sign_title: str = ""                          # label of the radio-button row, e.g. "Type"
 
 
 @dataclass
@@ -49,22 +53,25 @@ ELEMENT_SPECS = [
         ]),
     ElementSpec(
         key="source", name="Source / sink", color_key="el_source",
-        description="Signed strength m (volume flow rate per unit depth). "
-                    "m > 0 → source, m < 0 → sink.",
+        description="Strength |m| = volume flow rate per unit depth. A source pushes fluid out "
+                    "(m > 0), a sink pulls it in (m < 0).",
         formula="F(z) = (m / 2π) log(z − z<sub>0</sub>)",
         params=[
-            Param("m", "m", "Strength", "m²/s", 1.0, tooltip="m > 0 source, m < 0 sink"),
+            Param("m", "|m|", "Strength", "m²/s", 1.0, 0.0, 1e6,
+                  tooltip="Magnitude of the strength; choose source or sink below",
+                  sign_labels=("Source", "Sink"), sign_title="Type"),
             Param("x0", "x<sub>0</sub>", "Position x", "m", 0.0),
             Param("y0", "y<sub>0</sub>", "Position y", "m", 0.0),
         ]),
     ElementSpec(
         key="vortex", name="Vortex", color_key="el_vortex",
-        description="Point vortex with signed circulation Γ. "
-                    "Γ > 0 → counter-clockwise, Γ < 0 → clockwise.",
+        description="Point vortex with circulation |Γ|. Counter-clockwise rotation is Γ > 0, "
+                    "clockwise is Γ < 0 (course convention).",
         formula="F(z) = −i (Γ / 2π) log(z − z<sub>0</sub>)",
         params=[
-            Param("Gamma", "Γ", "Circulation", "m²/s", 1.0,
-                  tooltip="Γ > 0 counter-clockwise (ccw), Γ < 0 clockwise (cw)"),
+            Param("Gamma", "|Γ|", "Circulation", "m²/s", 1.0, 0.0, 1e6,
+                  tooltip="Magnitude of the circulation; choose the rotation below",
+                  sign_labels=("Counter-clockwise", "Clockwise"), sign_title="Rotation"),
             Param("x0", "x<sub>0</sub>", "Position x", "m", 0.0),
             Param("y0", "y<sub>0</sub>", "Position y", "m", 0.0),
         ]),

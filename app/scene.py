@@ -30,6 +30,10 @@ PRESETS = {
         [SymmetryWall(xw=0.0, yw=0.0, side=0), SymmetryWall(xw=0.0, yw=0.0, theta_w=90.0, side=1),
          Source(m=2.0, x0=1.0, y0=1.0)],
         ((-0.5, 4.5), (-0.5, 4.0))),
+    "Vortex in a 60° corner (two walls)": lambda: (
+        [SymmetryWall(xw=0.0, yw=0.0, side=0), SymmetryWall(xw=0.0, yw=0.0, theta_w=60.0, side=1),
+         Vortex(Gamma=2.0, x0=1.6, y0=0.6)],
+        ((-1.0, 4.0), (-0.8, 3.2))),
     "Channel: uniform flow + source + vortex": lambda: (
         [SymmetryWall(yw=-1.0, side=0), SymmetryWall(yw=1.0, side=1), Uniform(V=1.0),
          Source(m=1.0, x0=-1.5, y0=0.3), Vortex(Gamma=1.0, x0=1.5, y0=-0.3)],

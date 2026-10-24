@@ -10,8 +10,9 @@ from .icons import make_element_icon
 
 
 def element_icon(element, theme, size=48):
-    """Toolbar-style icon of an element instance (sinks get the inward-arrow icon)."""
-    return make_element_icon(element.TYPE, theme, size, sign=-1 if getattr(element, "is_sink", False) else 1)
+    """Toolbar-style icon of an element instance (sink: inward arrows, clockwise vortex: mirrored)."""
+    negative = getattr(element, "is_sink", False) or (element.TYPE == "vortex" and element.Gamma < 0)
+    return make_element_icon(element.TYPE, theme, size, sign=-1 if negative else 1)
 
 
 def element_title(element) -> str:
@@ -24,7 +25,7 @@ def element_title(element) -> str:
 
 class ElementsPanel(QWidget):
     """List of all elements with visibility checkbox and Edit / Duplicate / Delete."""
-    edit_requested = Signal(str)             # element TYPE (dialogs are not connected to the model yet)
+    edit_requested = Signal(int)             # row index of the element to edit
     enabled_changed = Signal(int, bool)      # row index, ticked?
     message = Signal(str)
 
@@ -43,7 +44,7 @@ class ElementsPanel(QWidget):
         self.tree.setColumnWidth(0, 138)
         self.tree.setToolTip("Untick an element to hide it temporarily without deleting it.\n"
                              "Double-click to edit.")
-        self.tree.itemDoubleClicked.connect(lambda it, _c: self.edit_requested.emit(it.data(0, Qt.UserRole)))
+        self.tree.itemDoubleClicked.connect(lambda it, _c: self.edit_requested.emit(self.tree.indexOfTopLevelItem(it)))
         self.tree.itemChanged.connect(self._item_changed)
         lay.addWidget(self.tree, 1)
 
@@ -91,7 +92,7 @@ class ElementsPanel(QWidget):
     def _edit_selected(self):
         it = self.tree.currentItem()
         if it:
-            self.edit_requested.emit(it.data(0, Qt.UserRole))
+            self.edit_requested.emit(self.tree.indexOfTopLevelItem(it))
 
 
 class SettingsPanel(QScrollArea):

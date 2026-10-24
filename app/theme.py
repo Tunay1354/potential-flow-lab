@@ -182,6 +182,12 @@ def build_stylesheet(t: dict) -> str:
     QSlider::handle:horizontal {{ background: {t['accent']}; width: 14px; height: 14px;
         margin: -6px 0; border-radius: 7px; }}
 
+    QRadioButton {{ spacing: 8px; }}
+    QRadioButton::indicator {{ width: 14px; height: 14px; border-radius: 9px;
+        border: 2px solid {t['text_muted']}; background: {t['panel_bg']}; }}
+    QRadioButton::indicator:hover {{ border-color: {t['accent']}; }}
+    QRadioButton::indicator:checked {{ background: {t['accent']}; border: 2px solid {t['accent']}; }}
+
     QScrollArea {{ border: none; background: {t['panel_bg']}; }}
     QStatusBar {{ background: {t['panel_bg']}; border-top: 1px solid {t['border']}; }}
     QStatusBar QLabel {{ padding: 0 8px; }}

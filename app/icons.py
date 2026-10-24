@@ -8,10 +8,10 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap, QPolygonF
 
 
-def _arrow_head(p: QPainter, tip: QPointF, angle_rad: float, size: float, color: QColor):
-    """Filled triangular arrow head pointing in direction angle_rad (screen coords)."""
-    left = QPointF(tip.x() - size * math.cos(angle_rad - 0.45), tip.y() - size * math.sin(angle_rad - 0.45))
-    right = QPointF(tip.x() - size * math.cos(angle_rad + 0.45), tip.y() - size * math.sin(angle_rad + 0.45))
+def _arrow_head(p: QPainter, tip: QPointF, angle_rad: float, size: float, color: QColor, half: float = 0.45):
+    """Filled triangular arrow head pointing in direction angle_rad (screen coords); `half` = half opening angle."""
+    left = QPointF(tip.x() - size * math.cos(angle_rad - half), tip.y() - size * math.sin(angle_rad - half))
+    right = QPointF(tip.x() - size * math.cos(angle_rad + half), tip.y() - size * math.sin(angle_rad + half))
     p.setBrush(color)
     p.setPen(Qt.NoPen)
     p.drawPolygon(QPolygonF([tip, left, right]))
@@ -48,12 +48,19 @@ def _draw(key: str, p: QPainter, s: float, c: QColor, sign: int = 1):
         p.drawEllipse(QPointF(cx, cy), s * 0.07, s * 0.07)
 
     elif key == "vortex":
+        if sign < 0:                                  # clockwise: mirror the counter-clockwise drawing
+            p.translate(s, 0)
+            p.scale(-1, 1)
         rect = QRectF(s * 0.16, s * 0.16, s * 0.68, s * 0.68)
-        p.drawArc(rect, 100 * 16, 270 * 16)         # Qt angles: 1/16 degree, ccw
-        end = math.radians(100 + 270 + 18)          # tip a bit beyond the arc end (math, ccw)
-        tip = QPointF(s * 0.5 + s * 0.34 * math.cos(end), s * 0.5 - s * 0.34 * math.sin(end))
-        # tangent of a ccw circle in screen coordinates
-        _arrow_head(p, tip, math.atan2(-math.cos(end), -math.sin(end)), head * 1.35, c)
+        start, span = 120.0, 250.0                   # arc from 120° counter-clockwise to 10° (math angles)
+        p.drawArc(rect, int(start * 16), int(span * 16))   # Qt angles: 1/16 degree, ccw
+        r = s * 0.34
+        a_end = math.radians(start + span)           # arc end
+        a_tip = a_end + 0.62                         # head extends the arc in the ccw direction
+        tip = QPointF(s * 0.5 + r * math.cos(a_tip), s * 0.5 - r * math.sin(a_tip))
+        base = QPointF(s * 0.5 + r * math.cos(a_end), s * 0.5 - r * math.sin(a_end))
+        # direction from the arc end to the tip (chord), screen coordinates
+        _arrow_head(p, tip, math.atan2(tip.y() - base.y(), tip.x() - base.x()), s * 0.26, c, half=0.42)
         p.setBrush(c)
         p.setPen(Qt.NoPen)
         p.drawEllipse(QPointF(s * 0.5, s * 0.5), s * 0.06, s * 0.06)
@@ -97,7 +104,8 @@ def _draw(key: str, p: QPainter, s: float, c: QColor, sign: int = 1):
 
 
 def make_element_icon(key: str, theme: dict, size: int = 96, sign: int = 1) -> QIcon:
-    """Icon for an element type. sign=-1 draws a sink (inward arrows) for 'source'."""
+    """Icon for an element type. sign=-1 draws a sink (inward arrows) for 'source'
+    and a clockwise vortex for 'vortex'."""
     pm = QPixmap(size, size)
     pm.fill(Qt.transparent)
     p = QPainter(pm)

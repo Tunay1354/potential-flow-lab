@@ -40,7 +40,9 @@ Güncelleme geldiğinde: GitHub Desktop'ta **Fetch origin → Pull origin**.
 | Klasör / dosya | İçerik |
 |---|---|
 | `main.py` | Programı başlatır |
-| `app/` | Arayüz. Renkler/boyutlar/marker'lar: `app/theme.py`, başlangıç sahnesi: `app/scene.py` |
+| `app/` | Arayüz. Renkler/boyutlar/marker'lar: `app/theme.py`, başlangıç sahnesi ve presetler: `app/scene.py` |
+| `app/dialogs.py` | Parametre penceresi (alanlar `app/element_specs.py`'den otomatik; işaretli değerler için Source/Sink, Counter-clockwise/Clockwise seçimi) |
+| `app/geometry.py` | Duvarların çizim geometrisi (köşelerde sadece akışkana bakan kısım çizilir) |
 | `physics/` | Fizik motoru — GUI'den bağımsız, sadece NumPy |
 | `physics/base.py` | Tüm elementlerin ortak temel sınıfı (`FlowElement`) |
 | `physics/elements/` | Her element ayrı dosya: `uniform.py`, `source.py`, `vortex.py`, `doublet.py`, `wall.py` |
