@@ -72,8 +72,19 @@ Teslim: yaklaşık 26 Kasım 2026 (rapor + user guide + canlı demo).
      veya View → Panels → Plot settings sections ile gizlenir / geri gelir (başlıkta "n HIDDEN")
    - Yerleşim kapanışta kaydedilir, açılışta aynı gelir; View → Panels → Reset layout ilk hale döndürür
    - Alt alta panellerin boyunu ayarlama (aradaki çizgiyi çekme) aynen duruyor
-8. ▶ **Faz 2c — Plot'ta sürükleme**: elementleri fareyle taşıma (undo'da tek adım), sürüklerken canlı streamline
-9. ☐ **Export** (Faz 4'ten öne alındı): plot'u PNG / PDF / SVG olarak kaydetme, veri CSV (rapor figürleri için)
+8. ✅ **Faz 2c — Plot'ta sürükleme + fare modları + klavye kısayolları**
+   - Plot'un üstünde Select · Move · Pan (View → Mouse mode, tuşlar V / M / H)
+     - Select: tıklayınca seçer, sürükleyince element kaymaz (yanlışlıkla taşımaya karşı)
+     - Move: elementi tutup taşı (source, vortex, doublet, sector köşesi, duvar paralel kayar);
+       Shift = ızgaraya yapış (görünüme göre 0.1 / 1 …), Esc = iptal; bırakınca tek undo adımı
+     - Pan: her yer görünümü kaydırır, hiçbir şey seçilmez
+     - Her modda tekerlek zoom, boş yeri sürükleme pan
+   - Sürüklerken hiçbir şey hesaplanmaz (streamline'lar soluklaşır, stagnation gizlenir), bırakınca hesap
+   - ADD paletinden plot'a sürükle-bırak (her modda): bırakılan nokta pencerede konum olarak gelir,
+     hız / şiddet girilir, Cancel = eklenmez; Shift ile ızgaraya yapışır; uniform flow'da sadece pencere
+   - Edit → Keyboard shortcuts… (Help'te de): tüm kısayollar görülür / değiştirilir, çakışma engellenir,
+     "Reset all to defaults"; değişiklikler kalıcı
+9. ▶ **Export** (Faz 4'ten öne alındı): plot'u PNG / PDF / SVG olarak kaydetme, veri CSV (rapor figürleri için)
 10. ☐ **Faz 3 — Rapor malzemesi**: doğrulama figürleri ve tabloları (verification case'ler, stagnation
    karşılaştırmaları), user guide taslağı
 11. ☐ **Faz 4 — Ekstralar**: animasyon [5] (parçacıklar ve / veya çizgi üstünde kayan desen, 60 fps hedefi,

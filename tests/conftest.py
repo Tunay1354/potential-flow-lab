@@ -22,12 +22,14 @@ def qapp(tmp_path_factory):
 
 @pytest.fixture(autouse=True)
 def fresh_layout():
-    """Every test starts with the default window layout (a closed window saves its layout)."""
+    """Every test starts with the default window layout and keyboard shortcuts."""
     try:
         from PySide6.QtCore import QSettings
     except ImportError:                       # pragma: no cover
         yield
         return
-    QSettings().remove("layout")
+    for group in ("layout", "shortcuts"):
+        QSettings().remove(group)
     yield
-    QSettings().remove("layout")
+    for group in ("layout", "shortcuts"):
+        QSettings().remove(group)

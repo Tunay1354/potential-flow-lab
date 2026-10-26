@@ -20,7 +20,7 @@ import time
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QObject, QPointF, QRunnable, QSize, Qt, QThreadPool, QTimer, Signal
+from PySide6.QtCore import QEvent, QObject, QPointF, QRunnable, QSize, Qt, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QIcon, QPainter, QPainterPath, QPen, QPolygonF
 from PySide6.QtWidgets import (QButtonGroup, QFrame, QGraphicsPathItem, QHBoxLayout, QLabel, QToolButton,
                                QVBoxLayout, QWidget)
@@ -62,9 +62,13 @@ class _Job(QRunnable):
         self.fn()
 
 
+MOUSE_MODES = ("select", "move", "pan")
+
+
 class CanvasBar(QWidget):
-    """Bar above the plot: Static/Animated, Select/Pan, Fit view, Export."""
+    """Bar above the plot: Static/Animated, mouse mode (Select · Move · Pan), Fit view, Export."""
     message = Signal(str)
+    mode_selected = Signal(str)               # "select", "move" or "pan" (clicked by the user)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -89,16 +93,22 @@ class CanvasBar(QWidget):
         lay.addLayout(pair)
 
         lay.addWidget(self._separator())
-        self.btn_select = self._tool("Select", "Click an element to select, drag to move it",
-                                     checkable=True, icon="select")
-        self.btn_pan = self._tool("Pan", "Drag to pan, scroll to zoom", checkable=True, icon="pan")
+        self.btn_select = self._tool("Select", "", checkable=True, icon="select")
+        self.btn_move = self._tool("Move", "", checkable=True, icon="move")
+        self.btn_pan = self._tool("Pan", "", checkable=True, icon="pan")
+        self.mode_buttons = {"select": self.btn_select, "move": self.btn_move, "pan": self.btn_pan}
+        self.mode_tips = {
+            "select": "Select: click an element or a stagnation point (elements cannot be dragged here)",
+            "move": "Move: drag an element to a new place (hold Shift to snap to the grid, Esc cancels)",
+            "pan": "Pan: drag anywhere to move the view (nothing is selected)"}
         self.btn_select.setChecked(True)
         tools = QButtonGroup(self)
         tools.setExclusive(True)
-        tools.addButton(self.btn_select)
-        tools.addButton(self.btn_pan)
-        lay.addWidget(self.btn_select)
-        lay.addWidget(self.btn_pan)
+        for mode, b in self.mode_buttons.items():
+            tools.addButton(b)
+            lay.addWidget(b)
+            b.clicked.connect(lambda _=False, m=mode: self.mode_selected.emit(m))
+        self.set_shortcut_hints({})
         self.btn_fit = self._tool("Fit", "Fit plot limits to the elements   [F]", icon="fit")
         lay.addWidget(self.btn_fit)
 
@@ -107,9 +117,19 @@ class CanvasBar(QWidget):
         self.btn_export.setObjectName("Export")
         lay.addWidget(self.btn_export)
 
-        for b in (self.btn_anim, self.btn_select, self.btn_pan, self.btn_export):
+        for b in (self.btn_anim, self.btn_export):
             b.clicked.connect(lambda _=False, b=b: self.message.emit(
                 f"Prototype: “{b.text()}” is not connected yet."))
+
+    def set_mode(self, mode: str):
+        self.mode_buttons[mode].setChecked(True)
+
+    def set_shortcut_hints(self, keys: dict):
+        """Tooltips of the mode buttons with their current keyboard shortcut, e.g. {'move': 'M'}."""
+        for mode, b in self.mode_buttons.items():
+            key = keys.get(mode)
+            b.setToolTip(self.mode_tips[mode] + (f"   [{key}]" if key else "") +
+                         "\nScroll: zoom · drag an empty place: pan")
 
     def _tool(self, text, tip, checkable=False, icon=None):
         b = QToolButton(self)
@@ -145,6 +165,36 @@ class CanvasBar(QWidget):
         return s
 
 
+ELEMENT_MIME = "application/x-potential-flow-element"     # drag from the element palette to the plot
+
+
+class _PlotViewBox(pg.ViewBox):
+    """View box that lets the canvas take a mouse drag (Move mode: drag an element); every other
+    drag pans the view as usual."""
+
+    def __init__(self, canvas, **kwargs):
+        super().__init__(**kwargs)
+        self._canvas = canvas
+
+    def mouseDragEvent(self, ev, axis=None):
+        if self._canvas._element_drag_event(ev):
+            ev.accept()
+            return
+        super().mouseDragEvent(ev, axis)
+
+
+def snap_step(view_width: float) -> float:
+    """Grid step for Shift-snapping: 0.1 for a view a few units wide, 1 for ~50 units, ..."""
+    return 10.0 ** np.floor(np.log10(max(view_width, 1e-9) / 50.0))
+
+
+def snapped(value: float, step: float, snap: bool) -> float:
+    """Shift held: the nearest multiple of `step`; otherwise rounded to step / 100 (clean numbers)."""
+    q = step if snap else step / 100.0
+    digits = max(0, int(-np.floor(np.log10(q))) if q < 1 else 0)
+    return round(round(value / q) * q, digits) + 0.0
+
+
 class PlotCanvas(QWidget):
     """Bar + pyqtgraph plot showing the streamlines of `elements`."""
     probe = Signal(object)              # (x, y) in data coordinates, or None
@@ -153,6 +203,9 @@ class PlotCanvas(QWidget):
     stagnation_clicked = Signal(int)    # index of the clicked stagnation point
     view_changed = Signal(tuple, tuple)  # (xmin, xmax), (ymin, ymax)
     computed = Signal(int, float)       # number of streamlines, computation time in ms
+    element_moved = Signal(int, object)  # Move mode: element index, the moved copy (released)
+    element_dropped = Signal(str, object)   # palette drag: element type, (x, y) or None (no position)
+    mode_changed = Signal(str)          # mouse mode: "select", "move", "pan"
 
     def __init__(self, theme: dict, elements: list, parent=None):
         super().__init__(parent)
@@ -164,6 +217,8 @@ class PlotCanvas(QWidget):
         self.show_arrows = True
         self.line_width = LAYOUT["streamline_width"]
         self.selected = -1                       # index of the selected element (highlighted)
+        self.mode = "select"                     # mouse mode (see CanvasBar)
+        self._drag = None                        # Move mode: the element being dragged (see begin_drag)
 
         # the plot card: a strong ink frame (painted in paintEvent) around bar, plot and title block
         lay = QVBoxLayout(self)
@@ -180,7 +235,7 @@ class PlotCanvas(QWidget):
         lay.addWidget(self.banner)
 
         pg.setConfigOptions(antialias=True)
-        self.plot = pg.PlotWidget()
+        self.plot = pg.PlotWidget(viewBox=_PlotViewBox(self))
         self.plot.setAspectLocked(True)          # circles must look like circles
         self.plot.setMenuEnabled(False)
         self.plot.hideButtons()
@@ -254,6 +309,19 @@ class PlotCanvas(QWidget):
         self.plot.scene().sigMouseClicked.connect(self._mouse_clicked)
         self.vb.sigRangeChanged.connect(self._range_changed)
         self.bar.btn_fit.clicked.connect(self.fit_view)
+        self.bar.mode_selected.connect(self.set_mode)
+        # element palette -> plot: drag an element type onto the plot to place it there
+        self.plot.setAcceptDrops(True)
+        self.plot.viewport().setAcceptDrops(True)
+        self.plot.viewport().installEventFilter(self)
+        self._ghost = pg.ScatterPlotItem(size=15, symbol="o")      # where a dropped / moved element goes
+        self._ghost.setZValue(7)
+        self._ghost.setVisible(False)
+        self.plot.addItem(self._ghost)
+        self._ghost_label = pg.TextItem(anchor=(0.0, 1.0))
+        self._ghost_label.setZValue(7)
+        self._ghost_label.setVisible(False)
+        self.plot.addItem(self._ghost_label)
 
         rng = LAYOUT["plot_initial_range"]
         self.plot.setRange(xRange=rng["x"], yRange=rng["y"], padding=0)
@@ -275,9 +343,17 @@ class PlotCanvas(QWidget):
         self.banner.setText(text or "")
         self.banner.setVisible(bool(text))
 
+    def _shown(self) -> list:
+        """The elements as drawn: while an element is dragged, its moved copy replaces it."""
+        if self._drag is None or self._drag["preview"] is None:
+            return self.elements
+        out = list(self.elements)
+        out[self._drag["row"]] = self._drag["preview"]
+        return out
+
     def _selected_element(self):
         if 0 <= self.selected < len(self.elements):
-            return self.elements[self.selected]
+            return self._shown()[self.selected]
         return None
 
     def _draw_overlays(self):
@@ -328,10 +404,11 @@ class PlotCanvas(QWidget):
         for item in self._line_items:
             item.setVisible(on["streamlines"])
         self._arrow_item.setVisible(on["streamlines"])
-        self._stag_item.setVisible(on["stagnation"])
+        stag = on["stagnation"] and not self.is_dragging()      # hidden while an element is dragged
+        self._stag_item.setVisible(stag)
         for item in self._stag_glow:
-            item.setVisible(on["stagnation"])
-        self._stag_label.setVisible(on["stagnation"] and self.selected_stagnation is not None)
+            item.setVisible(stag)
+        self._stag_label.setVisible(stag and self.selected_stagnation is not None)
         for item in self._markers:
             item.setVisible(on["markers"])
         for item in self._walls:
@@ -672,7 +749,7 @@ class PlotCanvas(QWidget):
             self.plot.removeItem(it)
         self._markers.clear()
         t = self.theme
-        for e in self.elements:
+        for e in self._shown():
             if not e.enabled:
                 continue
             pts = e.marker_points()
@@ -708,8 +785,9 @@ class PlotCanvas(QWidget):
         for it in self._walls:
             self.plot.removeItem(it)
         self._walls.clear()
-        walls = [e for e in self.elements if e.enabled and e.IS_BOUNDARY]
-        sectors = [e for e in self.elements if e.enabled and e.TYPE == "sector"]
+        shown = self._shown()
+        walls = [e for e in shown if e.enabled and e.IS_BOUNDARY]
+        sectors = [e for e in shown if e.enabled and e.TYPE == "sector"]
         if not walls and not sectors:
             return
 
@@ -850,7 +928,7 @@ class PlotCanvas(QWidget):
         return []
 
     def _mouse_clicked(self, ev):
-        if ev.button() != Qt.LeftButton:
+        if ev.button() != Qt.LeftButton or self.mode == "pan":      # Pan mode never selects
             return
         inside = self.vb.sceneBoundingRect().contains(ev.scenePos())
         elements = self.pick(ev.scenePos()) if inside else []
@@ -878,6 +956,186 @@ class PlotCanvas(QWidget):
             return
         pt = self.vb.mapSceneToView(pos)
         self.probe.emit((pt.x(), pt.y()))
+        if self.mode == "move" and self._drag is None:              # grip over draggable elements
+            grab = any(self.elements[i].POSITION_KEYS for i in self.pick(pos))
+            self.plot.viewport().setCursor(Qt.OpenHandCursor if grab else Qt.ArrowCursor)
+
+    # ------------------------------------------------------------------ mouse modes
+    def set_mode(self, mode: str):
+        """Select (click selects), Move (drag elements), Pan (drag moves the view, nothing selected).
+        In every mode the wheel zooms and dragging an empty place pans."""
+        if mode not in MOUSE_MODES:
+            return
+        if self._drag is not None:
+            self.cancel_drag()
+        changed = mode != self.mode
+        self.mode = mode
+        self.bar.set_mode(mode)
+        self.plot.viewport().setCursor(Qt.OpenHandCursor if mode == "pan" else Qt.ArrowCursor)
+        if changed:
+            self.mode_changed.emit(mode)
+
+    # ------------------------------------------------------------------ Move mode: drag an element
+    def _element_drag_event(self, ev) -> bool:
+        """Called by the view box for every drag event; True = the canvas handles it (no panning)."""
+        if ev.button() != Qt.LeftButton:
+            return False
+        if ev.isStart():
+            if self.mode != "move" or not self.begin_drag(ev.buttonDownScenePos()):
+                return False
+        if self._drag is None:
+            return False
+        if self._drag.get("cancelled"):
+            if ev.isFinish():
+                self._drag = None
+            return True                                   # swallow the rest of a cancelled drag
+        snap = bool(ev.modifiers() & Qt.ShiftModifier)
+        self.drag_to(ev.scenePos(), snap)
+        if ev.isFinish():
+            self.end_drag()
+        return True
+
+    def begin_drag(self, scene_pos) -> bool:
+        """Start dragging the element under scene_pos (one with a position). Nothing is computed while
+        it moves: the streamlines fade and wait, the stagnation points are hidden."""
+        rows = [i for i in self.pick(scene_pos) if self.elements[i].POSITION_KEYS]
+        if not rows:
+            return False
+        row = rows[0]
+        el = self.elements[row]
+        kx, ky = el.POSITION_KEYS
+        p = self.vb.mapSceneToView(scene_pos)
+        self._drag = {"row": row, "original": el, "preview": None,
+                      "offset": (getattr(el, kx) - p.x(), getattr(el, ky) - p.y())}
+        self.element_clicked.emit(row)                    # the dragged element is the selected one
+        self.selected = row
+        self.plot.viewport().setCursor(Qt.ClosedHandCursor)
+        for item in self._line_items + [self._arrow_item]:
+            item.setOpacity(0.3)
+        for item in [self._stag_item, self._stag_label, self._dividing_item] + self._stag_glow:
+            item.setVisible(False)
+        return True
+
+    def drag_to(self, scene_pos, snap: bool = False):
+        """Move the dragged element (preview only; the model changes on release)."""
+        d = self._drag
+        if d is None or d.get("cancelled"):
+            return
+        el = d["original"]
+        kx, ky = el.POSITION_KEYS
+        p = self.vb.mapSceneToView(scene_pos)
+        (x0, x1), _ = self.vb.viewRange()
+        step = snap_step(x1 - x0)
+        x = snapped(p.x() + d["offset"][0], step, snap)
+        y = snapped(p.y() + d["offset"][1], step, snap)
+        d["preview"] = el.copy(**{kx: x, ky: y})
+        self._draw_element_markers()
+        self._draw_walls_around_view()
+        self._show_ghost_label(x, y, f"{x:.3f}, {y:.3f}" + ("   (snap)" if snap else ""))
+
+    def end_drag(self):
+        """Mouse released: the moved element goes to the model (one undo step), then everything is
+        computed again."""
+        d, self._drag = self._drag, None
+        self._finish_drag_look()
+        if d is not None and d["preview"] is not None and d["preview"] != d["original"]:
+            self.element_moved.emit(d["row"], d["preview"])
+        else:
+            self._draw_overlays()
+
+    def cancel_drag(self):
+        """Esc while dragging: the element goes back, nothing changes."""
+        if self._drag is None:
+            return False
+        self._drag = {"cancelled": True, "preview": None}
+        self._finish_drag_look()
+        self._draw_overlays()
+        return True
+
+    def _finish_drag_look(self):
+        for item in self._line_items + [self._arrow_item]:
+            item.setOpacity(1.0)
+        self._ghost_label.setVisible(False)
+        self.plot.viewport().setCursor(Qt.OpenHandCursor if self.mode in ("move", "pan") else Qt.ArrowCursor)
+        self._draw_stagnation()
+
+    def is_dragging(self) -> bool:
+        return self._drag is not None and not self._drag.get("cancelled")
+
+    def _show_ghost_label(self, x, y, text):
+        t = self.theme
+        self._ghost_label.setHtml(f'<div style="color:{t["text"]}; font-family:{self._mono_css}; '
+                                  f'font-size:9pt; padding:1px 4px;">{text}</div>')
+        self._ghost_label.fill = pg.mkBrush(t["panel_bg"])
+        self._ghost_label.border = pg.mkPen(t["border"])
+        px, py = self.vb.viewPixelSize()
+        self._ghost_label.setPos(x + 12 * px, y + 12 * py)
+        self._ghost_label.setVisible(True)
+
+    # ------------------------------------------------------------------ palette -> plot (drop)
+    def eventFilter(self, obj, event):
+        if obj is self.plot.viewport():
+            et = event.type()
+            if et in (QEvent.DragEnter, QEvent.DragMove, QEvent.Drop, QEvent.DragLeave):
+                return self._palette_drop_event(et, event)
+        return super().eventFilter(obj, event)
+
+    def _drop_position(self, key, view_pos, snap):
+        """Data position of a drop (None for elements without a position, e.g. uniform flow)."""
+        from physics import ELEMENT_TYPES
+        if key not in ELEMENT_TYPES or not ELEMENT_TYPES[key].POSITION_KEYS:
+            return None
+        scene = self.plot.mapToScene(view_pos)
+        if not self.vb.sceneBoundingRect().contains(scene):
+            return "outside"
+        p = self.vb.mapSceneToView(scene)
+        (x0, x1), _ = self.vb.viewRange()
+        step = snap_step(x1 - x0)
+        return snapped(p.x(), step, snap), snapped(p.y(), step, snap)
+
+    def _palette_drop_event(self, et, event) -> bool:
+        if et == QEvent.DragLeave:
+            self._hide_ghost()
+            return True
+        md = event.mimeData()
+        if not md.hasFormat(ELEMENT_MIME):
+            return False
+        key = bytes(md.data(ELEMENT_MIME)).decode()
+        snap = bool(event.modifiers() & Qt.ShiftModifier)
+        pos = self._drop_position(key, event.position().toPoint(), snap)
+        if et == QEvent.Drop:
+            self._hide_ghost()
+            if pos == "outside":
+                event.ignore()
+                return True
+            event.acceptProposedAction()
+            QTimer.singleShot(0, lambda: self.element_dropped.emit(key, pos))   # dialog after the drop
+            return True
+        event.acceptProposedAction()
+        self.show_drop_ghost(key, pos, snap)
+        return True
+
+    def show_drop_ghost(self, key, pos, snap=False):
+        """Faint marker + coordinates where a dragged palette element would be placed."""
+        if pos is None or pos == "outside":
+            self._hide_ghost()
+            return
+        t = self.theme
+        style = MARKERS.get(key, MARKERS["default"])
+        color = QColor(t.get(f"el_{key}", t["plot_axis"]))
+        color.setAlpha(150)
+        symbol = style["symbol"] if key not in ("wall",) else "+"
+        if symbol == "stagnation":
+            symbol = "o"
+        self._ghost.setData([pos[0]], [pos[1]], symbol=symbol, size=style["size"] + 4,
+                            brush=pg.mkBrush(color) if style["filled"] else pg.mkBrush(None),
+                            pen=pg.mkPen(color, width=2))
+        self._ghost.setVisible(True)
+        self._show_ghost_label(pos[0], pos[1], f"{pos[0]:.3f}, {pos[1]:.3f}" + ("   (snap)" if snap else ""))
+
+    def _hide_ghost(self):
+        self._ghost.setVisible(False)
+        self._ghost_label.setVisible(False)
 
 
 def _point_segment_distance(p: complex, a: complex, b: complex) -> float:

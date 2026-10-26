@@ -34,6 +34,7 @@ from .icons import make_app_icon, make_element_icon, make_palette_icon
 from .panels import LAYERS, ElementsPanel, SettingsPanel, element_icon, element_title
 from .recent_files import RecentFiles
 from .scene import PRESETS_DIR, list_presets, starter_scene
+from .shortcuts import Shortcuts, ShortcutsDialog
 from .theme import DARK, DEFAULT_THEME, FONT, LAYOUT, LIGHT, build_stylesheet
 
 DUPLICATE_OFFSET = (0.5, 0.5)
@@ -80,6 +81,8 @@ class MainWindow(QMainWindow):
         self.canvas.probe.connect(self._update_probe)
         self.canvas.element_clicked.connect(self.select_element)
         self.canvas.stagnation_clicked.connect(self.select_stagnation)
+        self.canvas.element_moved.connect(self.move_element)
+        self.canvas.element_dropped.connect(lambda key, pos: self.add_element_dialog(key, at=pos))
         self.canvas.element_double_clicked.connect(
             lambda row: (self.select_element(row), QTimer.singleShot(0, lambda: self.edit_element(row))))
 
@@ -116,6 +119,7 @@ class MainWindow(QMainWindow):
 
         self._build_toolbar()
         self._build_menus()
+        self._register_shortcuts()
         self._build_statusbar()
         self._build_plot_shortcuts()
         self.canvas.computed.connect(self._update_status)
@@ -125,7 +129,7 @@ class MainWindow(QMainWindow):
         # a click anywhere else in the window clears the selection (see eventFilter)
         QApplication.instance().installEventFilter(self)
         esc = QShortcut(QKeySequence(Qt.Key_Escape), self)
-        esc.activated.connect(lambda: self.select_element(-1))
+        esc.activated.connect(lambda: self.canvas.cancel_drag() or self.select_element(-1))
 
         self.model.subscribe(self._on_model_changed)
         self._on_model_changed(None)
@@ -272,7 +276,8 @@ class MainWindow(QMainWindow):
             act = QAction(TOOLBAR_NAMES.get(key, spec.name), self)
             act.setToolTip(f"<b>{spec.name}</b><br>{spec.description}")
             act.triggered.connect(lambda _=False, k=key: self.add_element_dialog(k))
-            pal.add_action(act)
+            pal.add_action(act, key)
+            self.addAction(act)                      # its keyboard shortcut (if the user sets one) works
             self.element_actions[key] = act
         self.element_toolbar = pal
         self.palette_side = "left"
@@ -308,8 +313,8 @@ class MainWindow(QMainWindow):
         m.addSeparator()
         m.addAction("Clear all").triggered.connect(self.clear_all)
         m.addSeparator()
-        quit_ = m.addAction("Exit")
-        quit_.setShortcut(QKeySequence.Quit)
+        quit_ = self.act_exit = m.addAction("Exit")
+        quit_.setShortcut(QKeySequence("Ctrl+Q"))      # (QKeySequence.Quit is empty on Windows)
         quit_.triggered.connect(self.close)
 
         # Edit
@@ -330,6 +335,8 @@ class MainWindow(QMainWindow):
         self.act_dup.triggered.connect(lambda: self.duplicate_element(self.elements_panel.current_row()))
         self.act_del = m.addAction("Delete selected element\tDel")
         self.act_del.triggered.connect(lambda: self.delete_element(self.elements_panel.current_row()))
+        m.addSeparator()
+        m.addAction("Keyboard shortcuts…").triggered.connect(self.edit_shortcuts)
 
         # Elements (the menu required by the assignment) — rebuilt whenever the scene changes
         self.elements_menu = mb.addMenu("E&lements")
@@ -353,9 +360,22 @@ class MainWindow(QMainWindow):
             a.setEnabled(on)
             mode.addAction(a)
         m.addSeparator()
-        fit = m.addAction("Fit view")
+        fit = self.act_fit = m.addAction("Fit view")
         fit.setShortcut("F")
         fit.triggered.connect(self.canvas.fit_view)
+        # mouse mode of the plot (same as the Select / Move / Pan buttons above it)
+        mm = m.addMenu("Mouse mode")
+        group = QActionGroup(self)
+        self.mode_actions = {}
+        for mode, text, key in (("select", "Select", "V"), ("move", "Move elements", "M"), ("pan", "Pan", "H")):
+            a = mm.addAction(text)
+            a.setCheckable(True)
+            a.setChecked(mode == self.canvas.mode)
+            a.setShortcut(key)
+            a.triggered.connect(lambda _=False, md=mode: self.canvas.set_mode(md))
+            group.addAction(a)
+            self.mode_actions[mode] = a
+        self.canvas.mode_changed.connect(lambda md: self.mode_actions[md].setChecked(True))
         m.addSeparator()
         panels = m.addMenu("Panels")
         panels.addAction(self.dock_elements.toggleViewAction())
@@ -400,8 +420,37 @@ class MainWindow(QMainWindow):
         m = mb.addMenu("&Help")
         self._placeholder(m, "User guide", "F1", "the user guide")
         m.addAction("Sign conventions").triggered.connect(self._show_conventions)
+        m.addAction("Keyboard shortcuts…").triggered.connect(self.edit_shortcuts)
         m.addSeparator()
         m.addAction("About").triggered.connect(self._show_about)
+
+    def _register_shortcuts(self):
+        """Commands whose key the user can change (Edit → Keyboard shortcuts…)."""
+        sc = self.shortcuts = Shortcuts()
+        for ident, act, label, group in (
+                ("file.new", self.act_new, "New scene", "File"),
+                ("file.open", self.act_open, "Open…", "File"),
+                ("file.save", self.act_save, "Save", "File"),
+                ("file.save_as", self.act_save_as, "Save as…", "File"),
+                ("file.exit", self.act_exit, "Exit", "File"),
+                ("edit.undo", self.act_undo, "Undo", "Edit"),
+                ("edit.redo", self.act_redo, "Redo", "Edit"),
+                ("edit.duplicate", self.act_dup, "Duplicate selected element", "Edit"),
+                ("view.fit", self.act_fit, "Fit view", "View"),
+                ("mode.select", self.mode_actions["select"], "Mouse mode: Select", "Plot"),
+                ("mode.move", self.mode_actions["move"], "Mouse mode: Move elements", "Plot"),
+                ("mode.pan", self.mode_actions["pan"], "Mouse mode: Pan", "Plot")):
+            sc.register(ident, act, label, group)
+        for key, act in self.element_actions.items():
+            sc.register(f"add.{key}", act, f"Add {spec_for(key).name.lower()}…", "Add element", default="")
+        sc.listeners.append(self._shortcuts_changed)
+        sc.load()
+
+    def _shortcuts_changed(self):
+        self.canvas.bar.set_shortcut_hints({m: self.shortcuts.first_key(f"mode.{m}") for m in self.mode_actions})
+
+    def edit_shortcuts(self):
+        ShortcutsDialog(self.shortcuts, self).exec()
 
     def _placeholder(self, menu, text, shortcut, phase):
         a = menu.addAction(text)
@@ -717,11 +766,15 @@ class MainWindow(QMainWindow):
         return None
 
     # ------------------------------------------------------------------ actions
-    def add_element_dialog(self, key):
-        """Toolbar / Elements → Add: dialog with default values, the position at the view center."""
+    def add_element_dialog(self, key, at=None):
+        """Palette / Elements → Add: dialog with default values. The position is `at` (an element
+        dragged from the palette and dropped on the plot) or the view center."""
         spec, cls = spec_for(key), ELEMENT_TYPES[key]
         values = {p.key: p.default for p in spec.params}
-        if cls.POSITION_KEYS == ("x0", "y0"):
+        if at is not None and cls.POSITION_KEYS:
+            kx, ky = cls.POSITION_KEYS
+            values[kx], values[ky] = at
+        elif cls.POSITION_KEYS == ("x0", "y0"):
             (x0, x1), (y0, y1) = self.canvas.vb.viewRange()
             values["x0"], values["y0"] = round(0.5 * (x0 + x1), 1) + 0.0, round(0.5 * (y0 + y1), 1) + 0.0
         dlg = ElementDialog(spec, self.theme, False, self, values=values,
@@ -744,6 +797,12 @@ class MainWindow(QMainWindow):
                 self.flash("No change.")
             else:
                 self._flash_done()
+
+    def move_element(self, row, moved):
+        """Move mode: an element was dragged to a new place (one undoable step)."""
+        if 0 <= row < len(self.elements):
+            self.model.replace(row, moved, f"Move {element_title(self.elements[row]).lower()}")
+            self._flash_done()
 
     def duplicate_element(self, row):
         if 0 <= row < len(self.elements):

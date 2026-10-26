@@ -401,9 +401,12 @@ class ElementPalette(QWidget):
         self._lay.addSpacing(12)                 # room for the rule under the heading (as in the panels)
         self._end = self._lay.addStretch(1)
 
-    def add_action(self, action) -> QToolButton:
+    def add_action(self, action, key: str = "") -> QToolButton:
+        """Button of one element type; click = add dialog, drag onto the plot = add it there."""
         b = QToolButton(self)
         b.setDefaultAction(action)
+        b.setProperty("element_key", key)
+        b.installEventFilter(self)
         b.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         b.setIconSize(QSize(LAYOUT["toolbar_icon_px"], LAYOUT["toolbar_icon_px"]))
         b.setFixedSize(*LAYOUT["palette_button"])
@@ -424,6 +427,41 @@ class ElementPalette(QWidget):
     def apply_theme(self, theme):
         self.theme = theme
         self.update()
+
+    # dragging an element type out of the palette (onto the plot) ----------------------------
+    def eventFilter(self, obj, event):
+        from PySide6.QtCore import QEvent
+        if isinstance(obj, QToolButton) and obj.property("element_key"):
+            et = event.type()
+            if et == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+                obj._press_pos = event.position().toPoint()
+            elif et == QEvent.MouseMove and event.buttons() & Qt.LeftButton:
+                start = getattr(obj, "_press_pos", None)
+                from PySide6.QtWidgets import QApplication
+                if start is not None and (event.position().toPoint() - start).manhattanLength() \
+                        >= QApplication.startDragDistance():
+                    obj._press_pos = None
+                    self._start_element_drag(obj)
+                    return True
+            elif et == QEvent.MouseButtonRelease:
+                obj._press_pos = None
+        return super().eventFilter(obj, event)
+
+    def _start_element_drag(self, button):
+        from PySide6.QtCore import QMimeData
+        from PySide6.QtGui import QDrag
+        from .canvas import ELEMENT_MIME
+        key = button.property("element_key")
+        mime = QMimeData()
+        mime.setData(ELEMENT_MIME, key.encode())
+        drag = QDrag(button)
+        drag.setMimeData(mime)
+        size = LAYOUT["toolbar_icon_px"] + 6
+        drag.setPixmap(button.icon().pixmap(size, size))
+        drag.setHotSpot(QPoint(size // 2, size // 2))
+        button.setDown(False)
+        drag.exec(Qt.CopyAction)
+        button.setDown(False)                     # no click after a drag
 
     # dragging the card by its heading -------------------------------------------------------
     def _on_handle(self, pos) -> bool:
