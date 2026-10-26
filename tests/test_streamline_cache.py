@@ -269,3 +269,11 @@ def test_regular_lines_start_from_the_dividing_streamlines():
     up = up[(up.real < -1.3) & (up.real > -4.0)]                        # the part in view
     best = min((as_complex(ln) for ln in res.lines), key=lambda w: np.median(_dist_to_polyline(up[::5], w)))
     assert np.max(_dist_to_polyline(up, best)) < 1e-3
+
+
+def test_forced_redraw_keeps_the_stagnation_points():
+    """Theme / arrow changes redraw without new lines; the stagnation points must stay."""
+    c = StreamlineCache(CYL)
+    assert len(c.update(VIEW).stagnation) == 2
+    again = c.update(VIEW, arrow_density=2.0, force=True)
+    assert len(again.stagnation) == 2 and len(again.dividing) == 6

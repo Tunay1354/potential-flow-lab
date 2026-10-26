@@ -106,7 +106,7 @@ LAYOUT = {
     # selected element glows in its own color: (extra size in px, opacity 0–255), outermost first
     "selection_glow": ((26, 28), (17, 55), (9, 95)),
     "pick_radius_px": 10,           # a click this close (in screen pixels) to a symbol or wall selects it
-    "stagnation_marker_px": 9,      # diameter of the stagnation point rings
+    "stagnation_label_offset_px": 14,   # the x / y box of a selected stagnation point sits this far away
 }
 
 # ---------------------------------------------------------------------------
@@ -118,6 +118,7 @@ MARKERS = {
     "vortex":  {"symbol": "o", "size": 18, "filled": False},
     "doublet": {"symbol": "d", "size": 13, "filled": True},
     "sector":  {"symbol": "s", "size": 9, "filled": True},      # vertex of the wedge
+    "stagnation": {"symbol": "stagnation", "size": 15, "filled": False},  # ring with a cross (⊗), not an element
     "default": {"symbol": "x", "size": 10, "filled": True},     # any future element type
 }
 

@@ -32,6 +32,18 @@ from .geometry import fluid_polygon, ray_in_rect, rect_polygon, sector_shading, 
 from .theme import FONT, LAYOUT, MARKERS
 
 
+def _stagnation_symbol() -> QPainterPath:
+    """Marker of a stagnation point: a ring with a cross in it (⊗), unit size, centered."""
+    path = QPainterPath()
+    path.addEllipse(-0.5, -0.5, 1.0, 1.0)
+    a = 0.5 / np.sqrt(2.0)
+    path.moveTo(-a, -a)
+    path.lineTo(a, a)
+    path.moveTo(-a, a)
+    path.lineTo(a, -a)
+    return path
+
+
 class _ResultSignal(QObject):
     """Carries background results to the GUI thread (queued connection)."""
     done = Signal(int, object, float)        # generation, StreamlineSet / None / exception, time in ms
@@ -121,6 +133,7 @@ class PlotCanvas(QWidget):
     probe = Signal(object)              # (x, y) in data coordinates, or None
     element_clicked = Signal(int)       # index of the clicked element, −1 = empty place (deselect)
     element_double_clicked = Signal(int)
+    stagnation_clicked = Signal(int)    # index of the clicked stagnation point
     view_changed = Signal(tuple, tuple)  # (xmin, xmax), (ymin, ymax)
     computed = Signal(int, float)       # number of streamlines, computation time in ms
 
@@ -180,11 +193,21 @@ class PlotCanvas(QWidget):
         self._dividing_item.setSegmentedLineMode("on")
         self._dividing_item.setZValue(1.6)
         self.plot.addItem(self._dividing_item)
-        self._stag_item = pg.ScatterPlotItem(symbol="o", size=LAYOUT["stagnation_marker_px"])
+        style = MARKERS["stagnation"]
+        self._stag_symbol = _stagnation_symbol()
+        self._stag_item = pg.ScatterPlotItem(symbol=self._stag_symbol, size=style["size"])
         self._stag_item.setZValue(3.5)
         self.plot.addItem(self._stag_item)
+        self._stag_glow = []                     # glow of the selected stagnation point
+        self._stag_label = pg.TextItem(anchor=(0.0, 1.0))
+        self._stag_label.setZValue(6)
+        self._stag_label.setVisible(False)
+        self.plot.addItem(self._stag_label)
         self.stagnation_points = []
-        self.layers = {"streamlines": True, "dividing": True, "stagnation": True, "markers": True, "walls": True}
+        self._dividing_lines, self._dividing_owner = [], []
+        self.selected_stagnation = None          # index of the selected stagnation point (or None)
+        # "dividing": ALL dividing streamlines; those of a selected stagnation point are always shown
+        self.layers = {"streamlines": True, "dividing": False, "stagnation": True, "markers": True, "walls": True}
         self._markers, self._walls = [], []
 
         # background computation: one worker thread; requests during a computation are collected
@@ -271,23 +294,105 @@ class PlotCanvas(QWidget):
         self.request()
 
     def set_layer(self, key: str, on: bool):
-        """Show / hide a layer: streamlines, dividing, stagnation, markers, walls."""
+        """Show / hide a layer: streamlines, dividing (all dividing streamlines), stagnation, markers,
+        walls."""
         if key not in self.layers:
             return
         self.layers[key] = on
-        self._apply_layers()
+        if key == "stagnation" and not on:
+            self.selected_stagnation = None
+        self._draw_stagnation()
 
     def _apply_layers(self):
         on = self.layers
         for item in self._line_items:
             item.setVisible(on["streamlines"])
         self._arrow_item.setVisible(on["streamlines"])
-        self._dividing_item.setVisible(on["dividing"])
         self._stag_item.setVisible(on["stagnation"])
+        for item in self._stag_glow:
+            item.setVisible(on["stagnation"])
+        self._stag_label.setVisible(on["stagnation"] and self.selected_stagnation is not None)
         for item in self._markers:
             item.setVisible(on["markers"])
         for item in self._walls:
             item.setVisible(on["walls"])
+
+    # ------------------------------------------------------------------ stagnation points
+    def select_stagnation(self, index):
+        """Select a stagnation point (index in stagnation_points) or none (None): the selected one
+        glows, shows its dividing streamlines and a box with its coordinates."""
+        if index is not None and not 0 <= index < len(self.stagnation_points):
+            index = None
+        self.selected_stagnation = index
+        self._draw_stagnation()
+
+    def _draw_stagnation(self):
+        t = self.theme
+        pts = self.stagnation_points
+        self._stag_item.setData([p.x for p in pts], [p.y for p in pts])
+        for item in self._stag_glow:
+            self.plot.removeItem(item)
+        self._stag_glow.clear()
+        k = self.selected_stagnation
+        if k is not None:
+            p = pts[k]
+            size = MARKERS["stagnation"]["size"]
+            for extra, alpha in LAYOUT["selection_glow"]:
+                c = QColor(t["stagnation"])
+                c.setAlpha(alpha)
+                g = pg.ScatterPlotItem([p.x], [p.y], size=size + extra, symbol="o",
+                                       brush=pg.mkBrush(c), pen=pg.mkPen(None))
+                g.setZValue(3.4)
+                self.plot.addItem(g)
+                self._stag_glow.append(g)
+            x, y = round(p.x, 4) + 0.0, round(p.y, 4) + 0.0
+            where = {"flow": "in the flow", "wall": "on the wall", "vertex": "corner vertex",
+                     "body": "on the body surface"}[p.kind]
+            self._stag_label.setHtml(
+                f'<div style="color:{t["text"]}; font-size:9pt; padding:2px 4px;">'
+                f'<b>Stagnation point</b> <span style="color:{t["text_muted"]}">({where})</span><br>'
+                f'x = {x:.4f}<br>y = {y:.4f}</div>')
+            self._stag_label.fill = pg.mkBrush(t["panel_bg"])
+            self._stag_label.border = pg.mkPen(t["border"])
+            self._place_stag_label()
+        # dividing streamlines: all of them (layer) or only those of the selected point
+        lines = [ln for ln, o in zip(self._dividing_lines, self._dividing_owner)
+                 if self.layers["dividing"] or o == k]
+        if lines:
+            gap = np.array([[np.nan, np.nan]])
+            xy = np.vstack([x for ln in lines for x in (ln, gap)])
+            self._dividing_item.setData(xy[:, 0], xy[:, 1])
+        else:
+            self._dividing_item.setData([], [])
+        self._apply_layers()
+
+    def _place_stag_label(self):
+        """The coordinate box sits a few pixels up-right of the selected point (at any zoom)."""
+        k = self.selected_stagnation
+        if k is None:
+            return
+        p = self.stagnation_points[k]
+        px, py = self.vb.viewPixelSize()
+        off = LAYOUT["stagnation_label_offset_px"]
+        # above the point, on the side away from the nearest element symbol (not over the body)
+        marks = [m for e in self.elements if e.enabled for m in e.marker_points()]
+        left = bool(marks) and min(marks, key=lambda m: abs(m - p.z)).real > p.x
+        self._stag_label.setAnchor((1.0, 1.0) if left else (0.0, 1.0))
+        self._stag_label.setPos(p.x + (-off if left else off) * px, p.y + off * py)
+
+    def _pick_stagnation(self, scene_pos):
+        """[(distance in pixels, index)] of the stagnation points under a scene position."""
+        from PySide6.QtCore import QPointF
+        if not self.layers["stagnation"]:
+            return []
+        click = complex(scene_pos.x(), scene_pos.y())
+        out = []
+        for k, p in enumerate(self.stagnation_points):
+            q = self.vb.mapViewToScene(QPointF(p.x, p.y))
+            d = abs(complex(q.x(), q.y()) - click)
+            if d <= LAYOUT["pick_radius_px"]:
+                out.append((d, k))
+        return sorted(out)
 
     def stagnation_near(self, x: float, y: float):
         """The stagnation point within the pick radius (screen pixels) of (x, y), or None."""
@@ -343,6 +448,8 @@ class PlotCanvas(QWidget):
         self._dividing_item.setPen(pg.mkPen(t["dividing_streamline"], width=LAYOUT["dividing_streamline_width"]))
         self._stag_item.setPen(pg.mkPen(t["stagnation"], width=2))
         self._stag_item.setBrush(pg.mkBrush(t["plot_bg"]))
+        if hasattr(self, "_stag_glow"):
+            self._draw_stagnation()
         self._force = True
         self.request()
 
@@ -463,14 +570,17 @@ class PlotCanvas(QWidget):
         self._cull()
 
         self._arrow_item.setColor(self.theme["streamline"])
+        old = (self.stagnation_points[self.selected_stagnation]
+               if self.selected_stagnation is not None else None)
         self.stagnation_points = list(result.stagnation)
-        if result.dividing:
-            gap = np.array([[np.nan, np.nan]])
-            xy = np.vstack([x for ln in result.dividing for x in (ln, gap)])
-            self._dividing_item.setData(xy[:, 0], xy[:, 1])
-        else:
-            self._dividing_item.setData([], [])
-        self._stag_item.setData([p.x for p in self.stagnation_points], [p.y for p in self.stagnation_points])
+        self._dividing_lines = list(result.dividing)
+        self._dividing_owner = list(result.dividing_owner)
+        self.selected_stagnation = None                 # keep the selection if the point is still there
+        if old is not None:
+            for k, p in enumerate(self.stagnation_points):
+                if abs(p.z - old.z) <= 1e-9 * (1.0 + abs(old.z)):
+                    self.selected_stagnation = k
+        self._draw_stagnation()
 
         if self._walls_need_redraw():
             self._draw_walls_around_view()
@@ -653,6 +763,7 @@ class PlotCanvas(QWidget):
         self.view_changed.emit((x0, x1), (y0, y1))
         if self._walls_need_redraw():
             self._draw_walls_around_view()
+        self._place_stag_label()
         if self._needs_cull():
             self._cull()
         self.schedule()
@@ -707,19 +818,25 @@ class PlotCanvas(QWidget):
     def _mouse_clicked(self, ev):
         if ev.button() != Qt.LeftButton:
             return
-        hits = self.pick(ev.scenePos()) if self.vb.sceneBoundingRect().contains(ev.scenePos()) else []
+        inside = self.vb.sceneBoundingRect().contains(ev.scenePos())
+        elements = self.pick(ev.scenePos()) if inside else []
+        stags = self._pick_stagnation(ev.scenePos()) if inside else []
         if ev.double():
-            if hits:
-                self.element_double_clicked.emit(hits[0])
+            if elements:
+                self.element_double_clicked.emit(elements[0])
             return
+        # everything under the mouse, nearest first: ("e", element index) or ("s", stagnation index)
+        hits = [("s", k) for _, k in stags] + [("e", i) for i in elements]
         if not hits:
             self.element_clicked.emit(-1)
             return
+        current = ("e", self.selected) if self.selected >= 0 else ("s", self.selected_stagnation)
         # clicking again on overlapping symbols (e.g. doublet + vortex) selects the next one
-        if self.selected in hits:
-            self.element_clicked.emit(hits[(hits.index(self.selected) + 1) % len(hits)])
+        kind, k = hits[(hits.index(current) + 1) % len(hits)] if current in hits else hits[0]
+        if kind == "e":
+            self.element_clicked.emit(k)
         else:
-            self.element_clicked.emit(hits[0])
+            self.stagnation_clicked.emit(k)
 
     def _mouse_moved(self, pos):
         if not self.vb.sceneBoundingRect().contains(pos):

@@ -172,3 +172,11 @@ def test_description_has_no_negative_zero():
     from physics.stagnation import StagnationPoint
     assert StagnationPoint(complex(1.0, -1e-17), "body").describe() == \
         "Stagnation point (1.0000, 0.0000), on the body surface"
+
+
+def test_every_dividing_streamline_starts_or_ends_at_its_own_point():
+    f = flow_features([Uniform(), Doublet(mu=1.0), Vortex(Gamma=-2.0)], R)
+    assert len(f.owners) == len(f.dividing) and set(f.owners) == {0, 1}
+    for ln, k in zip(f.dividing, f.owners):
+        ends = [complex(*ln[0]), complex(*ln[-1])]
+        assert min(abs(e - f.points[k].z) for e in ends) < 1e-12

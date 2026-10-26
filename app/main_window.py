@@ -59,6 +59,7 @@ class MainWindow(QMainWindow):
         self.canvas.bar.message.connect(self.flash)
         self.canvas.probe.connect(self._update_probe)
         self.canvas.element_clicked.connect(self.select_element)
+        self.canvas.stagnation_clicked.connect(self.select_stagnation)
         self.canvas.element_double_clicked.connect(
             lambda row: (self.select_element(row), QTimer.singleShot(0, lambda: self.edit_element(row))))
 
@@ -320,10 +321,19 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------ selection
     def select_element(self, row: int):
-        """Select element `row` (from the plot or code); −1 clears the selection."""
+        """Select element `row` (from the plot or code); −1 clears the selection (also of a
+        stagnation point)."""
+        self.canvas.select_stagnation(None)
         self.elements_panel.select_row(row)
 
+    def select_stagnation(self, index: int):
+        """A stagnation point was clicked: no element selected, the point shows its details."""
+        self.select_element(-1)
+        self.canvas.select_stagnation(index)
+
     def _selection_changed(self, row: int):
+        if row >= 0:
+            self.canvas.select_stagnation(None)        # an element is selected now
         self.canvas.set_selected(row)
         self._update_edit_actions()
 

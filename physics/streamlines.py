@@ -69,6 +69,7 @@ class StreamlineSet:
     domain: tuple[float, float, float, float] | None = None        # region filled with lines (x0, x1, y0, y1)
     stagnation: list = field(default_factory=list)                 # StagnationPoint (stagnation.py)
     dividing: list[np.ndarray] = field(default_factory=list)       # dividing streamlines, (N, 2) each
+    dividing_owner: list[int] = field(default_factory=list)        # index in `stagnation` of each one
 
 
 @dataclass
@@ -722,7 +723,7 @@ class StreamlineCache:
         f = self.fields.get(L)
         t = self.TRIGGER
         if f is not None and f.contains((x0 - t * W, x1 + t * W, y0 - t * H, y1 + t * H)) and L == previous:
-            return f.result(arrow_density) if force else None
+            return self._with_features(f.result(arrow_density)) if force else None
         if f is not None and f.domain is not None:
             a0, a1, b0, b1 = f.domain
             grown = (max(a1, around[1]) - min(a0, around[0])) * (max(b1, around[3]) - min(b0, around[2]))
@@ -750,6 +751,7 @@ class StreamlineCache:
         if self.features is not None:
             res.stagnation = list(self.features.points)
             res.dividing = list(self.features.dividing)
+            res.dividing_owner = list(self.features.owners)
         return res
 
     def _update_features(self, visible, cancelled):

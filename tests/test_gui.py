@@ -506,7 +506,7 @@ def test_closing_during_a_computation_waits_and_does_not_hang(window, qapp):
 
 
 # ---------------------------------------------------------------- stagnation points / dividing streamlines
-def test_stagnation_points_and_dividing_streamlines_are_drawn(shown, qapp):
+def test_stagnation_points_are_drawn_and_their_lines_appear_only_when_selected(shown, qapp):
     cv = shown.canvas
     shown.load_preset(preset("Single vortex, clockwise (Γ = −2)"))       # no stagnation points
     assert _wait_for(qapp, cv, lambda: not cv.stagnation_points and not cv._busy)
@@ -516,9 +516,84 @@ def test_stagnation_points_and_dividing_streamlines_are_drawn(shown, qapp):
     xs = sorted(p.x for p in cv.stagnation_points)
     np.testing.assert_allclose(xs, [-np.cos(th), np.cos(th)], atol=1e-8)
     x, y = cv._stag_item.getData()
-    assert len(x) == 2
-    dx, dy = cv._dividing_item.getData()
-    assert dx is not None and np.isfinite(dx).sum() > 50
+    assert len(x) == 2                                               # ⊗ symbols always shown
+    assert cv._dividing_item.getData()[0].size == 0                  # no black lines by default
+    assert not cv._stag_label.isVisible()
+
+
+def _dividing_points(cv):
+    x, y = cv._dividing_item.getData()
+    ok = np.isfinite(x)
+    return x[ok] + 1j * y[ok]
+
+
+def test_clicking_a_stagnation_point_shows_its_lines_and_coordinates(shown, qapp):
+    cv = shown.canvas
+    shown.load_preset(preset("Non-lifting cylinder (uniform + doublet)"))
+    assert _wait_for(qapp, cv, lambda: sorted(round(p.x, 6) for p in cv.stagnation_points) == [-1.0, 1.0]
+                     and all(abs(p.y) < 1e-9 for p in cv.stagnation_points))
+    shown.select_element(1)                                          # the doublet is selected ...
+    _click(qapp, shown, -1.0, 0.0)                                   # ... click the front stagnation point
+    k = cv.selected_stagnation
+    assert k is not None and cv.stagnation_points[k].x == pytest.approx(-1.0)
+    assert shown.elements_panel.current_row() == -1 and cv.selected == -1   # element selection gone
+    assert len(cv._stag_glow) == len(LAYOUT_GLOW())                   # it glows
+    assert cv._stag_label.isVisible()
+    html = cv._stag_label.textItem.toHtml()
+    assert "x = -1.0000" in html and "y = 0.0000" in html and "on the body surface" in html
+    pts = _dividing_points(cv)
+    assert pts.size > 50
+    assert (pts.real < -3.0).any()                                   # the line coming from upstream
+    surface = pts[(np.abs(pts.imag) > 1e-6) | (pts.real > -1.0 + 1e-9)]
+    assert surface.size > 20 and np.abs(np.abs(surface) - 1.0).max() < 2e-3   # and the cylinder surface
+    assert not (pts.real > 3.0).any()                                # not the back point's line
+
+    _click(qapp, shown, 1.0, 0.0)                                    # the other point
+    assert cv.stagnation_points[cv.selected_stagnation].x == pytest.approx(1.0)
+    assert (_dividing_points(cv).real > 3.0).any()
+
+    _click(qapp, shown, -3.0, 2.0)                                   # empty place: everything goes
+    assert cv.selected_stagnation is None and not cv._stag_glow
+    assert not cv._stag_label.isVisible() and _dividing_points(cv).size == 0
+    assert len(cv._stag_item.getData()[0]) == 2                      # the symbols stay
+
+
+def test_stagnation_selection_clears_with_escape_and_element_selection(shown, qapp):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    cv = shown.canvas
+    shown.load_preset(preset("Non-lifting cylinder (uniform + doublet)"))
+    assert _wait_for(qapp, cv, lambda: len(cv.stagnation_points) == 2
+                     and sorted(round(p.x, 6) for p in cv.stagnation_points) == [-1.0, 1.0])
+    shown.select_stagnation(0)
+    assert cv.selected_stagnation == 0
+    tree = shown.elements_panel.tree                                 # a click on an element in the list
+    tree.setCurrentItem(tree.topLevelItem(0))
+    tree.topLevelItem(0).setSelected(True)
+    for _ in range(3):
+        qapp.processEvents()
+    assert shown.elements_panel.current_row() == 0
+    assert cv.selected_stagnation is None
+    shown.select_stagnation(1)
+    QTest.keyClick(shown.canvas.plot, Qt.Key_Escape)
+    for _ in range(3):
+        qapp.processEvents()
+    assert cv.selected_stagnation is None
+
+
+def test_all_dividing_streamlines_layer(shown, qapp):
+    cv = shown.canvas
+    assert _wait_for(qapp, cv, lambda: len(cv.stagnation_points) == 2)
+    assert not shown.settings_panel.layer_boxes["dividing"].isChecked()
+    shown.settings_panel.layer_boxes["dividing"].setChecked(True)
+    assert _dividing_points(cv).size > 100 and shown.layer_actions["dividing"].isChecked()
+    shown.layer_actions["dividing"].setChecked(False)
+    assert _dividing_points(cv).size == 0
+
+
+def LAYOUT_GLOW():
+    from app.theme import LAYOUT
+    return LAYOUT["selection_glow"]
 
 
 def test_hover_over_a_stagnation_point_shows_it(shown, qapp):
@@ -544,8 +619,6 @@ def test_layer_switches_in_panel_and_view_menu_agree(shown, qapp):
     assert cv.stagnation_near(p.x, p.y) is None                       # hidden points are not reported
     act.setChecked(True)
     assert box.isChecked() and cv._stag_item.isVisible()
-    shown.layer_actions["dividing"].setChecked(False)
-    assert not cv._dividing_item.isVisible()
     shown.settings_panel.layer_boxes["streamlines"].setChecked(False)
     assert not any(i.isVisible() for i in cv._line_items) and not cv._arrow_item.isVisible()
     shown.settings_panel.layer_boxes["walls"].setChecked(False)

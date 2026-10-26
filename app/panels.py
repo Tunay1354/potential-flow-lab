@@ -157,7 +157,7 @@ class ElementsPanel(QWidget):
 # plot layers: key, label, visible at start, implemented yet
 LAYERS = (
     ("streamlines", "Streamlines", True, True),
-    ("dividing", "Dividing streamlines", True, True),
+    ("dividing", "All dividing streamlines", False, True),
     ("stagnation", "Stagnation points", True, True),
     ("equipotential", "Equipotential lines (φ)", False, False),
     ("speed", "|V| contours", False, False),

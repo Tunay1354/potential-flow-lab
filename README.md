@@ -12,7 +12,7 @@ dosyaya kaydedilip açılabilir. Sıradaki işler: `ROADMAP.md`.
 |---|---|
 | Element ekle | Soldaki toolbar ya da **Elements → Add** → değerleri gir → **Apply** |
 | Düzenle | Listede çift tıkla, Enter, **Edit…** butonu ya da **Elements → (element) → Edit…** |
-| Stagnation point | Plot'ta beyaz halkalar; üzerine gel → koordinat ve türü durum çubuğunda. Koyu kalın çizgiler: dividing streamline'lar. **Plot settings → Layers** ile aç / kapat |
+| Stagnation point | Plot'ta ⊗ sembolü. Tıkla → parlar, içinden geçen dividing streamline'lar (koyu kalın çizgiler) ve x, y kutusu görünür; boş yere tıkla / Esc → kaybolur. Hepsini birden görmek: **Plot settings → Layers → All dividing streamlines** |
 | Seç | Listede ya da plot'ta sembole / duvara tıkla (üst üste binenlerde tekrar tıkla); boş yere tıkla veya Esc → seçim kalkar; sembole çift tık → düzenle |
 | Geçici gizle | Listede elementin tik kutusu |
 | Çoğalt | **Duplicate** butonu / Ctrl+D (kopya (0.5, 0.5) kaydırılır) |

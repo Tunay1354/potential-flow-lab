@@ -58,6 +58,7 @@ class StagnationPoint:
 class FlowFeatures:
     points: list[StagnationPoint] = field(default_factory=list)
     dividing: list[np.ndarray] = field(default_factory=list)      # (N, 2) arrays
+    owners: list[int] = field(default_factory=list)              # index (in points) of each line's point
     region: tuple[float, float, float, float] | None = None
 
 
@@ -312,7 +313,7 @@ def flow_features(elements, region, dividing: bool = True, scale: float | None =
     has_stream = reference_speed(els) is not None
     tracer = _tracer(els, L)
     box = (x0, x1, y0, y1)
-    for p in points:
+    for k, p in enumerate(points):
         r = _probe_radius(p.z, zs, sing, L)
         starts, signs = [], []
         psi0 = _psi(flows, p.z)
@@ -346,4 +347,5 @@ def flow_features(elements, region, dividing: bool = True, scale: float | None =
                 pts = np.concatenate([[p.z], ln]) if sgn > 0 else np.concatenate([ln[::-1], [p.z]])
                 if pts.size >= 3:
                     feats.dividing.append(np.column_stack([pts.real, pts.imag]))
+                    feats.owners.append(k)
     return feats

@@ -36,8 +36,10 @@ Teslim: yaklaşık 26 Kasım 2026 (rapor + user guide + canlı demo).
      (`COARSE_LEVELS`): kaynak gibi açılan akışlarda boşluk bırakıyor; uçları uzatarak ileride açılabilir
    - Not: geri kalan kare süresi Qt'nin CPU'da antialiased çizimi (~10 ms) → E2'de OpenGL denenecek
 5. ✅ **Paket F — Stagnation point'ler + dividing streamline**
-   - w(z) = 0 noktaları Newton yöntemiyle bulunur, plot'ta halka ile işaretli; üzerine gelince koordinat
-     ve türü (akışta / duvarda / köşe / cisim yüzeyinde) durum çubuğunda
+   - w(z) = 0 noktaları Newton yöntemiyle bulunur, plot'ta ⊗ sembolü; üzerine gelince koordinat ve türü
+     (akışta / duvarda / köşe / cisim yüzeyinde) durum çubuğunda
+   - Revize: dividing streamline'lar normalde gizli; ⊗'e tıklayınca o noktanın çizgileri, parlama ve
+     x, y kutusu görünür, boş yere tıklayınca / Esc ile kaybolur ("All dividing streamlines" katmanı ayrıca var)
    - Duvar arkasındaki (image kaynaklı) sıfırlar ve cismin içindeki fiziksel olmayan kök gösterilmez
      (ör. Γ > 4πV∞a'da silindir içindeki ikinci kök); sector köşesi (n > 1) dahil
    - Dividing streamline'lar durma noktalarından çizilir (silindir yüzeyi, Rankine gövdeleri, iki vortex
