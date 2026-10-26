@@ -247,10 +247,12 @@ class ElementDialog(QDialog):
     def _update_issues(self):
         problems = self.validator(self.values()) if self.validator else []
         errors = [m for sev, m in problems if sev == "error"]
-        warnings = [m for sev, m in problems if sev != "error"]
+        warnings = [m for sev, m in problems if sev == "warning"]
+        notes = [m for sev, m in problems if sev == "info"]
         t = self.theme
         lines = [f"<span style='color:{t['danger']}'>✖ {m}</span>" for m in errors]
         lines += [f"<span style='color:{t['el_doublet']}'>⚠ {m}</span>" for m in warnings]
+        lines += [f"<span style='color:{t['text_muted']}'>ℹ {m}</span>" for m in notes]
         self.issues.setText("<br>".join(lines))
         self.issues.setVisible(bool(lines))
         self.has_errors = bool(errors)

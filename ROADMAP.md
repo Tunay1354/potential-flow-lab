@@ -12,14 +12,15 @@ Bu dosya projenin kalan işlerini ve sırasını tutar. Her adım bittikçe işa
 - ✅ Faz 2a — Sahne modeli, ekle / düzenle / sil / çoğalt / gizle, undo / redo, hatalı girdi uyarıları
 
 ## Sıra
-1. ▶ **Paket A — Hızlı düzeltmeler**
+1. ✅ **Paket A — Hızlı düzeltmeler**
    - [8] Seçili element mavi halka yerine kendi renginde parlasın (duvar dahil)
    - [3] Streamline okları küçülsün
    - Aynı noktadaki doublet + vortex: ⚠ uyarı yerine ℹ bilgi notu
-2. ☐ **Paket B — Streamline kalitesi**
+2. ▶ **Paket B — Streamline kalitesi**
    - [1] Çizgiler daha düzenli / eşit aralıklı (komşu çizgiden d mesafede tohumlama), oklar düzenli dizilsin
    - [2] Çizgiler ortada aniden başlayıp bitmesin: kenarlardan / duvar boyunca tohumlama, daha uzun çizgiler,
      uçlarda yumuşak incelme (tapering), çok kısa parçaları atma
+   - Streamline hesabı arka planda (arayüz hiç donmasın; yeni çizgiler hazır olana kadar eskiler kalır)
 3. ☐ **Faz 2b — File menüsü**: New / Open / Save / Save as (JSON, sürüm numaralı), son açılanlar,
    presetler dosya olarak (hocanın verification case 5'i)
 4. ☐ **Paket C — Sıcak, tatlı tema** [6]: 2–3 renk seçeneği gösterilip seçilecek (açık + koyu)
@@ -28,11 +29,17 @@ Bu dosya projenin kalan işlerini ve sırasını tutar. Her adım bittikçe işa
    başlığa sağ tık → görünecek panelleri tikle, View → Panels, Reset layout, yerleşimi hatırlama
 6. ☐ **Faz 2c — Plot'ta fareyle seçme ve sürükleme** (undo'da tek adım)
 7. ☐ **Faz 3 — Rapor malzemesi**: doğrulama figürleri ve tabloları, user guide taslağı
-8. ☐ **Faz 4 — Ekstralar**: animasyonlu parçacıklar (ayarları ileride değiştirilebilir) [5],
+8. ☐ **Faz 4 — Ekstralar**: animasyonlu parçacıklar (60 fps hedefi, ayarları ileride değiştirilebilir) [5],
    dividing streamline / cisim, φ, |V|, Cp katmanları, PNG / PDF / CSV export,
-   kunduzun akışta süzülmesi [7b]
-9. ☐ **Faz 5 — Paketleme**: Windows .exe, macOS .app (GitHub Actions)
-10. ☐ **Faz 6 — Kunduz rehber ve cilalama** [7a]: ilk açılışta atlanabilir tanıtım turu, Help yanındaki yeri,
+   isteğe bağlı OpenGL (ekran kartı) çizim, kunduzun akışta süzülmesi [7b]
+9. ☐ **Paket E — Performans**: profiling, Numba ile derlenmiş streamline integrasyonu, kaba → ince çizim,
+   önbellek, zayıf bilgisayarda test (hesap işlemcide, çizim gerekirse ekran kartında)
+10. ☐ **Faz 5 — Paketleme**: Python gerektirmeyen Windows 10/11 exe (zip içinde klasör), GitHub Releases,
+    isteğe bağlı kurulum dosyası (Inno Setup), macOS .app (GitHub Actions)
+11. ☐ **Faz 6 — Kunduz rehber ve cilalama** [7a]: ilk açılışta atlanabilir tanıtım turu, Help yanındaki yeri,
     açma / kapama ayarı, demo provası
 
 (Köşeli parantezdeki numaralar 26 Ekim'deki istek listesindeki madde numaralarıdır.)
+
+Bir değişiklik beğenilmezse: her paket ayrı commit → GitHub Desktop → History → commit'e sağ tık →
+"Revert changes in commit".

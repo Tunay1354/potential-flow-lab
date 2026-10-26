@@ -26,6 +26,10 @@ class SceneIssue:
         return self.issue.is_error
 
     @property
+    def severity(self) -> str:
+        return self.issue.severity
+
+    @property
     def message(self) -> str:
         return self.issue.message
 
@@ -82,7 +86,7 @@ def check_scene(elements: Sequence[FlowElement]) -> list[SceneIssue]:
 
     # 5) coincident singular points (allowed, e.g. doublet + vortex at a cylinder center)
     for i, j in coincident_singularities(elements):
-        out.append(SceneIssue(j, Issue("warning", f"{elements[j].NAME} is at the same point as "
+        out.append(SceneIssue(j, Issue("info", f"{elements[j].NAME} is at the same point as "
                                                   f"[{i + 1}] {elements[i].NAME}. This is allowed (e.g. doublet + "
                                                   f"vortex of a lifting cylinder); the point itself is not plotted.")))
     return out

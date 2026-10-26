@@ -38,13 +38,20 @@ class ParamSpec:
 
 @dataclass(frozen=True)
 class Issue:
-    """A problem found when checking an element. severity: 'error' or 'warning'."""
+    """Something found when checking a scene.
+    severity: 'error'   -> physically inconsistent (e.g. element behind a wall)
+              'warning' -> allowed but probably not intended (e.g. strength 0)
+              'info'    -> just a note (e.g. two singular points at the same place, as in a lifting cylinder)"""
     severity: str
     message: str
 
     @property
     def is_error(self) -> bool:
         return self.severity == "error"
+
+    @property
+    def is_warning(self) -> bool:
+        return self.severity == "warning"
 
 
 @dataclass(kw_only=True)

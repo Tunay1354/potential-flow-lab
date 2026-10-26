@@ -266,3 +266,13 @@ def test_double_click_edit_and_tick_box_do_not_crash(window, qapp, monkeypatch):
         tree.topLevelItem(0).setCheckState(0, Qt.Unchecked if window.elements[0].enabled else Qt.Checked)
         qapp.processEvents()
     assert not window.elements[0].enabled
+
+
+def test_coincident_points_are_a_note_not_a_warning(window):
+    """Doublet + vortex at the cylinder center: allowed, shown as an info note (status stays 'OK')."""
+    from physics import check_scene
+    issues = check_scene(window.elements)
+    assert [s.severity for s in issues] == ["info"]
+    assert window.issue_label.text().startswith("✓ scene OK") and "1 note" in window.issue_label.text()
+    window.model.set_enabled(2, False)
+    assert window.issue_label.text() == "✓ scene OK"

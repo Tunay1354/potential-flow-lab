@@ -404,8 +404,9 @@ class MainWindow(QMainWindow):
         """Scene check (walls, invalid positions...) in the status bar (details in the tooltip) and,
         for errors, a red strip above the plot."""
         issues = check_scene(self.elements)
-        errors = [s for s in issues if s.is_error]
-        warnings = [s for s in issues if not s.is_error]
+        errors = [s for s in issues if s.severity == "error"]
+        warnings = [s for s in issues if s.severity == "warning"]
+        notes = [s for s in issues if s.severity == "info"]
         if errors:
             text = f"✖ {len(errors)} error{'s' if len(errors) > 1 else ''}"
             color = self.theme["danger"]
@@ -414,12 +415,15 @@ class MainWindow(QMainWindow):
             color = self.theme["el_doublet"]
         else:
             text, color = "✓ scene OK", self.theme["el_sector"]
+        if notes and not errors:
+            text += f"  · ℹ {len(notes)} note{'s' if len(notes) > 1 else ''}"
         self.issue_label.setText(text)
         self.issue_label.setStyleSheet(f"color: {color}; font-weight: 600;")
+        symbol = {"error": "✖", "warning": "⚠", "info": "ℹ"}
         tips = []
         for s in issues:
             who = f"[{s.index + 1}] " if s.index is not None else ""      # number in the element list
-            tips.append(f"{'✖' if s.is_error else '⚠'} {who}{s.message}")
+            tips.append(f"{symbol.get(s.severity, '•')} {who}{s.message}")
         self.issue_label.setToolTip("\n".join(tips) if tips else "No problems found.")
         if errors:
             first = errors[0]

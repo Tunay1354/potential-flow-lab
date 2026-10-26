@@ -97,12 +97,13 @@ LAYOUT = {
     "plot_initial_range": {"x": (-4.0, 4.0), "y": (-2.6, 2.6)},
     "streamline_width": 1.4,
     "dividing_streamline_width": 2.4,
-    "arrow_size_px": 9,
+    "arrow_size_px": 6.5,           # width of the streamline arrow heads (length = 1.35 × width)
     "corner_radius_px": 6,
     "recompute_delay_ms": 120,      # wait after zoom/pan before streamlines are recomputed
     "wall_width": 3.0,              # px
     "wall_hatch_count": 70,         # hatch marks per view diagonal
-    "selection_ring_extra_px": 12,  # selected element: ring this much larger than its marker
+    # selected element glows in its own color: (extra size in px, opacity 0–255), outermost first
+    "selection_glow": ((26, 28), (17, 55), (9, 95)),
 }
 
 # ---------------------------------------------------------------------------

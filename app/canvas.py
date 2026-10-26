@@ -249,7 +249,7 @@ class PlotCanvas(QWidget):
         size = LAYOUT["arrow_size_px"]
         for x, y, ang in result.arrows:
             # pyqtgraph: angle = 0 points to the LEFT, angles grow clockwise on screen
-            a = pg.ArrowItem(pos=(x, y), angle=180.0 - np.degrees(ang), headLen=size + 3, headWidth=size,
+            a = pg.ArrowItem(pos=(x, y), angle=180.0 - np.degrees(ang), headLen=1.35 * size, headWidth=size,
                              tailLen=0, brush=pg.mkBrush(color), pen=pg.mkPen(color))
             a.setZValue(2)
             self.plot.addItem(a)
@@ -276,18 +276,21 @@ class PlotCanvas(QWidget):
                 brush, pen = pg.mkBrush(color), pg.mkPen(t["plot_bg"], width=1.5)
             else:
                 brush, pen = pg.mkBrush(None), pg.mkPen(color, width=2)
+            if e is self._selected_element():               # selected: soft glow in the element's own color
+                for extra, alpha in LAYOUT["selection_glow"]:
+                    glow_color = QColor(color)
+                    glow_color.setAlpha(alpha)
+                    glow = pg.ScatterPlotItem([p.real for p in pts], [p.imag for p in pts],
+                                              size=style["size"] + extra, symbol="o",
+                                              brush=pg.mkBrush(glow_color), pen=pg.mkPen(None))
+                    glow.setZValue(2.9)
+                    self.plot.addItem(glow)
+                    self._markers.append(glow)
             item = pg.ScatterPlotItem([p.real for p in pts], [p.imag for p in pts], size=style["size"],
                                       symbol=style["symbol"], brush=brush, pen=pen)
             item.setZValue(3)
             self.plot.addItem(item)
             self._markers.append(item)
-            if e is self._selected_element():               # selection ring
-                ring = pg.ScatterPlotItem([p.real for p in pts], [p.imag for p in pts],
-                                          size=style["size"] + LAYOUT["selection_ring_extra_px"], symbol="o",
-                                          brush=pg.mkBrush(None), pen=pg.mkPen(t["accent"], width=2.5))
-                ring.setZValue(3.5)
-                self.plot.addItem(ring)
-                self._markers.append(ring)
 
     def _draw_walls(self, xr, yr):
         """Symmetry walls and the sides of a sector flow.
@@ -314,7 +317,7 @@ class PlotCanvas(QWidget):
         for w in walls:
             seg = visible_wall_segment(w, [o for o in walls if o is not w], xr, yr)
             if seg is not None:
-                self._add_wall_line(seg, w.normal, self.theme["accent"] if w is sel else self.theme["el_wall"])
+                self._add_wall_line(seg, w.normal, self.theme["el_wall"], glow=w is sel)
 
         # 3) sector sides: two rays from the vertex (fluid normal points into the wedge)
         for sec in sectors:
@@ -323,8 +326,7 @@ class PlotCanvas(QWidget):
                 d = complex(np.cos(np.radians(ang)), np.sin(np.radians(ang)))
                 seg = ray_in_rect(sec.z0, d, xr, yr)
                 if seg is not None:
-                    color = self.theme["accent"] if sec is sel else self.theme["el_sector"]
-                    self._add_wall_line(seg, turn * d, color, hatch=not plate)
+                    self._add_wall_line(seg, turn * d, self.theme["el_sector"], hatch=not plate, glow=sec is sel)
                 if plate:
                     break                                   # both sides of the plate are the same ray
 
@@ -348,10 +350,20 @@ class PlotCanvas(QWidget):
         self.plot.addItem(shade)
         self._walls.append(shade)
 
-    def _add_wall_line(self, seg, fluid_normal, color, hatch=True):
-        """Thick line from seg[0] to seg[1]; hatch marks on the side opposite to `fluid_normal`."""
+    def _add_wall_line(self, seg, fluid_normal, color, hatch=True, glow=False):
+        """Thick line from seg[0] to seg[1]; hatch marks on the side opposite to `fluid_normal`.
+        glow=True (selected): wide, semi-transparent lines of the same color underneath."""
         a, b = seg
         color = QColor(color)
+        if glow:
+            for extra, alpha in LAYOUT["selection_glow"]:
+                gc = QColor(color)
+                gc.setAlpha(alpha)
+                g = pg.PlotCurveItem([a.real, b.real], [a.imag, b.imag],
+                                     pen=pg.mkPen(gc, width=LAYOUT["wall_width"] + 0.6 * extra))
+                g.setZValue(3.9)
+                self.plot.addItem(g)
+                self._walls.append(g)
         line = pg.PlotCurveItem([a.real, b.real], [a.imag, b.imag], pen=pg.mkPen(color, width=LAYOUT["wall_width"]))
         line.setZValue(4)
         self.plot.addItem(line)
