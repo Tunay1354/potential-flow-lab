@@ -18,3 +18,16 @@ def qapp(tmp_path_factory):
     app = widgets.QApplication.instance() or widgets.QApplication([])
     setup_application(app)
     return app
+
+
+@pytest.fixture(autouse=True)
+def fresh_layout():
+    """Every test starts with the default window layout (a closed window saves its layout)."""
+    try:
+        from PySide6.QtCore import QSettings
+    except ImportError:                       # pragma: no cover
+        yield
+        return
+    QSettings().remove("layout")
+    yield
+    QSettings().remove("layout")

@@ -179,6 +179,7 @@ class SettingsPanel(QScrollArea):
     line_width_changed = Signal(float)
     arrows_changed = Signal(bool, float)     # show arrows?, arrow density (1 = default)
     layer_changed = Signal(str, bool)        # layer key (see LAYERS), visible?
+    sections_changed = Signal()              # a section was hidden or shown again
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -211,7 +212,7 @@ class SettingsPanel(QScrollArea):
         grid.addWidget(fit, 2, 0, 1, 4)
         for sp in (self.xmin, self.xmax, self.ymin, self.ymax):
             sp.editingFinished.connect(self._view_typed)
-        lay.addWidget(g)
+        self._add_section("view", "View range", g, lay)
 
         # --- Streamlines ----------------------------------------------------
         g = QGroupBox("STREAMLINES")
@@ -225,7 +226,7 @@ class SettingsPanel(QScrollArea):
         f.addRow("Line width", self.s_width)
         f.addRow(self.c_arrows)
         f.addRow("Arrow density", self.s_arrows)
-        lay.addWidget(g)
+        self._add_section("streamlines", "Streamlines", g, lay)
         self.s_density.valueChanged.connect(lambda v: self.density_changed.emit(v / 5.0))
         self.s_width.valueChanged.connect(lambda v: self.line_width_changed.emit(0.6 + 0.4 * v))
         self.c_arrows.toggled.connect(lambda on: self.arrows_changed.emit(on, self.arrow_density()))
@@ -245,7 +246,7 @@ class SettingsPanel(QScrollArea):
             c.toggled.connect(lambda checked, k=key: self.layer_changed.emit(k, checked))
             v.addWidget(c)
             self.layer_boxes[key] = c
-        lay.addWidget(g)
+        self._add_section("layers", "Layers", g, lay)
 
         # --- Animation ------------------------------------------------------
         g = QGroupBox("ANIMATION")
@@ -253,7 +254,7 @@ class SettingsPanel(QScrollArea):
         f.addRow("Particles", self._slider(200, 5000, 1500))
         f.addRow("Speed", self._slider(1, 10, 5))
         f.addRow("Trail length", self._slider(0, 10, 4))
-        lay.addWidget(g)
+        self._add_section("animation", "Animation", g, lay)
 
         # --- Computation ----------------------------------------------------
         g = QGroupBox("COMPUTATION")
@@ -265,9 +266,30 @@ class SettingsPanel(QScrollArea):
         ref = themed_combo(QComboBox())
         ref.addItems(["From uniform flow (V∞)", "Custom…"])
         f.addRow("Cp reference", ref)
-        lay.addWidget(g)
+        self._add_section("computation", "Computation", g, lay)
 
         lay.addStretch(1)
+
+    # ------------------------------------------------------------------ sections
+    def _add_section(self, key, title, group, layout):
+        """Each group (View range, Streamlines, ...) is a section the user can hide (right-click on the
+        panel title, or View → Panels) and show again."""
+        if not hasattr(self, "sections"):
+            self.sections = {}
+        self.sections[key] = (title, group)
+        layout.addWidget(group)
+
+    def set_section_visible(self, key: str, on: bool):
+        group = self.sections[key][1]
+        if group.isHidden() == on:
+            group.setVisible(on)
+            self.sections_changed.emit()
+
+    def section_visible(self, key: str) -> bool:
+        return not self.sections[key][1].isHidden()
+
+    def hidden_sections(self) -> list:
+        return [k for k in self.sections if not self.section_visible(k)]
 
     def set_view(self, xr, yr):
         """Show the current plot limits without triggering view_edited."""

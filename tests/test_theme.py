@@ -91,9 +91,6 @@ def test_dock_card_keeps_a_paper_margin_to_the_window_edge(win, qapp):
     win.addDockWidget(Qt.LeftDockWidgetArea, d)
     qapp.processEvents()
     assert d.widget().outer == (g, 0, 0, g)
-    d.setFloating(True)
-    qapp.processEvents()
-    assert d.widget().outer == (0, 0, 0, 0)
 
 
 def test_plot_card_frame_on_all_four_sides(win):

@@ -64,10 +64,15 @@ Teslim: yaklaşık 26 Kasım 2026 (rapor + user guide + canlı demo).
      patileri cetvelin kenarına tutunuyor, gövdesi cetvelin arkasında; sürükleyince yerinden çıkar.
      Konuşma kutusu: pixel yazı (VT323), harf harf yazılır, kâğıt renk kutu + mürekkep pixel çerçeve;
      "İleri" butonu ileride header ahşap rengi olacak
-7. ▶ **Paket D — Panel sistemi** [4]: yumuşak animasyonlu yerleşim, sadece izinli yerlere oturma,
-   ayrı pencere olarak yüzebilme, her bölüm (View range, Streamlines, Layers, …) ayrı panel,
-   başlığa sağ tık → görünecek panelleri tikle, View → Panels, Reset layout, yerleşimi hatırlama
-8. ☐ **Faz 2c — Plot'ta sürükleme**: elementleri fareyle taşıma (undo'da tek adım), sürüklerken canlı streamline
+7. ✅ **Paket D — Panel sistemi** [4] (27 Ekim'de kapsam güncellendi)
+   - Paneller sadece plot'un solunda veya sağında, alt alta (üste / alta konamaz, yüzen pencere yok,
+     sekme olarak üst üste binmez); sürüklerken yer gösteren bant temanın ahşap renginde
+   - ADD paleti başlığından tutulup bütün olarak plot'un soluna / sağına taşınır (boyutu değişmez)
+   - Plot settings bölümleri (View range, Streamlines, Layers, Animation, Computation): başlığa sağ tık
+     veya View → Panels → Plot settings sections ile gizlenir / geri gelir (başlıkta "n HIDDEN")
+   - Yerleşim kapanışta kaydedilir, açılışta aynı gelir; View → Panels → Reset layout ilk hale döndürür
+   - Alt alta panellerin boyunu ayarlama (aradaki çizgiyi çekme) aynen duruyor
+8. ▶ **Faz 2c — Plot'ta sürükleme**: elementleri fareyle taşıma (undo'da tek adım), sürüklerken canlı streamline
 9. ☐ **Export** (Faz 4'ten öne alındı): plot'u PNG / PDF / SVG olarak kaydetme, veri CSV (rapor figürleri için)
 10. ☐ **Faz 3 — Rapor malzemesi**: doğrulama figürleri ve tabloları (verification case'ler, stagnation
    karşılaştırmaları), user guide taslağı

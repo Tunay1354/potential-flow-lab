@@ -13,8 +13,8 @@ import os
 import re
 
 import numpy as np
-from PySide6.QtCore import QEvent, Qt, QTimer, QUrl
-from PySide6.QtGui import QAction, QActionGroup, QDesktopServices, QFont, QKeySequence, QShortcut
+from PySide6.QtCore import QByteArray, QEvent, QRect, QSettings, Qt, QTimer, QUrl
+from PySide6.QtGui import QAction, QActionGroup, QColor, QDesktopServices, QFont, QKeySequence, QPalette, QShortcut
 from PySide6.QtWidgets import (QAbstractButton, QApplication, QDockWidget, QFileDialog, QLabel, QMainWindow,
                                QHBoxLayout, QMenuBar, QMessageBox, QWidget)
 
@@ -26,7 +26,7 @@ from physics import ELEMENT_TYPES, check_scene, reference_speed, velocity
 from physics.field import fluid_mask, singular_points
 
 from .canvas import PlotCanvas
-from .chrome import (ElementPalette, HeaderBar, PanelBody, PanelTitle, load_fonts, paint_paper_grid,
+from .chrome import (DropIndicator, ElementPalette, HeaderBar, PanelBody, PanelTitle, load_fonts, paint_paper_grid,
                      tint_title_bar)
 from .dialogs import ElementDialog
 from .element_specs import spec_for, toolbar_types
@@ -40,6 +40,8 @@ DUPLICATE_OFFSET = (0.5, 0.5)
 # short names under the toolbar icons (the full name is in the tooltip)
 TOOLBAR_NAMES = {"uniform": "Uniform", "source": "Source", "vortex": "Vortex", "doublet": "Doublet",
                  "sector": "Sector", "wall": "Wall"}
+LAYOUT_STATE_VERSION = 1          # bump when the dock layout changes incompatibly (old saved layouts ignored)
+SIDE_AREAS = (Qt.LeftDockWidgetArea, Qt.RightDockWidgetArea)
 FILE_FILTER = f"{APP_NAME} scenes (*{EXTENSION});;JSON files (*.json);;All files (*)"
 
 
@@ -67,8 +69,8 @@ class MainWindow(QMainWindow):
 
         # central plot card on the paper
         self.canvas = PlotCanvas(self.theme, self.elements, self)
-        desk = QWidget(self)
-        desk_lay = self._desk_layout = QHBoxLayout(desk)       # [element palette] [plot card]
+        desk = self.desk = QWidget(self)
+        desk_lay = self._desk_layout = QHBoxLayout(desk)       # [element palette] [plot card] (or mirrored)
         g = LAYOUT["gap"]
         desk_lay.setContentsMargins(g, 0, g - 4, g)            # 4 = dock separator
         desk_lay.setSpacing(g)
@@ -81,7 +83,8 @@ class MainWindow(QMainWindow):
         self.canvas.element_double_clicked.connect(
             lambda row: (self.select_element(row), QTimer.singleShot(0, lambda: self.edit_element(row))))
 
-        # right panels (dock widgets -> user can move / float / close them)
+        # side panels (dock widgets): only left or right of the plot, stacked; no floating, no tabs
+        self.setDockOptions(QMainWindow.AnimatedDocks)
         ep = self.elements_panel = ElementsPanel(self.theme)
         ep.edit_requested.connect(self.edit_element)
         ep.enabled_changed.connect(lambda row, on: self.model.set_enabled(row, on))
@@ -103,10 +106,13 @@ class MainWindow(QMainWindow):
         sp.fit_requested.connect(cv.fit_view)
         cv.view_changed.connect(sp.set_view)
         self.dock_settings = self._dock("Plot settings", self.settings_panel)
-        self.splitDockWidget(self.dock_elements, self.dock_settings, Qt.Vertical)
-        self.resizeDocks([self.dock_elements, self.dock_settings], [LAYOUT["right_panel_width"]] * 2,
-                         Qt.Horizontal)
-        self.resizeDocks([self.dock_elements, self.dock_settings], [260, 560], Qt.Vertical)
+        sp.sections_changed.connect(self._sections_changed)
+        title = self.dock_settings.titleBarWidget()
+        title.setContextMenuPolicy(Qt.CustomContextMenu)
+        title.customContextMenuRequested.connect(
+            lambda pos: self.sections_menu.exec(title.mapToGlobal(pos)))
+        title.setToolTip("Drag to move the panel  ·  right-click to choose the sections shown")
+        self._default_dock_layout()
 
         self._build_toolbar()
         self._build_menus()
@@ -123,6 +129,7 @@ class MainWindow(QMainWindow):
 
         self.model.subscribe(self._on_model_changed)
         self._on_model_changed(None)
+        self.restore_layout()                          # the panels as the user left them last time
 
     # ------------------------------------------------------------------ building blocks
     def menuBar(self) -> QMenuBar:
@@ -135,8 +142,8 @@ class MainWindow(QMainWindow):
         d.setObjectName(title)
         d.setWidget(PanelBody(widget))
         d.setTitleBarWidget(PanelTitle(title))
-        d.setFeatures(QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable |
-                      QDockWidget.DockWidgetClosable)
+        d.setFeatures(QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetClosable)   # no floating
+        d.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)              # never above / below
         d.dockLocationChanged.connect(lambda _area, d=d: self._place_dock_card(d))
         d.topLevelChanged.connect(lambda _floating, d=d: self._place_dock_card(d))
         self.addDockWidget(Qt.RightDockWidgetArea, d)
@@ -154,6 +161,98 @@ class MainWindow(QMainWindow):
             title, body = (0, 0, g, 0), (0, 0, g, g)
         d.titleBarWidget().set_outer(title)
         d.widget().set_outer(body)
+
+    def _default_dock_layout(self):
+        """Both panels on the right, Elements above Plot settings (also View → Panels → Reset layout)."""
+        de, ds = self.dock_elements, self.dock_settings
+        for d in (de, ds):
+            self.removeDockWidget(d)
+        self.addDockWidget(Qt.RightDockWidgetArea, de)
+        self.addDockWidget(Qt.RightDockWidgetArea, ds)
+        self.splitDockWidget(de, ds, Qt.Vertical)
+        for d in (de, ds):
+            d.show()
+            self._place_dock_card(d)
+        self.resizeDocks([de, ds], [LAYOUT["right_panel_width"]] * 2, Qt.Horizontal)
+        self.resizeDocks([de, ds], [260, 560], Qt.Vertical)
+
+    # ------------------------------------------------------------------ layout: remember / reset
+    def reset_layout(self):
+        """View → Panels → Reset layout: the layout of the first start."""
+        self._default_dock_layout()
+        self.set_palette_side("left")
+        for key in self.settings_panel.sections:
+            self.settings_panel.set_section_visible(key, True)
+        self.flash("Layout reset.")
+
+    def save_layout(self):
+        s = QSettings()
+        s.setValue("layout/version", LAYOUT_STATE_VERSION)
+        s.setValue("layout/state", self.saveState(LAYOUT_STATE_VERSION))
+        s.setValue("layout/palette_side", self.palette_side)
+        s.setValue("layout/hidden_sections", ",".join(self.settings_panel.hidden_sections()))
+
+    def restore_layout(self):
+        """Panels, palette side and hidden Plot settings sections as saved when the window was closed.
+        A missing, old or invalid saved layout leaves the default layout."""
+        s = QSettings()
+        if int(s.value("layout/version", 0) or 0) != LAYOUT_STATE_VERSION:
+            return
+        state = s.value("layout/state")
+        if isinstance(state, QByteArray) and self.restoreState(state, LAYOUT_STATE_VERSION):
+            docks = (self.dock_elements, self.dock_settings)
+            if any(d.isFloating() or self.dockWidgetArea(d) not in SIDE_AREAS for d in docks):
+                self._default_dock_layout()                 # never restore a forbidden place
+            for d in docks:
+                self._place_dock_card(d)
+        self.set_palette_side(str(s.value("layout/palette_side", "left")))
+        hidden = str(s.value("layout/hidden_sections", "") or "")
+        for key in self.settings_panel.sections:
+            self.settings_panel.set_section_visible(key, key not in hidden.split(","))
+
+    # ------------------------------------------------------------------ element palette left / right
+    def set_palette_side(self, side: str):
+        """Put the element palette left or right of the plot card (it keeps its shape)."""
+        side = "right" if side == "right" else "left"
+        lay, pal = self._desk_layout, self.element_toolbar
+        lay.removeWidget(pal)
+        lay.insertWidget(0 if side == "left" else 1, pal)
+        self.palette_side = side
+
+    def _palette_target(self, global_pos) -> str:
+        x = self.desk.mapFromGlobal(global_pos).x()
+        return "left" if x < self.desk.width() / 2 else "right"
+
+    def _palette_slot(self, side: str) -> QRect:
+        """Where the palette sits on the given side (for the drop indicator)."""
+        lay = self._desk_layout
+        m = lay.contentsMargins()
+        w = self.element_toolbar.width()
+        h = self.desk.height() - m.top() - m.bottom()
+        x = m.left() if side == "left" else self.desk.width() - m.right() - w
+        return QRect(x, m.top(), w, h)
+
+    def _palette_drag_moved(self, global_pos):
+        ind = self._drop_indicator
+        ind.setGeometry(self._palette_slot(self._palette_target(global_pos)))
+        ind.raise_()
+        ind.show()
+
+    def _palette_drag_finished(self, global_pos):
+        self._drop_indicator.hide()
+        side = self._palette_target(global_pos)
+        if side != self.palette_side:
+            self.set_palette_side(side)
+
+    # ------------------------------------------------------------------ Plot settings sections
+    def _sections_changed(self):
+        sp = self.settings_panel
+        hidden = sp.hidden_sections()
+        self.dock_settings.titleBarWidget().note.setText(f"{len(hidden)} HIDDEN" if hidden else "")
+        for key, act in self.section_actions.items():
+            act.blockSignals(True)
+            act.setChecked(sp.section_visible(key))
+            act.blockSignals(False)
 
     def _dock_parts(self):
         for d in (self.dock_elements, self.dock_settings):
@@ -176,7 +275,11 @@ class MainWindow(QMainWindow):
             pal.add_action(act)
             self.element_actions[key] = act
         self.element_toolbar = pal
+        self.palette_side = "left"
         self._desk_layout.insertWidget(0, pal)
+        pal.drag_moved.connect(self._palette_drag_moved)
+        pal.drag_finished.connect(self._palette_drag_finished)
+        self._drop_indicator = DropIndicator(self.desk)
 
     def _build_menus(self):
         mb = self.menuBar()
@@ -254,8 +357,21 @@ class MainWindow(QMainWindow):
         fit.setShortcut("F")
         fit.triggered.connect(self.canvas.fit_view)
         m.addSeparator()
-        m.addAction(self.dock_elements.toggleViewAction())
-        m.addAction(self.dock_settings.toggleViewAction())
+        panels = m.addMenu("Panels")
+        panels.addAction(self.dock_elements.toggleViewAction())
+        panels.addAction(self.dock_settings.toggleViewAction())
+        panels.addSeparator()
+        # sections of Plot settings (the same menu opens with a right-click on the panel's title)
+        self.sections_menu = panels.addMenu("Plot settings sections")
+        self.section_actions = {}
+        for key, (title, _group) in self.settings_panel.sections.items():
+            a = self.sections_menu.addAction(title)
+            a.setCheckable(True)
+            a.setChecked(True)
+            a.toggled.connect(lambda on, k=key: self.settings_panel.set_section_visible(k, on))
+            self.section_actions[key] = a
+        panels.addSeparator()
+        panels.addAction("Reset layout").triggered.connect(self.reset_layout)
         m.addSeparator()
         theme_menu = m.addMenu("Theme")
         tg = QActionGroup(self)
@@ -410,6 +526,7 @@ class MainWindow(QMainWindow):
             event.ignore()
             return
         QApplication.instance().removeEventFilter(self)
+        self.save_layout()
         self.canvas.shutdown()
         super().closeEvent(event)
 
@@ -779,6 +896,11 @@ class MainWindow(QMainWindow):
         self.theme = theme
         app = QApplication.instance()
         app.setStyleSheet(build_stylesheet(theme))
+        # Qt draws the "panel will go here" band of a dragged dock in the palette's Highlight color
+        pal = app.palette()
+        pal.setColor(QPalette.Highlight, QColor(theme["accent_strong"]))
+        pal.setColor(QPalette.HighlightedText, QColor(theme["accent_text"]))
+        app.setPalette(pal)
         self.setWindowIcon(make_app_icon(theme))
         self.header.apply_theme(theme)
         for w in QApplication.topLevelWidgets():
@@ -792,6 +914,7 @@ class MainWindow(QMainWindow):
         for key, act in self.element_actions.items():
             act.setIcon(make_palette_icon(key, theme["text"]))
         self.element_toolbar.apply_theme(theme)
+        self._drop_indicator.theme = theme
         self.canvas.apply_theme(theme)
         self.elements_panel.apply_theme(theme)
         if hasattr(self, "issue_label"):

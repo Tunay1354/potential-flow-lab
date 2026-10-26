@@ -7,7 +7,7 @@ import glob
 import math
 import os
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt
+from PySide6.QtCore import QPoint, QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QMenuBar, QSizePolicy, QToolButton, QVBoxLayout, QWidget
 
@@ -372,14 +372,22 @@ class TitleBlock(QWidget):
 
 # ---------------------------------------------------------------------------------------- palette
 class ElementPalette(QWidget):
-    """Column of 'add element' buttons left of the plot: a card with the double frame, a centered
-    ADD heading, icon + name buttons and a short rule before the boundaries (walls)."""
+    """Column of 'add element' buttons beside the plot: a card with the double frame, a centered
+    ADD heading, icon + name buttons and a short rule before the boundaries (walls).
+
+    The card is moved as a whole by dragging its heading: the window places it left or right of the
+    plot (drag_moved / drag_finished carry the global mouse position); its size never changes."""
+    drag_moved = Signal(QPoint)
+    drag_finished = Signal(QPoint)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("ElementPalette")
         self.theme = None
         self.setFixedWidth(LAYOUT["palette_width"])
+        self.setMouseTracking(True)                # cursor shows the grip over the heading
+        self._press = None                         # global position of the press on the heading
+        self.dragging = False
         self._lay = QVBoxLayout(self)
         self._lay.setContentsMargins(0, 12, 0, 12)
         self._lay.setSpacing(4)
@@ -387,6 +395,8 @@ class ElementPalette(QWidget):
         heading.setObjectName("ToolbarHeading")
         heading.setFont(heading_font())
         heading.setAlignment(Qt.AlignCenter)
+        heading.setAttribute(Qt.WA_TransparentForMouseEvents, True)    # the card itself handles the drag
+        heading.setToolTip("Drag to move the palette to the other side of the plot")
         self._lay.addWidget(heading)
         self._lay.addSpacing(12)                 # room for the rule under the heading (as in the panels)
         self._end = self._lay.addStretch(1)
@@ -414,6 +424,38 @@ class ElementPalette(QWidget):
     def apply_theme(self, theme):
         self.theme = theme
         self.update()
+
+    # dragging the card by its heading -------------------------------------------------------
+    def _on_handle(self, pos) -> bool:
+        return pos.y() <= self._heading.geometry().bottom() + 12
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton and self._on_handle(event.position().toPoint()):
+            self._press = event.globalPosition().toPoint()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        g = event.globalPosition().toPoint()
+        if self._press is None:
+            self.setCursor(Qt.OpenHandCursor if self._on_handle(event.position().toPoint()) else Qt.ArrowCursor)
+            return
+        if not self.dragging and (g - self._press).manhattanLength() >= 6:
+            self.dragging = True
+            self.setCursor(Qt.ClosedHandCursor)
+        if self.dragging:
+            self.drag_moved.emit(g)
+
+    def mouseReleaseEvent(self, event):
+        if self._press is not None and self.dragging:
+            self.drag_finished.emit(event.globalPosition().toPoint())
+        self._press, self.dragging = None, False
+        self.setCursor(Qt.OpenHandCursor if self._on_handle(event.position().toPoint()) else Qt.ArrowCursor)
+
+    def leaveEvent(self, _event):
+        if self._press is None:
+            self.unsetCursor()
 
     def paintEvent(self, _event):
         if self.theme is None:
@@ -469,3 +511,27 @@ def tint_title_bar(window, theme: dict):
             set_attr(hwnd, attr, ctypes.byref(ref), ctypes.sizeof(ref))
     except Exception:              # pragma: no cover - only on unusual Windows setups
         pass
+
+
+class DropIndicator(QWidget):
+    """Where a dragged card will land: a translucent wood-colored band with a dashed outline
+    (used for the element palette; Qt's own dock indicator gets the same color via the palette)."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.theme = None
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.hide()
+
+    def paintEvent(self, _event):
+        if self.theme is None:
+            return
+        p = QPainter(self)
+        fill = QColor(self.theme["accent_strong"])
+        fill.setAlpha(80)
+        p.fillRect(self.rect(), fill)
+        pen = QPen(QColor(self.theme["accent"]), 0, Qt.DashLine)
+        pen.setCosmetic(True)
+        p.setPen(pen)
+        p.drawRect(device_line_rect(self))
+        p.end()
