@@ -29,7 +29,7 @@ from .canvas import PlotCanvas
 from .dialogs import ElementDialog
 from .element_specs import spec_for, toolbar_types
 from .icons import make_app_icon, make_element_icon
-from .panels import ElementsPanel, SettingsPanel, element_icon, element_title
+from .panels import LAYERS, ElementsPanel, SettingsPanel, element_icon, element_title
 from .recent_files import RecentFiles
 from .scene import PRESETS_DIR, list_presets, starter_scene
 from .theme import DARK, DEFAULT_THEME, FONT, LAYOUT, LIGHT, build_stylesheet
@@ -79,6 +79,7 @@ class MainWindow(QMainWindow):
         sp.density_changed.connect(cv.set_density)
         sp.line_width_changed.connect(cv.set_line_width)
         sp.arrows_changed.connect(cv.set_arrows)
+        sp.layer_changed.connect(self._layer_changed)
         sp.view_edited.connect(cv.set_view)
         sp.fit_requested.connect(cv.fit_view)
         cv.view_changed.connect(sp.set_view)
@@ -195,13 +196,14 @@ class MainWindow(QMainWindow):
         # View
         m = mb.addMenu("&View")
         lay = m.addMenu("Layers")
-        for text, on in [("Streamlines", True), ("Dividing streamline / body", True),
-                         ("Equipotential lines", False), ("|V| contours", False), ("Cp contours", False),
-                         ("Element markers", True), ("Walls", True)]:
+        self.layer_actions = {}
+        for key, text, on, ready in LAYERS:              # same switches as in Plot settings → Layers
             a = lay.addAction(text)
             a.setCheckable(True)
             a.setChecked(on)
-            a.setEnabled(False)             # layers come in Phase 4
+            a.setEnabled(ready)
+            a.toggled.connect(lambda checked, k=key: self.settings_panel.layer_boxes[k].setChecked(checked))
+            self.layer_actions[key] = a
         mode = QActionGroup(self)
         for text, on in [("Static streamlines", True), ("Animated particles", False)]:
             a = m.addAction(text)
@@ -628,6 +630,14 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(text, 5000)
 
     # ------------------------------------------------------------------ status bar
+    def _layer_changed(self, key, on):
+        self.canvas.set_layer(key, on)
+        act = self.layer_actions.get(key)
+        if act is not None and act.isChecked() != on:
+            act.blockSignals(True)
+            act.setChecked(on)
+            act.blockSignals(False)
+
     def _update_probe(self, pos):
         if pos is None:
             self.probe_label.setText("Move the mouse over the plot")
@@ -635,6 +645,10 @@ class MainWindow(QMainWindow):
         x, y = pos
         z = complex(x, y)
         where = f"x = {x:7.3f}   y = {y:7.3f}   │   "
+        stag = self.canvas.stagnation_near(x, y)
+        if stag is not None:
+            self.probe_label.setText(where + stag.describe())
+            return
         near = [p for p in singular_points(self.elements) if abs(z - p) < 0.5 * self._probe_radius()]
         if near:
             self.probe_label.setText(where + "singular point (velocity → ∞)")

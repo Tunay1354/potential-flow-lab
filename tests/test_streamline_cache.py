@@ -248,3 +248,24 @@ def test_single_level_cache_gives_the_same_picture_as_one_view():
     d = res.separation
     assert d == 2.0 ** -c.level
     assert min_gap(res.lines) > (STOP_RATIO - 0.15) * d
+
+
+def _dist_to_polyline(q, line):
+    """Distance from the points q to the polyline `line` (complex arrays)."""
+    a, b = line[:-1], line[1:]
+    ab = b - a
+    t = np.clip(((q[:, None] - a[None, :]) * np.conj(ab)[None, :]).real / np.maximum(np.abs(ab) ** 2, 1e-300),
+                0.0, 1.0)
+    return np.min(np.abs(q[:, None] - (a[None, :] + t * ab[None, :])), axis=1)
+
+
+def test_regular_lines_start_from_the_dividing_streamlines():
+    """The dividing streamlines seed the regular picture: one regular line runs exactly along the
+    (slanted) upstream dividing streamline of the lifting cylinder."""
+    res = StreamlineCache(CYL).update(VIEW, force=True)
+    assert len(res.stagnation) == 2 and res.dividing
+    upstream = max(res.dividing, key=lambda ln: -ln[:, 0].min())        # reaches furthest left
+    up = as_complex(upstream)
+    up = up[(up.real < -1.3) & (up.real > -4.0)]                        # the part in view
+    best = min((as_complex(ln) for ln in res.lines), key=lambda w: np.median(_dist_to_polyline(up[::5], w)))
+    assert np.max(_dist_to_polyline(up, best)) < 1e-3

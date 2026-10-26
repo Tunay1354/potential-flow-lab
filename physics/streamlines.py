@@ -67,6 +67,8 @@ class StreamlineSet:
     tapers: list[tuple[bool, bool]] = field(default_factory=list)  # per line: (start cut, end cut)
     separation: float = 0.0                                        # line spacing d used
     domain: tuple[float, float, float, float] | None = None        # region filled with lines (x0, x1, y0, y1)
+    stagnation: list = field(default_factory=list)                 # StagnationPoint (stagnation.py)
+    dividing: list[np.ndarray] = field(default_factory=list)       # dividing streamlines, (N, 2) each
 
 
 @dataclass
@@ -161,6 +163,7 @@ class StreamlineField:
         self._base_source: list[_Line] = []      # the same lines as given (before refining)
         self._fresh_parts: list[np.ndarray] = []  # new pieces of the coarser picture since the last fill
         self.queue: deque = deque()
+        self.special_seeds = np.zeros(0, complex)   # e.g. points on dividing streamlines: used first
         self._cancelled: Callable[[], bool] | None = None
         self._barriers = [e for e in self.els
                           if e.crosses_boundary(np.zeros(1, complex), np.zeros(1, complex)) is not None]
@@ -257,7 +260,10 @@ class StreamlineField:
         # one, continues from the existing lines (neighbour seeds d away), so the spacing stays even
         inflow = (_inflow_seeds(self.els, self.flows, x0, x1, y0, y1, d) if first and not self.base_lines
                   else np.zeros(0, complex))
-        start = np.concatenate([np.asarray(seeds, dtype=complex).ravel(), inflow])
+        sp = self.special_seeds
+        inside = (sp.real > x0) & (sp.real < x1) & (sp.imag > y0) & (sp.imag < y1)
+        special, self.special_seeds = sp[inside], sp[~inside]          # each special seed is used once
+        start = np.concatenate([np.asarray(seeds, dtype=complex).ravel(), special, inflow])
         self._fill(start, priority, grid)
         return True
 
@@ -273,6 +279,19 @@ class StreamlineField:
         if arrow_box is not None:
             out.arrows = _place_arrows(out.lines, out.tapers, self.d, arrow_density, arrow_box)
         return out
+
+    def free_trace(self, seeds, sign: float, box):
+        """Streamlines from `seeds` in one direction inside `box` = (x0, x1, y0, y1), WITHOUT avoiding
+        other lines (used for dividing streamlines and the 'inside a body?' test).
+        Returns (point arrays, closed, left_box) — left_box True = the line reached the box border."""
+        x0, x1, y0, y1 = map(float, box)
+        if self.v_min is None:
+            self.v_min = _stagnation_speed(self.els, self.flows, (x0, x1, y0, y1)) or 0.0
+        self.box = (x0, x1, y0, y1)
+        self.n_max = int(4.0 * (x1 - x0 + y1 - y0) / self.h) + 1
+        self.near_stop = _OwnerRaster(x0, y0, x1 - x0, y1 - y0, max(x1 - x0, y1 - y0) / 4.0)
+        lines, closed, _near, left = self._integrate(np.atleast_1d(np.asarray(seeds, complex)), sign)
+        return lines, closed, left
 
     # ------------------------------------------------------------------ helpers
     def _check_cancel(self):
@@ -586,6 +605,14 @@ def _refine(pts: np.ndarray, h: float, flows) -> np.ndarray:
     return np.concatenate([h00 * p0 + h10 * m0 + h01 * p1 + h11 * m1, pts[-1:]])
 
 
+def _inside(inner, outer) -> bool:
+    if outer is None:
+        return False
+    x0, x1, y0, y1 = inner
+    a0, a1, b0, b1 = outer
+    return a0 <= x0 and x1 <= a1 and b0 <= y0 and y1 <= b1
+
+
 def _stagnation_speed(els, flows, region) -> float | None:
     """Speeds below 1e-4 × the typical speed in the region count as a stagnation point."""
     x0, x1, y0, y1 = region
@@ -657,6 +684,8 @@ class StreamlineCache:
         self.fields: dict[int, StreamlineField] = {}
         self.level: int | None = None
         self.v_min: float | None = None
+        self.features = None                       # stagnation points + dividing streamlines (FlowFeatures)
+        self.with_features = True
 
     def _choose_level(self, view, current: int | None) -> int:
         (x0, x1), (y0, y1) = view
@@ -700,6 +729,9 @@ class StreamlineCache:
             if grown > self.MAX_DOMAIN_FACTOR * W * H:          # panned far away: start again
                 self.fields.clear()
         changed = L != previous
+        if self.with_features and (self.features is None or not _inside(visible, self.features.region)):
+            self._update_features(visible, cancelled)
+            changed = True
         for region in (visible, around):
             f = self.fields.get(L)
             if f is not None and f.contains(region):
@@ -707,11 +739,43 @@ class StreamlineCache:
             self._extend(L, region, 0, cancelled)
             changed = True
             if region is visible and progress is not None:
-                progress(self.fields[L].result(arrow_density))
+                progress(self._with_features(self.fields[L].result(arrow_density)))
         if not changed and not force:
             return None
         f = self.fields.get(L)
-        return f.result(arrow_density) if f is not None and f.domain is not None else StreamlineSet()
+        res = f.result(arrow_density) if f is not None and f.domain is not None else StreamlineSet()
+        return self._with_features(res)
+
+    def _with_features(self, res: StreamlineSet) -> StreamlineSet:
+        if self.features is not None:
+            res.stagnation = list(self.features.points)
+            res.dividing = list(self.features.dividing)
+        return res
+
+    def _update_features(self, visible, cancelled):
+        """Stagnation points and dividing streamlines for 3× the view. A point on every dividing
+        streamline (about one line spacing from its stagnation point) becomes a first seed of the
+        streamline fields, so the regular lines are spaced from the dividing ones."""
+        from .stagnation import flow_features
+        x0, x1, y0, y1 = visible
+        W, H = x1 - x0, y1 - y0
+        region = (x0 - W, x1 + W, y0 - H, y1 + H)
+        if cancelled is not None and cancelled():
+            raise Cancelled()
+        self.features = flow_features(self.elements, region, scale=max(W, H))
+        d_view = view_spacing(self.elements, (x0, x1), (y0, y1), self.density)
+        seeds = []
+        stag = np.array([p.z for p in self.features.points], dtype=complex)
+        for ln in self.features.dividing:
+            z = ln[:, 0] + 1j * ln[:, 1]
+            if stag.size and np.min(np.abs(stag - z[-1])) < np.min(np.abs(stag - z[0])):
+                z = z[::-1]                              # measure from the stagnation point end
+            s = np.concatenate([[0.0], np.cumsum(np.abs(np.diff(z)))])
+            k = int(np.searchsorted(s, min(d_view, 0.5 * s[-1])))
+            seeds.append(z[min(k, z.size - 1)])
+        self._seeds = np.array(seeds, dtype=complex)
+        for f in self.fields.values():                   # fields that exist get the new ones too
+            f.special_seeds = np.concatenate([f.special_seeds, self._seeds])
 
     def _extend(self, L, region, depth, cancelled):
         d = 2.0 ** -L
@@ -722,6 +786,7 @@ class StreamlineCache:
         f = self.fields.get(L)
         if f is None:
             f = self.fields[L] = StreamlineField(self.elements, d, self.v_min, self.use_kernel)
+            f.special_seeds = getattr(self, "_seeds", np.zeros(0, complex)).copy()
         if use_coarse and (L - 1) in self.fields:
             f.set_base(self.fields[L - 1].all_lines)
         f.extend(region, cancelled=cancelled)

@@ -2,7 +2,7 @@
 
 Interactive 2D potential-flow simulator (Aerodynamics semester project, IZTECH Mechanical Engineering).
 
-**Durum:** Paket E1 — fizik çekirdeği tamam; elementler toolbar'dan eklenir, listeden / Elements menüsünden
+**Durum:** Paket F — fizik çekirdeği tamam; elementler toolbar'dan eklenir, listeden / Elements menüsünden
 düzenlenir, gizlenir, çoğaltılır, silinir, her değişiklik geri alınabilir (Ctrl+Z / Ctrl+Y) ve sahneler
 dosyaya kaydedilip açılabilir. Sıradaki işler: `ROADMAP.md`.
 
@@ -12,6 +12,7 @@ dosyaya kaydedilip açılabilir. Sıradaki işler: `ROADMAP.md`.
 |---|---|
 | Element ekle | Soldaki toolbar ya da **Elements → Add** → değerleri gir → **Apply** |
 | Düzenle | Listede çift tıkla, Enter, **Edit…** butonu ya da **Elements → (element) → Edit…** |
+| Stagnation point | Plot'ta beyaz halkalar; üzerine gel → koordinat ve türü durum çubuğunda. Koyu kalın çizgiler: dividing streamline'lar. **Plot settings → Layers** ile aç / kapat |
 | Seç | Listede ya da plot'ta sembole / duvara tıkla (üst üste binenlerde tekrar tıkla); boş yere tıkla veya Esc → seçim kalkar; sembole çift tık → düzenle |
 | Geçici gizle | Listede elementin tik kutusu |
 | Çoğalt | **Duplicate** butonu / Ctrl+D (kopya (0.5, 0.5) kaydırılır) |
@@ -89,6 +90,7 @@ açılışlarda hazır gelir.
 | `physics/registry.py` | Hangi element tipleri var (yeni element otomatik eklenir) |
 | `physics/field.py` | Superposition (w = Σ wₖ), grid hesabı, Cp, singularity masking, fluid region |
 | `physics/streamlines.py` | Eşit aralıklı streamline'lar (Jobard–Lefer, RK4), soluklaşan uçlar, ok yerleri; pan'de çizgileri yerinde tutan önbellek (`StreamlineCache`) |
+| `physics/stagnation.py` | Stagnation point'ler (w = 0, Newton) ve dividing streamline'lar; cisim içi / yüzeyi ayrımı |
 | `physics/kernel.py` | Numba ile derlenmiş hız alanı ve integrator (aynı matematik, ~10× hızlı, arayüzü bekletmez) |
 | `physics/diagnostics.py` | Flux, circulation, yüzey kuvvetleri (L′, D′) ölçümleri |
 | `tests/` | Otomatik doğrulama testleri (`pytest`) |

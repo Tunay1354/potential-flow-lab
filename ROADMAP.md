@@ -35,10 +35,19 @@ Teslim: yaklaşık 26 Kasım 2026 (rapor + user guide + canlı demo).
    - Not: kaba seviyenin çizgilerini ince seviyede tutma (zoom'da yarı çizgiler yerinde) hazır ama kapalı
      (`COARSE_LEVELS`): kaynak gibi açılan akışlarda boşluk bırakıyor; uçları uzatarak ileride açılabilir
    - Not: geri kalan kare süresi Qt'nin CPU'da antialiased çizimi (~10 ms) → E2'de OpenGL denenecek
-5. ▶ **Paket F — Stagnation point'ler + dividing streamline**: w(z) = 0 noktaları plot'ta işaretli
-   (hover'da koordinat), image kaynaklı sahte noktalar elenir, sector köşesi, yüzeyden ayrılan nokta
-   (Γ > 4πV∞a); dividing streamline stagnation point'lerden çizilir; analitik karşılaştırma testleri
-6. ☐ **Paket C — Sıcak, tatlı tema** [6]: 2–3 renk seçeneği gösterilip seçilecek (açık + koyu)
+5. ✅ **Paket F — Stagnation point'ler + dividing streamline**
+   - w(z) = 0 noktaları Newton yöntemiyle bulunur, plot'ta halka ile işaretli; üzerine gelince koordinat
+     ve türü (akışta / duvarda / köşe / cisim yüzeyinde) durum çubuğunda
+   - Duvar arkasındaki (image kaynaklı) sıfırlar ve cismin içindeki fiziksel olmayan kök gösterilmez
+     (ör. Γ > 4πV∞a'da silindir içindeki ikinci kök); sector köşesi (n > 1) dahil
+   - Dividing streamline'lar durma noktalarından çizilir (silindir yüzeyi, Rankine gövdeleri, iki vortex
+     arasındaki lemniskat …); normal streamline'lar bunlardan tohumlanır
+   - Katmanlar çalışıyor: Streamlines, Dividing streamlines, Stagnation points, Element markers, Walls
+     (Plot settings → Layers ve View → Layers aynı anahtarlar)
+   - Analitik karşılaştırma testleri: silindir, lifting cylinder (sin θ = Γ/4πV∞a, Γ = 4πV∞a çift kök,
+     Γ > 4πV∞a), Rankine half-body / oval, köşe, duvar, vortex çiftleri
+   - Not: cisim içindeki streamline'ları gizleme / cismi doldurma seçeneği Faz 4 katmanlarına eklenebilir
+6. ▶ **Paket C — Sıcak, tatlı tema** [6]: 2–3 renk seçeneği gösterilip seçilecek (açık + koyu)
 7. ☐ **Paket D — Panel sistemi** [4]: yumuşak animasyonlu yerleşim, sadece izinli yerlere oturma,
    ayrı pencere olarak yüzebilme, her bölüm (View range, Streamlines, Layers, …) ayrı panel,
    başlığa sağ tık → görünecek panelleri tikle, View → Panels, Reset layout, yerleşimi hatırlama

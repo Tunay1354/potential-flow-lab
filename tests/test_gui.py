@@ -503,3 +503,52 @@ def test_closing_during_a_computation_waits_and_does_not_hang(window, qapp):
     window.close()
     assert window.canvas.wait_idle(0)                # nothing running any more
     assert time.time() - t0 < 10.0
+
+
+# ---------------------------------------------------------------- stagnation points / dividing streamlines
+def test_stagnation_points_and_dividing_streamlines_are_drawn(shown, qapp):
+    cv = shown.canvas
+    shown.load_preset(preset("Single vortex, clockwise (Γ = −2)"))       # no stagnation points
+    assert _wait_for(qapp, cv, lambda: not cv.stagnation_points and not cv._busy)
+    shown.load_preset(preset("Lifting (rotating) cylinder"))
+    assert _wait_for(qapp, cv, lambda: len(cv.stagnation_points) == 2)
+    th = np.arcsin(-2.0 / (4 * np.pi))
+    xs = sorted(p.x for p in cv.stagnation_points)
+    np.testing.assert_allclose(xs, [-np.cos(th), np.cos(th)], atol=1e-8)
+    x, y = cv._stag_item.getData()
+    assert len(x) == 2
+    dx, dy = cv._dividing_item.getData()
+    assert dx is not None and np.isfinite(dx).sum() > 50
+
+
+def test_hover_over_a_stagnation_point_shows_it(shown, qapp):
+    cv = shown.canvas
+    shown.load_preset(preset("Non-lifting cylinder (uniform + doublet)"))
+    assert _wait_for(qapp, cv, lambda: sorted(round(p.x, 6) for p in cv.stagnation_points) == [-1.0, 1.0]
+                     and all(abs(p.y) < 1e-9 for p in cv.stagnation_points))
+    shown._update_probe((1.0 + 0.004, 0.003))
+    assert "Stagnation point (1.0000, 0.0000), on the body surface" in shown.probe_label.text()
+    shown._update_probe((2.0, 2.0))
+    assert "u =" in shown.probe_label.text()
+
+
+def test_layer_switches_in_panel_and_view_menu_agree(shown, qapp):
+    cv = shown.canvas
+    box = shown.settings_panel.layer_boxes["stagnation"]
+    act = shown.layer_actions["stagnation"]
+    assert _wait_for(qapp, cv, lambda: len(cv.stagnation_points) == 2)
+    p = cv.stagnation_points[0]
+    assert cv.stagnation_near(p.x, p.y) is p
+    box.setChecked(False)
+    assert not cv._stag_item.isVisible() and not act.isChecked()
+    assert cv.stagnation_near(p.x, p.y) is None                       # hidden points are not reported
+    act.setChecked(True)
+    assert box.isChecked() and cv._stag_item.isVisible()
+    shown.layer_actions["dividing"].setChecked(False)
+    assert not cv._dividing_item.isVisible()
+    shown.settings_panel.layer_boxes["streamlines"].setChecked(False)
+    assert not any(i.isVisible() for i in cv._line_items) and not cv._arrow_item.isVisible()
+    shown.settings_panel.layer_boxes["walls"].setChecked(False)
+    shown.load_preset(preset("Symmetry wall: source near a wall"))
+    assert cv._walls and not any(w.isVisible() for w in cv._walls)  # newly drawn walls stay hidden
+    assert not shown.layer_actions["cp"].isEnabled()                  # Phase 4

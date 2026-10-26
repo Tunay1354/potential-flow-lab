@@ -175,6 +175,16 @@ class PlotCanvas(QWidget):
         self._arrow_item = ArrowsItem(LAYOUT["arrow_size_px"])     # all direction arrows, one item
         self._arrow_item.setZValue(2)
         self.plot.addItem(self._arrow_item)
+        # dividing streamlines (through stagnation points) and the stagnation points themselves
+        self._dividing_item = pg.PlotCurveItem(connect="finite")
+        self._dividing_item.setSegmentedLineMode("on")
+        self._dividing_item.setZValue(1.6)
+        self.plot.addItem(self._dividing_item)
+        self._stag_item = pg.ScatterPlotItem(symbol="o", size=LAYOUT["stagnation_marker_px"])
+        self._stag_item.setZValue(3.5)
+        self.plot.addItem(self._stag_item)
+        self.stagnation_points = []
+        self.layers = {"streamlines": True, "dividing": True, "stagnation": True, "markers": True, "walls": True}
         self._markers, self._walls = [], []
 
         # background computation: one worker thread; requests during a computation are collected
@@ -239,6 +249,7 @@ class PlotCanvas(QWidget):
         self._overlay_rect = (x0 - W, x1 + W, y0 - H, y1 + H, W)
         self._hatch_spacing = abs(complex(W, H)) / LAYOUT["wall_hatch_count"]
         self._draw_walls((x0 - W, x1 + W), (y0 - H, y1 + H))
+        self._apply_layers()
 
     def _walls_need_redraw(self) -> bool:
         if self._overlay_rect is None:
@@ -258,6 +269,34 @@ class PlotCanvas(QWidget):
             self.arrow_density = density
         self._force = True
         self.request()
+
+    def set_layer(self, key: str, on: bool):
+        """Show / hide a layer: streamlines, dividing, stagnation, markers, walls."""
+        if key not in self.layers:
+            return
+        self.layers[key] = on
+        self._apply_layers()
+
+    def _apply_layers(self):
+        on = self.layers
+        for item in self._line_items:
+            item.setVisible(on["streamlines"])
+        self._arrow_item.setVisible(on["streamlines"])
+        self._dividing_item.setVisible(on["dividing"])
+        self._stag_item.setVisible(on["stagnation"])
+        for item in self._markers:
+            item.setVisible(on["markers"])
+        for item in self._walls:
+            item.setVisible(on["walls"])
+
+    def stagnation_near(self, x: float, y: float):
+        """The stagnation point within the pick radius (screen pixels) of (x, y), or None."""
+        if not self.layers["stagnation"] or not self.stagnation_points:
+            return None
+        px, py = self.vb.viewPixelSize()
+        r = LAYOUT["pick_radius_px"]
+        best = min(self.stagnation_points, key=lambda p: ((p.x - x) / px) ** 2 + ((p.y - y) / py) ** 2)
+        return best if ((best.x - x) / px) ** 2 + ((best.y - y) / py) ** 2 <= r * r else None
 
     def set_line_width(self, width: float):
         self.line_width = width
@@ -301,6 +340,9 @@ class PlotCanvas(QWidget):
         grid_color.setAlphaF(0.30 if t["name"] == "light" else 0.25)
         self._grid.setPen(pg.mkPen(grid_color, width=1))
         self._set_line_pens()
+        self._dividing_item.setPen(pg.mkPen(t["dividing_streamline"], width=LAYOUT["dividing_streamline_width"]))
+        self._stag_item.setPen(pg.mkPen(t["stagnation"], width=2))
+        self._stag_item.setBrush(pg.mkBrush(t["plot_bg"]))
         self._force = True
         self.request()
 
@@ -345,7 +387,7 @@ class PlotCanvas(QWidget):
     def _start_job(self):
         if self._first_job:
             self._first_job = False
-            QTimer.singleShot(700, self._first_job_slow)
+            QTimer.singleShot(2500, self._first_job_slow)    # cached engine + first picture: < 1 s
         self._busy, self._pending = True, False
         gen, cache, view = self._generation, self._cache, self._view()
         arrows = self.arrow_density if self.show_arrows else 0.0
@@ -370,7 +412,7 @@ class PlotCanvas(QWidget):
 
     def _first_job_slow(self):
         if self._busy and self._drawn_domain is None:
-            self.bar.message.emit("Preparing the fast streamline engine — only the first time, a few seconds…")
+            self.bar.message.emit("Preparing the fast streamline engine (only after installing / updating)…")
 
     def _on_partial(self, gen, payload):
         if gen == self._generation:
@@ -421,6 +463,14 @@ class PlotCanvas(QWidget):
         self._cull()
 
         self._arrow_item.setColor(self.theme["streamline"])
+        self.stagnation_points = list(result.stagnation)
+        if result.dividing:
+            gap = np.array([[np.nan, np.nan]])
+            xy = np.vstack([x for ln in result.dividing for x in (ln, gap)])
+            self._dividing_item.setData(xy[:, 0], xy[:, 1])
+        else:
+            self._dividing_item.setData([], [])
+        self._stag_item.setData([p.x for p in self.stagnation_points], [p.y for p in self.stagnation_points])
 
         if self._walls_need_redraw():
             self._draw_walls_around_view()
@@ -470,6 +520,10 @@ class PlotCanvas(QWidget):
         return n
 
     def _draw_markers(self):
+        self._draw_element_markers()
+        self._apply_layers()
+
+    def _draw_element_markers(self):
         for it in self._markers:
             self.plot.removeItem(it)
         self._markers.clear()

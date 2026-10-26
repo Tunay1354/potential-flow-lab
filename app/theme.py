@@ -31,6 +31,7 @@ LIGHT = {
     "plot_axis":   "#4A5568",
     "streamline":  "#1F6FB2",
     "dividing_streamline": "#0F2A47",
+    "stagnation":  "#111827",   # ring of a stagnation point marker
     "body_fill":   "#DCE3EC",
     "body_edge":   "#334155",
     # Element colors (used for toolbar icons, list icons and plot markers)
@@ -61,6 +62,7 @@ DARK = {
     "plot_axis":   "#AAB3C0",
     "streamline":  "#6FB6FF",
     "dividing_streamline": "#FFFFFF",
+    "stagnation":  "#F3F4F6",
     "body_fill":   "#2E3644",
     "body_edge":   "#C9D2DE",
     "el_uniform":  "#5DA0F5",
@@ -104,6 +106,7 @@ LAYOUT = {
     # selected element glows in its own color: (extra size in px, opacity 0–255), outermost first
     "selection_glow": ((26, 28), (17, 55), (9, 95)),
     "pick_radius_px": 10,           # a click this close (in screen pixels) to a symbol or wall selects it
+    "stagnation_marker_px": 9,      # diameter of the stagnation point rings
 }
 
 # ---------------------------------------------------------------------------

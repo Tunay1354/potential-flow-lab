@@ -154,6 +154,19 @@ class ElementsPanel(QWidget):
             self._later(self.delete_requested, self.current_row())
 
 
+# plot layers: key, label, visible at start, implemented yet
+LAYERS = (
+    ("streamlines", "Streamlines", True, True),
+    ("dividing", "Dividing streamlines", True, True),
+    ("stagnation", "Stagnation points", True, True),
+    ("equipotential", "Equipotential lines (φ)", False, False),
+    ("speed", "|V| contours", False, False),
+    ("cp", "Cp contours", False, False),
+    ("markers", "Element markers", True, True),
+    ("walls", "Walls", True, True),
+)
+
+
 class SettingsPanel(QScrollArea):
     """Plot limits, streamline density, layers, animation, computation quality."""
     message = Signal(str)
@@ -162,6 +175,7 @@ class SettingsPanel(QScrollArea):
     density_changed = Signal(float)
     line_width_changed = Signal(float)
     arrows_changed = Signal(bool, float)     # show arrows?, arrow density (1 = default)
+    layer_changed = Signal(str, bool)        # layer key (see LAYERS), visible?
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -216,12 +230,16 @@ class SettingsPanel(QScrollArea):
         # --- Layers ---------------------------------------------------------
         g = QGroupBox("Layers")
         v = QVBoxLayout(g)
-        for text, on in [("Streamlines", True), ("Dividing streamline (ψ = 0) / body", True),
-                         ("Equipotential lines (φ)", False), ("|V| contours", False),
-                         ("Cp contours", False), ("Element markers", True), ("Walls", True)]:
+        self.layer_boxes = {}
+        for key, text, on, ready in LAYERS:
             c = QCheckBox(text)
             c.setChecked(on)
+            c.setEnabled(ready)
+            if not ready:
+                c.setToolTip("Comes with Phase 4")
+            c.toggled.connect(lambda checked, k=key: self.layer_changed.emit(k, checked))
             v.addWidget(c)
+            self.layer_boxes[key] = c
         lay.addWidget(g)
 
         # --- Animation ------------------------------------------------------
