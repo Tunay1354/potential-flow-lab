@@ -276,3 +276,110 @@ def test_coincident_points_are_a_note_not_a_warning(window):
     assert window.issue_label.text().startswith("✓ scene OK") and "1 note" in window.issue_label.text()
     window.model.set_enabled(2, False)
     assert window.issue_label.text() == "✓ scene OK"
+
+
+# ---------------------------------------------------------------- selecting on the plot / clearing the selection
+def _click(qapp, window, x, y, double=False):
+    """Real mouse click at data coordinates (x, y) on the plot."""
+    from PySide6.QtCore import QPointF, Qt
+    from PySide6.QtTest import QTest
+    plot = window.canvas.plot
+    scene_pt = window.canvas.vb.mapViewToScene(QPointF(x, y))
+    pos = plot.mapFromScene(scene_pt)
+    if double:
+        QTest.mouseDClick(plot.viewport(), Qt.LeftButton, pos=pos)
+    else:
+        QTest.mouseClick(plot.viewport(), Qt.LeftButton, pos=pos)
+    qapp.processEvents()
+
+
+@pytest.fixture
+def shown(window, qapp):
+    window.resize(1400, 860)
+    window.show()
+    qapp.processEvents()
+    window.canvas.set_view((-4.0, 4.0), (-3.0, 3.0))
+    window.canvas.recompute()
+    qapp.processEvents()
+    return window
+
+
+def test_start_without_selection(shown):
+    assert shown.elements_panel.current_row() == -1 and shown.canvas.selected == -1
+    assert not shown.act_del.isEnabled()
+
+
+def test_click_symbol_selects_and_cycles_overlapping(shown, qapp):
+    _click(qapp, shown, 0.0, 0.0)                      # doublet and vortex are both at (0, 0)
+    first = shown.elements_panel.current_row()
+    assert first in (1, 2) and shown.canvas.selected == first and shown.act_del.isEnabled()
+    _click(qapp, shown, 0.0, 0.0)                      # same place again -> the other one
+    assert shown.elements_panel.current_row() == ({1, 2} - {first}).pop()
+
+
+def test_click_on_flow_clears_selection(shown, qapp):
+    shown.select_element(2)
+    _click(qapp, shown, -3.0, 2.0)                     # empty flow area (uniform flow is not pickable)
+    assert shown.elements_panel.current_row() == -1 and shown.canvas.selected == -1
+
+
+def test_click_on_wall_and_sector_side(shown, qapp):
+    from app.scene import PRESETS
+    shown.load_scene(*PRESETS["Source near a wall"](), title="t")
+    qapp.processEvents()
+    _click(qapp, shown, 2.0, 0.0)                      # on the wall y = 0
+    assert shown.elements_panel.current_row() == 0
+    shown.load_scene(*PRESETS["Corner flow (90° sector, n = 2)"](), title="t")
+    qapp.processEvents()
+    shown.select_element(-1)
+    _click(qapp, shown, 0.0, 2.0)                      # on the vertical side of the wedge
+    assert shown.elements_panel.current_row() == 0
+
+
+def test_click_elsewhere_clears_but_delete_button_keeps(shown, qapp):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    shown.select_element(1)
+    QTest.mouseClick(shown.settings_panel.s_density, Qt.LeftButton)       # any other widget
+    qapp.processEvents()
+    assert shown.elements_panel.current_row() == -1
+    shown.select_element(1)
+    QTest.mouseClick(shown.elements_panel.btn_del, Qt.LeftButton)        # acts on the selection
+    qapp.processEvents()
+    assert types(shown) == ["uniform", "vortex"]
+
+
+def test_click_empty_list_area_and_escape_clear(shown, qapp):
+    from PySide6.QtCore import QPoint, Qt
+    from PySide6.QtTest import QTest
+    tree = shown.elements_panel.tree
+    shown.select_element(0)
+    vp = tree.viewport()
+    QTest.mouseClick(vp, Qt.LeftButton, pos=QPoint(20, vp.height() - 5))  # below the last row
+    qapp.processEvents()
+    assert shown.elements_panel.current_row() == -1
+    shown.select_element(0)
+    shown.canvas.plot.setFocus()
+    QTest.keyClick(shown.canvas.plot, Qt.Key_Escape)
+    qapp.processEvents()
+    assert shown.elements_panel.current_row() == -1
+
+
+def test_double_click_symbol_opens_edit(shown, qapp, monkeypatch):
+    import app.main_window as mw
+    from app.scene import PRESETS
+    monkeypatch.setattr(mw, "ElementDialog", FakeDialog)
+    shown.load_scene(*PRESETS["Rankine half-body"](), title="t")
+    qapp.processEvents()
+    FakeDialog.result_values = {"m": 3.0}
+    _click(qapp, shown, 0.0, 0.0, double=True)         # the source of the half-body
+    qapp.processEvents()
+    assert shown.elements[1].m == 3.0
+
+
+def test_pick_ignores_hidden_elements(shown):
+    from PySide6.QtCore import QPointF
+    shown.model.set_enabled(1, False)
+    shown.model.set_enabled(2, False)
+    pt = shown.canvas.vb.mapViewToScene(QPointF(0.0, 0.0))
+    assert shown.canvas.pick(pt) == []

@@ -1,7 +1,7 @@
 """
 panels.py — right-side panels: Elements list and Plot settings.
 """
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QModelIndex, Qt, QTimer, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox,
                                QHBoxLayout, QLabel, QPushButton, QScrollArea, QSlider, QTreeWidget,
@@ -57,6 +57,7 @@ class ElementsPanel(QWidget):
                                                                        self.tree.indexOfTopLevelItem(it)))
         self.tree.itemChanged.connect(self._item_changed)
         self.tree.currentItemChanged.connect(lambda *_: self._selection_changed())
+        self.tree.itemSelectionChanged.connect(self._selection_changed)
         # keyboard shortcuts that only act while the list has focus
         for key, fn in ((QKeySequence.Delete, self._delete_selected), (QKeySequence(Qt.Key_Backspace), self._delete_selected),
                         (QKeySequence(Qt.Key_Return), self._edit_selected), (QKeySequence(Qt.Key_Enter), self._edit_selected)):
@@ -91,11 +92,25 @@ class ElementsPanel(QWidget):
 
     def current_row(self) -> int:
         it = self.tree.currentItem()
-        return self.tree.indexOfTopLevelItem(it) if it is not None else -1
+        if it is None or not it.isSelected():
+            return -1
+        return self.tree.indexOfTopLevelItem(it)
+
+    def select_row(self, row: int):
+        """Select row `row`; row < 0 (or out of range) clears the selection."""
+        if 0 <= row < self.tree.topLevelItemCount():
+            self.tree.setCurrentItem(self.tree.topLevelItem(row))
+            self.tree.topLevelItem(row).setSelected(True)
+        else:
+            self.tree.blockSignals(True)
+            self.tree.clearSelection()
+            self.tree.setCurrentIndex(QModelIndex())
+            self.tree.blockSignals(False)
+        self._selection_changed()
 
     def set_elements(self, elements: list, select: int | None = None):
         self.elements = elements
-        current = self.tree.currentIndex().row() if select is None else select
+        current = self.current_row() if select is None else select
         self.tree.blockSignals(True)
         self.tree.clear()
         for k, e in enumerate(elements):
@@ -105,8 +120,10 @@ class ElementsPanel(QWidget):
             it.setData(0, Qt.UserRole, e.TYPE)
             it.setToolTip(1, e.summary())
             self.tree.addTopLevelItem(it)
-        if elements:
-            self.tree.setCurrentItem(self.tree.topLevelItem(min(max(current, 0), len(elements) - 1)))
+        if elements and current is not None and current >= 0:      # keep / set the selection (none stays none)
+            item = self.tree.topLevelItem(min(current, len(elements) - 1))
+            self.tree.setCurrentItem(item)
+            item.setSelected(True)
         self.tree.blockSignals(False)
         self._selection_changed()
 

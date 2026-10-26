@@ -94,6 +94,8 @@ class CanvasBar(QWidget):
 class PlotCanvas(QWidget):
     """Bar + pyqtgraph plot showing the streamlines of `elements`."""
     probe = Signal(object)              # (x, y) in data coordinates, or None
+    element_clicked = Signal(int)       # index of the clicked element, −1 = empty place (deselect)
+    element_double_clicked = Signal(int)
     view_changed = Signal(tuple, tuple)  # (xmin, xmax), (ymin, ymax)
     computed = Signal(int, float)       # number of streamlines, computation time in ms
 
@@ -140,6 +142,7 @@ class PlotCanvas(QWidget):
         self._timer.timeout.connect(self.recompute)
 
         self.plot.scene().sigMouseMoved.connect(self._mouse_moved)
+        self.plot.scene().sigMouseClicked.connect(self._mouse_clicked)
         self.vb.sigRangeChanged.connect(self._range_changed)
         self.bar.btn_fit.clicked.connect(self.fit_view)
 
@@ -389,9 +392,81 @@ class PlotCanvas(QWidget):
         self.view_changed.emit((x0, x1), (y0, y1))
         self.schedule()
 
+    # ------------------------------------------------------------------ picking (click to select)
+    def pick(self, scene_pos) -> list[int]:
+        """Indices of the elements under a scene (pixel) position, nearest first.
+        Markers (source, vortex, doublet, sector vertex) and drawn lines (walls, sector sides) can be
+        picked; the uniform flow has no symbol on the plot and is selected from the list."""
+        from PySide6.QtCore import QPointF
+        tol = LAYOUT["pick_radius_px"]
+        (x0, x1), (y0, y1) = self.vb.viewRange()
+        sx, sy = scene_pos.x(), scene_pos.y()
+
+        def to_scene(z):
+            q = self.vb.mapViewToScene(QPointF(z.real, z.imag))
+            return complex(q.x(), q.y())
+
+        click = complex(sx, sy)
+        hits = []
+        for i, e in enumerate(self.elements):
+            if not e.enabled:
+                continue
+            best = None
+            for p in e.marker_points():
+                d = abs(to_scene(p) - click)
+                best = d if best is None else min(best, d)
+            for seg in self._pick_segments(e, (x0, x1), (y0, y1)):
+                a, b = to_scene(seg[0]), to_scene(seg[1])
+                d = _point_segment_distance(click, a, b) + 0.5      # markers win a tie with a line
+                best = d if best is None else min(best, d)
+            if best is not None and best <= tol:
+                hits.append((best, i))
+        return [i for _, i in sorted(hits)]
+
+    def _pick_segments(self, e, xr, yr):
+        """Visible straight pieces of an element (same as drawn): walls and the sides of a sector."""
+        if e.IS_BOUNDARY:
+            walls = [w for w in self.elements if w.enabled and w.IS_BOUNDARY]
+            seg = visible_wall_segment(e, [o for o in walls if o is not e], xr, yr)
+            return [seg] if seg else []
+        if e.TYPE == "sector":
+            out = []
+            for ang in (e.theta1, e.theta1 + e.beta_deg):
+                d = complex(np.cos(np.radians(ang)), np.sin(np.radians(ang)))
+                seg = ray_in_rect(e.z0, d, xr, yr)
+                if seg:
+                    out.append(seg)
+            return out
+        return []
+
+    def _mouse_clicked(self, ev):
+        if ev.button() != Qt.LeftButton:
+            return
+        hits = self.pick(ev.scenePos()) if self.vb.sceneBoundingRect().contains(ev.scenePos()) else []
+        if ev.double():
+            if hits:
+                self.element_double_clicked.emit(hits[0])
+            return
+        if not hits:
+            self.element_clicked.emit(-1)
+            return
+        # clicking again on overlapping symbols (e.g. doublet + vortex) selects the next one
+        if self.selected in hits:
+            self.element_clicked.emit(hits[(hits.index(self.selected) + 1) % len(hits)])
+        else:
+            self.element_clicked.emit(hits[0])
+
     def _mouse_moved(self, pos):
         if not self.vb.sceneBoundingRect().contains(pos):
             self.probe.emit(None)
             return
         pt = self.vb.mapSceneToView(pos)
         self.probe.emit((pt.x(), pt.y()))
+
+
+def _point_segment_distance(p: complex, a: complex, b: complex) -> float:
+    ab = b - a
+    if abs(ab) == 0:
+        return abs(p - a)
+    t = max(0.0, min(1.0, ((p - a) * ab.conjugate()).real / abs(ab) ** 2))
+    return abs(p - (a + t * ab))

@@ -10,10 +10,10 @@ Data flow (one direction only):
 No widget changes the elements directly, so undo / redo always restores exactly.
 """
 import numpy as np
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QEvent, QSize, Qt, QTimer
 from PySide6.QtGui import QAction, QActionGroup, QFont, QKeySequence, QShortcut
-from PySide6.QtWidgets import (QApplication, QDockWidget, QLabel, QMainWindow, QMessageBox, QToolBar,
-                               QToolButton)
+from PySide6.QtWidgets import (QAbstractButton, QApplication, QDockWidget, QLabel, QMainWindow, QMenuBar,
+                               QMessageBox, QToolBar, QToolButton, QWidget)
 
 from model import SceneModel, preview_change
 from physics import ELEMENT_TYPES, check_scene, reference_speed, velocity
@@ -47,6 +47,9 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.canvas)
         self.canvas.bar.message.connect(self.flash)
         self.canvas.probe.connect(self._update_probe)
+        self.canvas.element_clicked.connect(self.select_element)
+        self.canvas.element_double_clicked.connect(
+            lambda row: (self.select_element(row), QTimer.singleShot(0, lambda: self.edit_element(row))))
 
         # right panels (dock widgets -> user can move / float / close them)
         ep = self.elements_panel = ElementsPanel(self.theme)
@@ -54,7 +57,7 @@ class MainWindow(QMainWindow):
         ep.enabled_changed.connect(lambda row, on: self.model.set_enabled(row, on))
         ep.duplicate_requested.connect(self.duplicate_element)
         ep.delete_requested.connect(self.delete_element)
-        ep.selection_changed.connect(self.canvas.set_selected)
+        ep.selection_changed.connect(self._selection_changed)
         ep.message.connect(self.flash)
         self.dock_elements = self._dock("Elements", ep)
         self.dock_elements.widget().setMinimumHeight(LAYOUT["elements_panel_min_height"])
@@ -81,8 +84,13 @@ class MainWindow(QMainWindow):
         self.canvas.computed.connect(self._update_status)
         self.apply_theme(self.theme)
 
+        # a click anywhere else in the window clears the selection (see eventFilter)
+        QApplication.instance().installEventFilter(self)
+        esc = QShortcut(QKeySequence(Qt.Key_Escape), self)
+        esc.activated.connect(lambda: self.select_element(-1))
+
         self.model.subscribe(self._on_model_changed)
-        self._on_model_changed(0)
+        self._on_model_changed(None)
 
     # ------------------------------------------------------------------ building blocks
     def _dock(self, title, widget):
@@ -279,9 +287,44 @@ class MainWindow(QMainWindow):
         self.act_undo.setText(f"Undo {m.undo_text.lower()}" if m.can_undo else "Undo")
         self.act_redo.setEnabled(m.can_redo)
         self.act_redo.setText(f"Redo {m.redo_text.lower()}" if m.can_redo else "Redo")
-        has = bool(self.elements)
+        selected = self.elements_panel.current_row() >= 0
         for a in (self.act_edit, self.act_dup, self.act_del):
-            a.setEnabled(has)
+            a.setEnabled(selected)
+
+    # ------------------------------------------------------------------ selection
+    def select_element(self, row: int):
+        """Select element `row` (from the plot or code); −1 clears the selection."""
+        self.elements_panel.select_row(row)
+
+    def _selection_changed(self, row: int):
+        self.canvas.set_selected(row)
+        self._update_edit_actions()
+
+    def eventFilter(self, obj, event):
+        """A mouse click anywhere in this window that is not on an element clears the selection.
+        Exceptions: the plot (it decides itself: symbol = select, empty = clear), the element list
+        (an item = select, empty space = clear), the Edit / Duplicate / Delete buttons and the menus
+        (they act on the selection), and dialogs (other windows)."""
+        if event.type() == QEvent.MouseButtonPress and isinstance(obj, QWidget) and obj.window() is self:
+            tree = self.elements_panel.tree
+            if obj is tree.viewport():
+                if tree.itemAt(event.position().toPoint()) is None:
+                    QTimer.singleShot(0, lambda: self.select_element(-1))
+            elif self.canvas.plot.isAncestorOf(obj) or obj is self.canvas.plot:
+                pass                                            # handled by PlotCanvas._mouse_clicked
+            elif isinstance(obj, QMenuBar) or self.menuBar().isAncestorOf(obj):
+                pass
+            elif isinstance(obj, QAbstractButton) and obj in (self.elements_panel.btn_edit,
+                                                              self.elements_panel.btn_dup,
+                                                              self.elements_panel.btn_del):
+                pass
+            elif not tree.isAncestorOf(obj) and obj is not tree:
+                self.select_element(-1)
+        return False
+
+    def closeEvent(self, event):
+        QApplication.instance().removeEventFilter(self)
+        super().closeEvent(event)
 
     def _update_title(self):
         star = " *" if self.model.is_modified else ""
