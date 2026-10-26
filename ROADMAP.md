@@ -16,6 +16,8 @@ Bu dosya projenin kalan işlerini ve sırasını tutar. Her adım bittikçe işa
    - [8] Seçili element mavi halka yerine kendi renginde parlasın (duvar dahil)
    - [3] Streamline okları küçülsün
    - Aynı noktadaki doublet + vortex: ⚠ uyarı yerine ℹ bilgi notu
+   - Plot'ta sembole / duvara / sector kenarına tıklayarak seçme, üst üste binenlerde tekrar tıklayınca
+     sıradaki; boş yere, başka bir yere tıklayınca ya da Esc ile seçim kalkar; çift tık → düzenle
 2. ▶ **Paket B — Streamline kalitesi**
    - [1] Çizgiler daha düzenli / eşit aralıklı (komşu çizgiden d mesafede tohumlama), oklar düzenli dizilsin
    - [2] Çizgiler ortada aniden başlayıp bitmesin: kenarlardan / duvar boyunca tohumlama, daha uzun çizgiler,

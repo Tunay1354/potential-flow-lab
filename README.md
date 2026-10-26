@@ -12,6 +12,7 @@ alınabilir (Ctrl+Z / Ctrl+Y). Dosyaya kaydet / aç Faz 2b'de gelecek.
 |---|---|
 | Element ekle | Soldaki toolbar ya da **Elements → Add** → değerleri gir → **Apply** |
 | Düzenle | Listede çift tıkla, Enter, **Edit…** butonu ya da **Elements → (element) → Edit…** |
+| Seç | Listede ya da plot'ta sembole / duvara tıkla (üst üste binenlerde tekrar tıkla); boş yere tıkla veya Esc → seçim kalkar; sembole çift tık → düzenle |
 | Geçici gizle | Listede elementin tik kutusu |
 | Çoğalt | **Duplicate** butonu / Ctrl+D (kopya (0.5, 0.5) kaydırılır) |
 | Sil | **Delete** butonu / listede veya plot'ta Delete tuşu |

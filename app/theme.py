@@ -104,6 +104,7 @@ LAYOUT = {
     "wall_hatch_count": 70,         # hatch marks per view diagonal
     # selected element glows in its own color: (extra size in px, opacity 0–255), outermost first
     "selection_glow": ((26, 28), (17, 55), (9, 95)),
+    "pick_radius_px": 10,           # a click this close (in screen pixels) to a symbol or wall selects it
 }
 
 # ---------------------------------------------------------------------------
