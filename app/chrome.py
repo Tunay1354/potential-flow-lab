@@ -383,12 +383,12 @@ class ElementPalette(QWidget):
         self._lay = QVBoxLayout(self)
         self._lay.setContentsMargins(0, 12, 0, 12)
         self._lay.setSpacing(4)
-        heading = QLabel("Add")
+        heading = self._heading = QLabel("Add")
         heading.setObjectName("ToolbarHeading")
         heading.setFont(heading_font())
         heading.setAlignment(Qt.AlignCenter)
         self._lay.addWidget(heading)
-        self._lay.addSpacing(4)
+        self._lay.addSpacing(12)                 # room for the rule under the heading (as in the panels)
         self._end = self._lay.addStretch(1)
 
     def add_action(self, action) -> QToolButton:
@@ -422,4 +422,50 @@ class ElementPalette(QWidget):
         r = QRectF(self.rect())
         p.fillRect(r, QColor(self.theme["panel_bg"]))
         _frame_lines(p, r, self.theme, top=True, bottom=True)
+        p.setPen(QPen(QColor(self.theme["ink"]), 1.5))          # heading rule, like PanelTitle
+        y = self._heading.geometry().bottom() + 6.5
+        p.drawLine(QPointF(r.left() + 12, y), QPointF(r.right() - 12, y))
         p.end()
+
+
+# ---------------------------------------------------------------------------------------- helpers
+def themed_combo(combo):
+    """Drop-down list whose items follow the style sheet (padding, hover color); Fusion's default
+    menu-like delegate would ignore it."""
+    from PySide6.QtWidgets import QStyledItemDelegate
+    from PySide6.QtWidgets import QComboBox
+    combo.setItemDelegate(QStyledItemDelegate(combo))
+    # the field may be narrower than its longest item (the open list still shows the whole text)
+    combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+    combo.setMinimumContentsLength(8)
+    return combo
+
+
+def device_line_rect(widget) -> QRectF:
+    """Rectangle whose border, drawn with a cosmetic 1 px pen, lies on the outermost DEVICE pixels of
+    `widget` (also at 125 % / 150 % display scaling, where logical pixels are not whole pixels)."""
+    h = 0.5 / widget.devicePixelRatioF()
+    return QRectF(h, h, widget.width() - 2 * h, widget.height() - 2 * h)
+
+
+def tint_title_bar(window, theme: dict):
+    """Windows 11: color the window's title bar in the header wood (otherwise Windows uses its own
+    accent color, e.g. purple). Does nothing on other systems or older Windows versions."""
+    import sys
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        def colorref(hex_color):
+            c = QColor(hex_color)
+            return wintypes.DWORD(c.red() | (c.green() << 8) | (c.blue() << 16))
+
+        hwnd = wintypes.HWND(int(window.winId()))
+        set_attr = ctypes.windll.dwmapi.DwmSetWindowAttribute
+        for attr, value in ((35, theme["plank"]), (36, theme["plank_text"]), (34, theme["plank_edge"])):
+            ref = colorref(value)     # 35 caption, 36 caption text, 34 border (Windows 11 build 22000+)
+            set_attr(hwnd, attr, ctypes.byref(ref), ctypes.sizeof(ref))
+    except Exception:              # pragma: no cover - only on unusual Windows setups
+        pass

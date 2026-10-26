@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout
                                QHBoxLayout, QLabel, QPushButton, QScrollArea, QSlider, QTreeWidget,
                                QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from .chrome import button_font
+from .chrome import button_font, themed_combo
 from .icons import make_element_icon
 
 
@@ -258,11 +258,11 @@ class SettingsPanel(QScrollArea):
         # --- Computation ----------------------------------------------------
         g = QGroupBox("COMPUTATION")
         f = QFormLayout(g)
-        q = QComboBox()
+        q = themed_combo(QComboBox())
         q.addItems(["Low (fast)", "Medium", "High (export quality)"])
         q.setCurrentIndex(1)
         f.addRow("Grid quality", q)
-        ref = QComboBox()
+        ref = themed_combo(QComboBox())
         ref.addItems(["From uniform flow (V∞)", "Custom…"])
         f.addRow("Cp reference", ref)
         lay.addWidget(g)

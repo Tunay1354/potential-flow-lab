@@ -26,7 +26,8 @@ from physics import ELEMENT_TYPES, check_scene, reference_speed, velocity
 from physics.field import fluid_mask, singular_points
 
 from .canvas import PlotCanvas
-from .chrome import ElementPalette, HeaderBar, PanelBody, PanelTitle, load_fonts, paint_paper_grid
+from .chrome import (ElementPalette, HeaderBar, PanelBody, PanelTitle, load_fonts, paint_paper_grid,
+                     tint_title_bar)
 from .dialogs import ElementDialog
 from .element_specs import spec_for, toolbar_types
 from .icons import make_app_icon, make_element_icon, make_palette_icon
@@ -380,6 +381,9 @@ class MainWindow(QMainWindow):
         Exceptions: the plot (it decides itself: symbol = select, empty = clear), the element list
         (an item = select, empty space = clear), the Edit / Duplicate / Delete buttons and the menus
         (they act on the selection), and dialogs (other windows)."""
+        if (event.type() == QEvent.Show and isinstance(obj, QWidget) and obj.isWindow()
+                and obj.windowType() in (Qt.Window, Qt.Dialog)):
+            tint_title_bar(obj, self.theme)             # Windows 11: title bars in the header wood
         if event.type() == QEvent.MouseButtonPress and isinstance(obj, QWidget) and obj.window() is self:
             # Qt passes a press that a child did not accept on to its parents; decide by the widget that is
             # really under the mouse, otherwise a click on the plot would look like a click on its parent
@@ -777,6 +781,9 @@ class MainWindow(QMainWindow):
         app.setStyleSheet(build_stylesheet(theme))
         self.setWindowIcon(make_app_icon(theme))
         self.header.apply_theme(theme)
+        for w in QApplication.topLevelWidgets():
+            if w.isVisible() and w.windowType() in (Qt.Window, Qt.Dialog):
+                tint_title_bar(w, theme)
         if hasattr(self, "dock_settings"):
             for part in self._dock_parts():
                 part.theme = theme

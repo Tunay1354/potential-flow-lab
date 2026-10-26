@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (QButtonGroup, QFrame, QGraphicsPathItem, QHBoxLay
 from physics.streamlines import FADE_LEVELS, Cancelled, StreamlineCache, fade_piece_lists
 
 from .arrows_item import ArrowsItem
-from .chrome import TitleBlock, button_font, font
+from .chrome import TitleBlock, button_font, device_line_rect, font
 from .geometry import fluid_polygon, ray_in_rect, rect_polygon, sector_shading, visible_wall_segment
 from .icons import make_tool_icon
 from .theme import FONT, LAYOUT, MARKERS
@@ -167,7 +167,7 @@ class PlotCanvas(QWidget):
 
         # the plot card: a strong ink frame (painted in paintEvent) around bar, plot and title block
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(1, 1, 1, 1)
+        lay.setContentsMargins(2, 2, 2, 2)      # children never cover the frame (also at 125 % scaling)
         lay.setSpacing(0)
         self.bar = CanvasBar(self)
         lay.addWidget(self.bar)
@@ -484,7 +484,7 @@ class PlotCanvas(QWidget):
         pen = QPen(QColor(self.theme["ink"]), 0)
         pen.setCosmetic(True)
         p.setPen(pen)
-        p.drawRect(self.rect().adjusted(0, 0, -1, -1))
+        p.drawRect(device_line_rect(self))       # on the outermost screen pixels, all four sides
         p.end()
 
     def _set_line_pens(self):

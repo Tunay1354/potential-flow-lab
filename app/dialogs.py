@@ -20,6 +20,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QButtonGroup, QComboBox, QDialog, QDoubleSpinBox, QFormLayout, QHBoxLayout,
                                QLabel, QPushButton, QRadioButton, QVBoxLayout, QWidget)
 
+from .chrome import themed_combo
 from .element_specs import ElementSpec
 from .icons import make_element_icon
 
@@ -98,7 +99,7 @@ class ElementDialog(QDialog):
                 w = _RadioPair(p.choices, int(p.default))
                 w.group.idToggled.connect(lambda *_: self._update_info())
             elif p.choices:
-                w = QComboBox()
+                w = themed_combo(QComboBox())
                 w.addItems(p.choices)
                 w.setCurrentIndex(int(p.default))
             else:

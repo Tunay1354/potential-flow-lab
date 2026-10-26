@@ -56,7 +56,7 @@ LIGHT = {
     "plot_axis":    "#3A3326",
     "streamline":   "#23395F",
     "dividing_streamline": "#211A12",
-    "stagnation":   "#211A12",   # ring of a stagnation point marker
+    "stagnation":   "#4B2E1C",   # ring of a stagnation point marker (dark walnut), also its glow
     "body_fill":    "#E6DCC6",
     "body_edge":    "#3A3326",
     # element colors (toolbar icons, list icons, plot markers)
@@ -67,7 +67,7 @@ LIGHT = {
     "el_doublet":   "#B8641E",
     "el_sector":    "#4F7A3A",
     "el_wall":      "#4A4136",
-    "check_icon":   "check_light.svg",
+    "chevron_icon": "chevron_light.svg",   # arrow of the drop-down lists
 }
 
 DARK = {
@@ -118,7 +118,7 @@ DARK = {
     "el_doublet":   "#E8A25E",
     "el_sector":    "#8CC27A",
     "el_wall":      "#B5A690",
-    "check_icon":   "check_dark.svg",
+    "chevron_icon": "chevron_dark.svg",
 }
 
 DEFAULT_THEME = LIGHT
@@ -201,7 +201,7 @@ def build_stylesheet(t: dict) -> str:
     """Qt stylesheet generated from the palette `t`. Capitals and letter spacing (which style sheets
     cannot do) are set on the fonts in chrome.py."""
     mono, head = first_family("mono"), first_family("heading")
-    check = os.path.join(ASSETS_DIR, "icons", t["check_icon"]).replace("\\", "/")
+    chevron = os.path.join(ASSETS_DIR, "icons", t["chevron_icon"]).replace("\\", "/")
     return f"""
     QMainWindow, QDialog {{ background: {t['window_bg']}; color: {t['text']}; }}
     QWidget {{ color: {t['text']}; }}
@@ -276,20 +276,30 @@ def build_stylesheet(t: dict) -> str:
     QLineEdit, QDoubleSpinBox, QSpinBox {{ border: none; border-bottom: 1px solid {t['border']};
         padding: 3px 4px; background: transparent; font-family: "{mono}"; selection-background-color: {t['accent_soft']};
         selection-color: {t['text']}; }}
-    QComboBox {{ border: 1px solid {t['border']}; padding: 3px 6px; background: {t['panel_bg']}; }}
+    /* drop-down lists: a field with an underline and a small ink chevron, list framed like a menu */
+    QComboBox {{ border: none; border-bottom: 1px solid {t['border']}; padding: 3px 4px; background: transparent;
+        font-family: "{mono}"; combobox-popup: 0; }}
+    QComboBox:hover {{ background: {t['panel_header']}; }}
+    QComboBox::drop-down {{ border: none; width: 20px; subcontrol-origin: padding; subcontrol-position: center right; }}
+    QComboBox::down-arrow {{ image: url("{chevron}"); width: 11px; height: 7px; }}
+    QComboBox::down-arrow:on {{ top: 1px; }}
     QDialog QLineEdit, QDialog QDoubleSpinBox, QDialog QSpinBox {{ background: {t['panel_bg']}; }}
     /* hide the small up/down arrows: mouse wheel and keyboard arrows still change the value */
     QAbstractSpinBox::up-button, QAbstractSpinBox::down-button {{ width: 0px; border: none; }}
     QDoubleSpinBox:focus, QSpinBox:focus, QLineEdit:focus {{ border-bottom: 2px solid {t['accent']}; }}
-    QComboBox:focus {{ border-color: {t['accent']}; }}
-    QComboBox QAbstractItemView {{ background: {t['panel_bg']}; border: 1px solid {t['border']};
-        selection-background-color: {t['accent_soft']}; selection-color: {t['text']}; }}
+    QComboBox:focus, QComboBox:on {{ border-bottom: 2px solid {t['accent']}; }}
+    QComboBox QAbstractItemView {{ background: {t['panel_bg']}; border: 1px solid {t['border']}; outline: none;
+        padding: 3px; selection-background-color: {t['accent_soft']}; selection-color: {t['text']};
+        font-family: "{mono}"; }}
+    QComboBox QAbstractItemView::item {{ padding: 5px 8px; min-height: 18px; color: {t['text']}; }}
+    QComboBox QAbstractItemView::item:selected, QComboBox QAbstractItemView::item:hover {{
+        background: {t['accent_soft']}; color: {t['text']}; }}
 
     QCheckBox {{ spacing: 9px; }}
     QCheckBox::indicator, QTreeWidget::indicator {{ width: 13px; height: 13px; border: 1px solid {t['border']};
         background: {t['panel_bg']}; }}
-    QCheckBox::indicator:checked, QTreeWidget::indicator:checked {{ image: url("{check}"); border: none;
-        width: 15px; height: 15px; }}
+    QCheckBox::indicator:checked, QTreeWidget::indicator:checked {{ background: {t['accent_strong']};
+        border: 1px solid {t['ink']}; }}
     QCheckBox::indicator:disabled {{ border-color: {t['border_soft']}; }}
     QCheckBox:disabled {{ color: {t['text_disabled']}; }}
 

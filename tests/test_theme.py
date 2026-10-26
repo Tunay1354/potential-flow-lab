@@ -94,3 +94,23 @@ def test_dock_card_keeps_a_paper_margin_to_the_window_edge(win, qapp):
     d.setFloating(True)
     qapp.processEvents()
     assert d.widget().outer == (0, 0, 0, 0)
+
+
+def test_plot_card_frame_on_all_four_sides(win):
+    from PySide6.QtCore import QPoint
+    from PySide6.QtGui import QColor
+    cv = win.canvas
+    img = win.grab().toImage()
+    d = cv.devicePixelRatioF()
+    tl, br = cv.mapTo(win, QPoint(0, 0)), cv.mapTo(win, QPoint(cv.width(), cv.height()))
+    x0, y0, x1, y1 = int(tl.x() * d), int(tl.y() * d), int(br.x() * d) - 1, int(br.y() * d) - 1
+    xm, ym = (x0 + x1) // 2, (y0 + y1) // 2
+    ink = QColor(win.theme["ink"]).name()
+    for x, y in ((x0, ym), (x1, ym), (xm, y0), (xm, y1)):
+        assert QColor(img.pixel(x, y)).name() == ink
+
+
+def test_drop_down_lists_use_the_styled_delegate(win):
+    from PySide6.QtWidgets import QComboBox, QStyledItemDelegate
+    combos = win.settings_panel.findChildren(QComboBox)
+    assert combos and all(type(c.itemDelegate()) is QStyledItemDelegate for c in combos)
