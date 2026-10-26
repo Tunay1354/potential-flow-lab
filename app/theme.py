@@ -303,10 +303,14 @@ def build_stylesheet(t: dict) -> str:
     QCheckBox::indicator:disabled {{ border-color: {t['border_soft']}; }}
     QCheckBox:disabled {{ color: {t['text_disabled']}; }}
 
-    QSlider::groove:horizontal {{ height: 2px; background: {t['border_inner']}; }}
-    QSlider::sub-page:horizontal {{ background: {t['accent']}; }}
+    /* track: one fixed height for the whole slider (filled and empty part); 4 px stays a whole number
+       of screen pixels at 100 / 125 / 150 / 175 % display scaling, so every track looks the same */
+    QSlider {{ min-height: 20px; }}
+    QSlider::groove:horizontal {{ height: 4px; margin: 0; background: transparent; border: none; }}
+    QSlider::sub-page:horizontal {{ height: 4px; background: {t['accent']}; border: none; }}
+    QSlider::add-page:horizontal {{ height: 4px; background: {t['border_inner']}; border: none; }}
     QSlider::handle:horizontal {{ background: {t['accent_strong']}; border: 1px solid {t['ink']}; width: 10px;
-        height: 10px; margin: -6px 0; }}
+        height: 10px; margin: -4px 0; }}
 
     QRadioButton {{ spacing: 8px; }}
     QRadioButton::indicator {{ width: 12px; height: 12px; border-radius: 8px;
