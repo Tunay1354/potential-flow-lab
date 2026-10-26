@@ -119,6 +119,21 @@ class FlowElement:
     def periodic_complex_potential(self, z: np.ndarray, period: complex) -> np.ndarray:
         raise NotImplementedError(f"{self.NAME} cannot be placed between parallel walls")
 
+    # ------------------------------------------------------------------ compiled kernel (kernel.py)
+    def kernel_terms(self) -> list[tuple] | None:
+        """This element's velocity as terms of the compiled kernel (fast streamlines):
+            ("const", w)                     w
+            ("pole1", z0, c)                 c / (z − z0)
+            ("pole2", z0, c)                 −c / (z − z0)²
+            ("sector", z0, rot, half, n, V)  n V rot ζ^(n−1),  ζ = (z − z0)·rot  (see sector.py)
+        None = not expressible -> the slower NumPy path is used for scenes with this element."""
+        return None
+
+    def kernel_region(self) -> tuple | None:
+        """Fluid region for the kernel: ("halfplane", point, normal) or ("wedge", z0, rot, half, beta).
+        None = no restriction. Elements that override fluid_region must override this too."""
+        return None
+
     @classmethod
     def batch_complex_velocity(cls, elements: list, z: np.ndarray) -> np.ndarray:
         """Σ w_k(z) for several elements of THIS type. Subclasses may vectorise it

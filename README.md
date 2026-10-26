@@ -2,7 +2,7 @@
 
 Interactive 2D potential-flow simulator (Aerodynamics semester project, IZTECH Mechanical Engineering).
 
-**Durum:** Faz 2b — fizik çekirdeği tamam; elementler toolbar'dan eklenir, listeden / Elements menüsünden
+**Durum:** Paket E1 — fizik çekirdeği tamam; elementler toolbar'dan eklenir, listeden / Elements menüsünden
 düzenlenir, gizlenir, çoğaltılır, silinir, her değişiklik geri alınabilir (Ctrl+Z / Ctrl+Y) ve sahneler
 dosyaya kaydedilip açılabilir. Sıradaki işler: `ROADMAP.md`.
 
@@ -60,7 +60,14 @@ pytest                          # fizik testlerini çalıştır
 python scripts/verify_physics.py   # analitik vs. sayısal doğrulama tablosu
 ```
 Güncelleme geldiğinde: GitHub Desktop'ta **Fetch origin → Pull origin**.
-`requirements.txt` değiştiyse `pip install -r requirements.txt` komutunu tekrar çalıştır.
+`requirements.txt` değiştiyse `pip install -r requirements.txt` komutunu tekrar çalıştır
+(Paket E1'den sonra bir kez gerekli: hızlı streamline motoru için **numba** eklendi).
+
+İlk açılışta streamline motoru bir kez derlenir (birkaç saniye, durum çubuğunda yazar); sonraki
+açılışlarda hazır gelir.
+
+Ölçüm scriptleri: `python scripts/streamline_quality.py` (çizgi kalitesi),
+`python scripts/smoothness.py` (pan / zoom sırasında kare aralıkları, arayüz akıcılığı).
 
 ## Klasör yapısı
 
@@ -69,7 +76,7 @@ Güncelleme geldiğinde: GitHub Desktop'ta **Fetch origin → Pull origin**.
 | `main.py` | Programı başlatır (`python main.py sahne.pflow` dosyayı da açar) |
 | `app_info.py` | Program adı ve sürümü |
 | `presets/` | Hazır sahneler (`.pflow` dosyaları, klasör = menüdeki grup) |
-| `app/` | Arayüz. Renkler/boyutlar/marker'lar: `app/theme.py`, başlangıç sahnesi ve preset listesi: `app/scene.py`, son açılanlar: `app/recent_files.py` |
+| `app/` | Arayüz. Oklar tek bir çizim öğesi: `app/arrows_item.py`. Renkler/boyutlar/marker'lar: `app/theme.py`, başlangıç sahnesi ve preset listesi: `app/scene.py`, son açılanlar: `app/recent_files.py` |
 | `app/dialogs.py` | Parametre penceresi (alanlar `app/element_specs.py`'den otomatik; işaretli değerler için Source/Sink, Counter-clockwise/Clockwise seçimi) |
 | `app/geometry.py` | Duvarların çizim geometrisi (köşelerde sadece akışkana bakan kısım çizilir) |
 | `model/` | Sahne modeli: element listesi, komutlar, undo/redo, değişiklik önizlemesi (Qt'siz) |
@@ -81,7 +88,8 @@ Güncelleme geldiğinde: GitHub Desktop'ta **Fetch origin → Pull origin**.
 | `physics/validation.py` | Sahne kontrolü: duvar arkasında/üstünde element, paralel olmayan uniform flow ... |
 | `physics/registry.py` | Hangi element tipleri var (yeni element otomatik eklenir) |
 | `physics/field.py` | Superposition (w = Σ wₖ), grid hesabı, Cp, singularity masking, fluid region |
-| `physics/streamlines.py` | Eşit aralıklı streamline'lar (Jobard–Lefer, RK4), soluklaşan uçlar, ok yerleri |
+| `physics/streamlines.py` | Eşit aralıklı streamline'lar (Jobard–Lefer, RK4), soluklaşan uçlar, ok yerleri; pan'de çizgileri yerinde tutan önbellek (`StreamlineCache`) |
+| `physics/kernel.py` | Numba ile derlenmiş hız alanı ve integrator (aynı matematik, ~10× hızlı, arayüzü bekletmez) |
 | `physics/diagnostics.py` | Flux, circulation, yüzey kuvvetleri (L′, D′) ölçümleri |
 | `tests/` | Otomatik doğrulama testleri (`pytest`) |
 | `scripts/verify_physics.py` | Rapor için doğrulama tablosu |

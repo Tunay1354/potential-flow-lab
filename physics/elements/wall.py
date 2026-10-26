@@ -78,6 +78,12 @@ class SymmetryWall(FlowElement):
     def complex_potential(self, z):
         return np.zeros(as_complex_array(z).shape, dtype=np.complex128)
 
+    def kernel_terms(self):
+        return []                                      # no velocity of its own
+
+    def kernel_region(self):
+        return ("halfplane", self.point, self.normal)
+
     def fluid_region(self, z):
         return self.signed_distance(z) >= 0.0          # points ON the wall count as fluid
 

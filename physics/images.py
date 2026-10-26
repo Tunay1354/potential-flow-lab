@@ -68,6 +68,22 @@ class PeriodicRow(FlowElement):
     def singular_points(self):
         return self.base.singular_points()          # the copies are outside the fluid
 
+    def kernel_terms(self):
+        """Rows of poles in closed form:  Σ c/(z − z0 − nP) = c (π/P) cot(π(z − z0)/P),
+        Σ −c/(z − z0 − nP)² = −c (π/P)² (1 + cot²(π(z − z0)/P))."""
+        terms = self.base.kernel_terms()
+        if terms is None:
+            return None
+        out = []
+        for t in terms:
+            if t[0] == "pole1":
+                out.append(("row1", t[1], t[2], self.period))
+            elif t[0] == "pole2":
+                out.append(("row2", t[1], t[2], self.period))
+            else:
+                return None
+        return out
+
 
 @dataclass
 class ImageSystem:

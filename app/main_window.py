@@ -729,6 +729,10 @@ def setup_application(app):
     from PySide6.QtCore import QLocale
     # numbers always with a decimal POINT (1.000), whatever the system region is (TR uses 1,000)
     QLocale.setDefault(QLocale(QLocale.English, QLocale.UnitedStates))
+    # the streamline thread and the window share Python's interpreter lock (GIL); hand it over every
+    # 0.5 ms instead of every 5 ms, so drawing never waits long for the background computation
+    import sys
+    sys.setswitchinterval(0.0005)
     app.setOrganizationName(ORGANIZATION)        # where QSettings keeps recent files etc.
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(APP_VERSION)

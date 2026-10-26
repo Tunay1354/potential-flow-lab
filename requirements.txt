@@ -1,4 +1,5 @@
 PySide6>=6.6
 pyqtgraph>=0.13.7
 numpy>=1.26
+numba>=0.60          # compiled streamline kernel (optional: without it the slower NumPy path is used)
 pytest>=8.0

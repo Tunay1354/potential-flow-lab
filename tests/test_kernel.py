@@ -1,0 +1,86 @@
+"""Compiled kernel (Numba): same velocity, fluid region and streamlines as the NumPy code."""
+import os
+import sys
+
+import numpy as np
+import pytest
+
+from physics import (Doublet, FlowElement, SectorFlow, Source, SymmetryWall, Uniform, Vortex, complex_velocity,
+                     kernel, resolve)
+from physics.field import active, fluid_mask
+from physics.streamlines import trace_streamlines
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "scripts"))
+from streamline_quality import SCENES  # noqa: E402
+
+pytestmark = pytest.mark.skipif(not kernel.HAVE_NUMBA, reason="Numba not installed")
+
+EXTRA = {
+    "sector 270°": ([SectorFlow(V=1.0, theta2=270.0)], ((-3, 3), (-3, 3))),
+    "rotated wedge + source": ([SectorFlow(V=0.5, x0=1.0, y0=-0.5, theta1=20.0, theta2=110.0),
+                                Source(m=1.0, x0=1.2, y0=0.8)], ((-2, 4), (-2, 3))),
+    "doublet δ between walls": ([SymmetryWall(yw=-1.0), SymmetryWall(yw=1.5, side=1), Uniform(V=0.7),
+                                 Doublet(mu=0.3, x0=0.5, y0=0.2, delta=35.0)], ((-4, 4), (-1.2, 1.7))),
+    "60° corner, two walls": ([SymmetryWall(), SymmetryWall(theta_w=60.0, side=1),
+                               Vortex(Gamma=2.0, x0=1.6, y0=0.6)], ((-1, 4), (-0.8, 3.2))),
+}
+ALL = {**SCENES, **EXTRA}
+
+
+@pytest.mark.parametrize("name", ALL)
+def test_velocity_and_fluid_region_match_numpy(name):
+    els, ((x0, x1), (y0, y1)) = ALL[name]
+    els = active(els)
+    flows = resolve(els)
+    F, R, _ = kernel.compile_scene(els, flows)
+    rng = np.random.default_rng(1)
+    z = rng.uniform(x0, x1, 3000) + 1j * rng.uniform(y0, y1, 3000)
+    w_np, w_k = complex_velocity(flows, z), kernel.velocity_many(z, F)
+    fin = np.isfinite(w_np)
+    assert np.array_equal(fin, np.isfinite(w_k))
+    np.testing.assert_allclose(w_k[fin], w_np[fin], rtol=1e-12, atol=1e-13 * np.abs(w_np[fin]).max())
+    assert np.array_equal(kernel.fluid_many(z, R), fluid_mask(els, z))
+
+
+@pytest.mark.parametrize("name", ALL)
+def test_kernel_and_numpy_streamlines_agree(name):
+    els, view = ALL[name]
+    a = trace_streamlines(els, *view, use_kernel=False)
+    b = trace_streamlines(els, *view)
+    assert abs(len(a.lines) - len(b.lines)) <= 1
+    same = sum(any(p.shape == q.shape and np.allclose(p, q, atol=1e-9) for q in a.lines) for p in b.lines)
+    assert same >= 0.9 * len(b.lines)          # a line may stop one step earlier at a raster border
+
+
+def test_element_without_kernel_form_uses_numpy():
+    """A new element type without kernel_terms() still works (slower NumPy path)."""
+    from dataclasses import dataclass
+
+    @dataclass(kw_only=True)
+    class Spiral(FlowElement):           # source + vortex in one element, no kernel description
+        TYPE = "test_spiral"
+        NAME = "Spiral"
+        m: float = 1.0
+        G: float = 1.0
+
+        def complex_velocity(self, z):
+            with np.errstate(divide="ignore", invalid="ignore"):
+                return (self.m - 1j * self.G) / (2 * np.pi * np.asarray(z, complex))
+
+        def complex_potential(self, z):
+            with np.errstate(divide="ignore", invalid="ignore"):
+                return (self.m - 1j * self.G) / (2 * np.pi) * np.log(np.asarray(z, complex))
+
+        def singular_points(self):
+            return [0j]
+
+    els = [Spiral()]
+    assert kernel.compile_scene(els, resolve(els)) is None
+    s = trace_streamlines(els, (-3, 3), (-2, 2))
+    assert len(s.lines) > 5
+
+
+def test_kernel_releases_the_interpreter_lock():
+    """nogil: the window thread keeps running while streamlines are computed."""
+    assert kernel.trace_batch.targetoptions.get("nogil") is True
+    assert kernel.velocity_many.targetoptions.get("nogil") is True

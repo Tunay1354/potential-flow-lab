@@ -34,6 +34,9 @@ class Uniform(FlowElement):
     def complex_potential(self, z):
         return self._w() * as_complex_array(z)
 
+    def kernel_terms(self):
+        return [("const", complex(self._w()))]
+
     def freestream_velocity(self) -> complex:
         return np.conj(self._w())             # u + i v
 

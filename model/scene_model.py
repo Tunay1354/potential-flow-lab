@@ -20,7 +20,8 @@ _ids = itertools.count(1)
 
 
 class Command:
-    """Base class. Subclasses implement do() / undo(); both return the index to select (or None)."""
+    """Base class. Subclasses implement do() / undo(); both return the index to select,
+    −1 = select nothing, None = keep the current selection."""
     text = ""
 
     def __init__(self):
@@ -110,11 +111,11 @@ class ReplaceAll(Command):
     def do(self, elements):
         self.old = list(elements)
         elements[:] = self.new
-        return 0 if elements else None
+        return -1                   # a whole new scene: nothing selected (None would keep the selection)
 
     def undo(self, elements):
         elements[:] = self.old
-        return 0 if elements else None
+        return -1
 
 
 class SceneModel:
@@ -225,7 +226,7 @@ class SceneModel:
         self._undo.clear()
         self._redo.clear()
         self.mark_clean()
-        self._notify(None)
+        self._notify(-1)                                # nothing selected in a new document
 
     def load(self, elements, text: str = "Load scene"):
         return self.push(ReplaceAll(elements, text))

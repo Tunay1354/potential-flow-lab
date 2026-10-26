@@ -37,6 +37,9 @@ class Vortex(FlowElement):
         with np.errstate(divide="ignore", invalid="ignore"):
             return (-1j * self.Gamma / (2.0 * np.pi)) * np.log(as_complex_array(z) - self.z0)
 
+    def kernel_terms(self):
+        return [("pole1", self.z0, -1j * self.Gamma / (2.0 * np.pi))]
+
     def singular_points(self):
         return [self.z0]
 

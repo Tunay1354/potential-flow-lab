@@ -46,6 +46,9 @@ class Doublet(FlowElement):
         with np.errstate(divide="ignore", invalid="ignore"):
             return self._c() / (as_complex_array(z) - self.z0)
 
+    def kernel_terms(self):
+        return [("pole2", self.z0, complex(self._c()))]
+
     def singular_points(self):
         return [self.z0]
 

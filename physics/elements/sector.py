@@ -119,6 +119,12 @@ class SectorFlow(FlowElement):
         n = self.n
         return self.V * r ** n * np.exp(1j * n * th)
 
+    def kernel_terms(self):
+        return [("sector", self.z0, self._rot(), 0.5 * self.beta, self.n, float(self.V))]
+
+    def kernel_region(self):
+        return ("wedge", self.z0, self._rot(), 0.5 * self.beta, self.beta)
+
     def singular_points(self):
         """For β > 180° (n < 1) the velocity ~ r^{n−1} is infinite at the vertex."""
         return [self.z0] if self.n < 1.0 - 1e-12 else []

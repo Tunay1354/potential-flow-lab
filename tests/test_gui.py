@@ -1,5 +1,6 @@
 """GUI tests (offscreen): dialogs agree with the physics classes, and every user action goes through
 the scene model so that it can be undone."""
+import numpy as np
 import pytest
 
 from physics import (ELEMENT_TYPES, Doublet, FlowElement, ParamSpec, SectorFlow, Source, SymmetryWall, Uniform,
@@ -239,6 +240,14 @@ def test_preset_and_clear_are_undoable(window):
     assert types(window) == ["uniform", "doublet", "vortex"]
 
 
+def test_loading_a_preset_selects_nothing(window):
+    window.select_element(1)
+    window.load_preset(preset("Symmetry wall: source near a wall"))
+    assert window.elements_panel.current_row() == -1 and window.canvas.selected == -1
+    window.model_undo()
+    assert window.canvas.selected == -1
+
+
 def test_error_banner_follows_the_scene(window):
     window.model.add(SymmetryWall(yw=0.5))
     assert not window.canvas.banner.isHidden() and "behind the wall" in window.canvas.banner.text()
@@ -423,23 +432,65 @@ def test_scene_change_computes_streamlines_in_the_background(shown, qapp):
 
 
 def test_only_the_newest_request_is_drawn(shown, qapp):
+    from physics.streamlines import StreamlineCache
     cv = shown.canvas
     cv.wait_idle()
     qapp.processEvents()
     done = []
     cv.computed.connect(lambda n, ms: done.append(n))
     for density in (0.4, 0.7, 1.6):                  # three quick changes: only the last one counts
-        cv.density = density
-        cv.request()
-    elements, xr, yr, kw = cv._job_args()             # what the last request computes
+        cv.set_density(density)
     assert _wait_for(qapp, cv, lambda: bool(done))
     for _ in range(5):
         cv.wait_idle(100)
         qapp.processEvents()
     assert len(done) == 1
-    from physics.streamlines import trace_streamlines
-    assert kw["density"] == 1.6
-    assert done[0] == len(trace_streamlines(elements, xr, yr, **kw).lines)
+    assert cv._cache.density == 1.6
+    assert cv._drawn_level == StreamlineCache(tuple(cv.elements), 1.6).level_for(cv._view())
+    assert cv.covers_view()
+
+
+def test_panning_inside_the_margin_needs_no_new_computation(shown, qapp):
+    cv = shown.canvas
+    assert _wait_for(qapp, cv, cv.covers_view)
+    done = []
+    cv.computed.connect(lambda n, ms: done.append(n))
+    (x0, x1), (y0, y1) = cv._view()
+    lines_before = cv._lines.getData()[0].copy()
+    cv.set_view((x0 + 0.5, x1 + 0.5), (y0 + 0.3, y1 + 0.3))
+    for _ in range(10):
+        cv.wait_idle(50)
+        qapp.processEvents()
+    assert done == [] and cv.covers_view()                          # lines were already there
+    np.testing.assert_array_equal(cv._lines.getData()[0], lines_before)
+    cv.set_view((x0 + 12, x1 + 12), (y0, y1))                         # far: new area is computed
+    assert _wait_for(qapp, cv, lambda: bool(done) and cv.covers_view())
+
+
+def test_quick_view_changes_are_collected_into_one_computation(shown, qapp):
+    cv = shown.canvas
+    assert _wait_for(qapp, cv, cv.covers_view)
+    started = []
+    original = cv._start_job
+    cv._start_job = lambda: (started.append(1), original())[1]
+    (x0, x1), (y0, y1) = cv._view()
+    for k in range(1, 9):                            # 8 jumps to areas that are not computed yet
+        cv.set_view((x0 + 20 * k, x1 + 20 * k), (y0, y1))
+    assert _wait_for(qapp, cv, lambda: cv.covers_view() and not cv._busy)
+    assert len(started) <= 3                         # first jump + one for the newest view (+ margin)
+    cv._start_job = original
+
+
+def test_panning_updates_the_drawn_part_without_a_computation(shown, qapp):
+    cv = shown.canvas
+    assert _wait_for(qapp, cv, lambda: cv.covers_view() and not cv._busy)
+    (x0, x1), (y0, y1) = cv._view()
+    W = x1 - x0
+    cv.set_view((x0 + 0.33 * W, x1 + 0.33 * W), (y0, y1))     # inside the computed margin
+    qapp.processEvents()
+    a0, a1, b0, b1, _ = cv._cull_rect
+    (v0, v1), (w0, w1) = cv._view()
+    assert a0 <= v0 and v1 <= a1 and b0 <= w0 and w1 <= b1      # lines / arrows handed for the new view
 
 
 def test_closing_during_a_computation_waits_and_does_not_hang(window, qapp):
