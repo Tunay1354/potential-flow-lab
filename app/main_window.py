@@ -13,10 +13,10 @@ import os
 import re
 
 import numpy as np
-from PySide6.QtCore import QEvent, QSize, Qt, QTimer, QUrl
+from PySide6.QtCore import QEvent, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QActionGroup, QDesktopServices, QFont, QKeySequence, QShortcut
 from PySide6.QtWidgets import (QAbstractButton, QApplication, QDockWidget, QFileDialog, QLabel, QMainWindow,
-                               QMenuBar, QMessageBox, QToolBar, QToolButton, QVBoxLayout, QWidget)
+                               QHBoxLayout, QMenuBar, QMessageBox, QWidget)
 
 from app_info import APP_NAME, APP_VERSION, ORGANIZATION
 from model import EXTENSION, SceneDocument, SceneFileError, SceneModel, preview_change
@@ -26,10 +26,10 @@ from physics import ELEMENT_TYPES, check_scene, reference_speed, velocity
 from physics.field import fluid_mask, singular_points
 
 from .canvas import PlotCanvas
-from .chrome import HeaderBar, PanelBody, PanelTitle, font, heading_font, load_fonts, paint_paper_grid
+from .chrome import ElementPalette, HeaderBar, PanelBody, PanelTitle, load_fonts, paint_paper_grid
 from .dialogs import ElementDialog
 from .element_specs import spec_for, toolbar_types
-from .icons import make_app_icon, make_element_icon
+from .icons import make_app_icon, make_element_icon, make_palette_icon
 from .panels import LAYERS, ElementsPanel, SettingsPanel, element_icon, element_title
 from .recent_files import RecentFiles
 from .scene import PRESETS_DIR, list_presets, starter_scene
@@ -67,10 +67,11 @@ class MainWindow(QMainWindow):
         # central plot card on the paper
         self.canvas = PlotCanvas(self.theme, self.elements, self)
         desk = QWidget(self)
-        desk_lay = QVBoxLayout(desk)
+        desk_lay = self._desk_layout = QHBoxLayout(desk)       # [element palette] [plot card]
         g = LAYOUT["gap"]
         desk_lay.setContentsMargins(g, 0, g - 4, g)            # 4 = dock separator
-        desk_lay.addWidget(self.canvas)
+        desk_lay.setSpacing(g)
+        desk_lay.addWidget(self.canvas, 1)
         self.setCentralWidget(desk)
         self.canvas.bar.message.connect(self.flash)
         self.canvas.probe.connect(self._update_probe)
@@ -159,37 +160,22 @@ class MainWindow(QMainWindow):
             yield d.widget()
 
     def _build_toolbar(self):
-        tb = QToolBar("Add element", self)
-        tb.setObjectName("ElementToolbar")
-        tb.setMovable(False)
-        tb.setOrientation(Qt.Vertical)
-        px = LAYOUT["toolbar_icon_px"]
-        tb.setIconSize(QSize(px, px))
-        tb.setToolButtonStyle(Qt.ToolButtonTextUnderIcon if LAYOUT["toolbar_show_text"]
-                              else Qt.ToolButtonIconOnly)
-        self.addToolBar(Qt.LeftToolBarArea, tb)
-        heading = QLabel("Add")
-        heading.setObjectName("ToolbarHeading")
-        heading.setFont(heading_font())
-        heading.setAlignment(Qt.AlignCenter)
-        tb.addWidget(heading)
+        """Element palette left of the plot (a card on the paper, like the side panels)."""
+        pal = ElementPalette(self)
         self.element_actions = {}
         separated = False
         for key in toolbar_types():
             spec = spec_for(key)
             if ELEMENT_TYPES[key].IS_BOUNDARY and not separated:
-                tb.addSeparator()       # walls are boundaries, not flows -> visually separated
+                pal.add_separator()     # walls are boundaries, not flows -> visually separated
                 separated = True
             act = QAction(TOOLBAR_NAMES.get(key, spec.name), self)
             act.setToolTip(f"<b>{spec.name}</b><br>{spec.description}")
             act.triggered.connect(lambda _=False, k=key: self.add_element_dialog(k))
-            tb.addAction(act)
+            pal.add_action(act)
             self.element_actions[key] = act
-        for btn in tb.findChildren(QToolButton):
-            btn.setCursor(Qt.PointingHandCursor)
-            btn.setFixedWidth(70)
-            btn.setFont(font("mono", 7.5, caps=True, spacing_pct=104))     # explicit: kept on theme change
-        self.element_toolbar = tb
+        self.element_toolbar = pal
+        self._desk_layout.insertWidget(0, pal)
 
     def _build_menus(self):
         mb = self.menuBar()
@@ -761,10 +747,10 @@ class MainWindow(QMainWindow):
         else:
             text, color = "✓ scene OK", self.theme["el_sector"]
         if notes and not errors:
-            text += f"  · ℹ {len(notes)} note{'s' if len(notes) > 1 else ''}"
+            text += f"  ·  {len(notes)} note{'s' if len(notes) > 1 else ''}"
         self.issue_label.setText(text)
         self.issue_label.setStyleSheet(f"color: {color}; font-weight: 600;")
-        symbol = {"error": "✖", "warning": "⚠", "info": "ℹ"}
+        symbol = {"error": "✖", "warning": "⚠", "info": "•"}     # (ℹ is drawn as a blue emoji on Windows)
         tips = []
         for s in issues:
             who = f"[{s.index + 1}] " if s.index is not None else ""      # number in the element list
@@ -797,7 +783,8 @@ class MainWindow(QMainWindow):
                 part.update()
         self.update()                                  # paper
         for key, act in self.element_actions.items():
-            act.setIcon(make_element_icon(key, theme))
+            act.setIcon(make_palette_icon(key, theme["text"]))
+        self.element_toolbar.apply_theme(theme)
         self.canvas.apply_theme(theme)
         self.elements_panel.apply_theme(theme)
         if hasattr(self, "issue_label"):

@@ -167,7 +167,7 @@ class PlotCanvas(QWidget):
 
         # the plot card: a strong ink frame (painted in paintEvent) around bar, plot and title block
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(2, 2, 2, 2)
+        lay.setContentsMargins(1, 1, 1, 1)
         lay.setSpacing(0)
         self.bar = CanvasBar(self)
         lay.addWidget(self.bar)
@@ -477,11 +477,14 @@ class PlotCanvas(QWidget):
         self.request()
 
     def paintEvent(self, _event):
-        """Frame of the plot card (2 px ink line)."""
+        """Frame of the plot card: one thin ink line (cosmetic pen: the same width on every side,
+        whatever the Windows display scaling is)."""
         p = QPainter(self)
         p.fillRect(self.rect(), QColor(self.theme["plot_bg"]))
-        p.setPen(QPen(QColor(self.theme["ink"]), 2))
-        p.drawRect(self.rect().adjusted(1, 1, -1, -1))
+        pen = QPen(QColor(self.theme["ink"]), 0)
+        pen.setCosmetic(True)
+        p.setPen(pen)
+        p.drawRect(self.rect().adjusted(0, 0, -1, -1))
         p.end()
 
     def _set_line_pens(self):

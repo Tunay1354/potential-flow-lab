@@ -162,3 +162,63 @@ def make_tool_icon(name: str, color: str, size: int = 32) -> QIcon:
         p.drawPath(path)
     p.end()
     return QIcon(pm)
+
+
+def _palette_path(key: str) -> QPainterPath:
+    """Line drawing of an element for the palette, in a 24 × 24 design (as in the theme concept)."""
+    path = QPainterPath()
+
+    def poly(*pts):
+        path.moveTo(*pts[0])
+        for pt in pts[1:]:
+            path.lineTo(*pt)
+
+    if key == "uniform":
+        for y in (7, 12, 17):
+            poly((3, y), (18, y))
+            poly((15, y - 2.5), (18, y), (15, y + 2.5))
+    elif key == "source":
+        path.addEllipse(QPointF(12, 12), 2.6, 2.6)
+        for k in range(8):
+            a = k * math.pi / 4
+            poly((12 + 4.5 * math.cos(a), 12 + 4.5 * math.sin(a)), (12 + 9.5 * math.cos(a), 12 + 9.5 * math.sin(a)))
+    elif key == "vortex":
+        path.arcMoveTo(QRectF(5, 5, 14, 14), 0)
+        path.arcTo(QRectF(5, 5, 14, 14), 0, -270)       # clockwise on the screen = counter-clockwise flow
+        poly((11, 2.2), (13.8, 5), (11, 7.8))
+        path.addEllipse(QPointF(12, 12), 1.6, 1.6)
+    elif key == "doublet":
+        path.moveTo(12, 12)
+        path.cubicTo(9.4, 8.4, 3.5, 8.4, 3.5, 12)
+        path.cubicTo(3.5, 15.6, 9.4, 15.6, 12, 12)
+        path.cubicTo(14.6, 8.4, 20.5, 8.4, 20.5, 12)
+        path.cubicTo(20.5, 15.6, 14.6, 15.6, 12, 12)
+    elif key == "wall":
+        path.moveTo(3, 9.5)
+        path.cubicTo(9, 6.5, 15, 6.5, 21, 9.5)
+        poly((3, 15), (21, 15))
+        for x in (6, 10.5, 15, 19.5):
+            poly((x, 15), (x - 2.5, 19.5))
+    elif key == "sector":
+        poly((4, 4), (4, 20), (20, 20))
+        path.moveTo(8.5, 4)
+        path.cubicTo(8.5, 11, 13, 15.5, 20, 15.5)
+    else:
+        path.addEllipse(QPointF(12, 12), 7, 7)
+        path.addEllipse(QPointF(12, 12), 1.6, 1.6)
+    return path
+
+
+def make_palette_icon(key: str, color: str, size: int = 52) -> QIcon:
+    """Single-color line icon of an element type (element palette left of the plot)."""
+    pm = QPixmap(size, size)
+    pm.fill(Qt.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.Antialiasing)
+    k = size / 24.0
+    p.scale(k, k)
+    p.setPen(QPen(QColor(color), 1.5, Qt.SolidLine, Qt.SquareCap, Qt.MiterJoin))
+    p.setBrush(Qt.NoBrush)
+    p.drawPath(_palette_path(key))
+    p.end()
+    return QIcon(pm)

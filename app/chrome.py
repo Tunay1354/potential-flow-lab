@@ -7,9 +7,9 @@ import glob
 import math
 import os
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QPainter, QPainterPath, QPen, QPixmap
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QMenuBar, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QMenuBar, QSizePolicy, QToolButton, QVBoxLayout, QWidget
 
 from .theme import ASSETS_DIR, FONT, LAYOUT, first_family
 
@@ -85,7 +85,7 @@ def draw_logo(p: QPainter, rect: QRectF, theme: dict):
     p.setBrush(Qt.NoBrush)
     p.drawPath(path)
     p.setPen(Qt.NoPen)
-    p.setBrush(QColor(theme["accent_strong"]))
+    p.setBrush(QColor(theme["logo_dot"]))
     p.drawEllipse(P(20, 20), 6.6 * s / 40.0, 6.6 * s / 40.0)
     p.restore()
 
@@ -243,7 +243,9 @@ def _frame_lines(p: QPainter, r: QRectF, theme: dict, top: bool, bottom: bool):
     """Double frame of a panel (outer line + inner line 3 px inside) with optional open top / bottom,
     so the title bar and the body of a dock look like one card."""
     for inset, key in ((0.5, "border"), (4.5, "border_inner")):
-        p.setPen(QPen(QColor(theme[key]), 1))
+        pen = QPen(QColor(theme[key]), 0)
+        pen.setCosmetic(True)          # exactly one screen pixel at any display scaling (125 %, 150 % ...)
+        p.setPen(pen)
         x0, x1 = r.left() + inset, r.right() - inset
         y0 = r.top() + (inset if top else 0)
         y1 = r.bottom() - (inset if bottom else 0)
@@ -366,3 +368,58 @@ class TitleBlock(QWidget):
 
     def set(self, key: str, text: str):
         self.values[key].setText(text)
+
+
+# ---------------------------------------------------------------------------------------- palette
+class ElementPalette(QWidget):
+    """Column of 'add element' buttons left of the plot: a card with the double frame, a centered
+    ADD heading, icon + name buttons and a short rule before the boundaries (walls)."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("ElementPalette")
+        self.theme = None
+        self.setFixedWidth(LAYOUT["palette_width"])
+        self._lay = QVBoxLayout(self)
+        self._lay.setContentsMargins(0, 12, 0, 12)
+        self._lay.setSpacing(4)
+        heading = QLabel("Add")
+        heading.setObjectName("ToolbarHeading")
+        heading.setFont(heading_font())
+        heading.setAlignment(Qt.AlignCenter)
+        self._lay.addWidget(heading)
+        self._lay.addSpacing(4)
+        self._end = self._lay.addStretch(1)
+
+    def add_action(self, action) -> QToolButton:
+        b = QToolButton(self)
+        b.setDefaultAction(action)
+        b.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+        b.setIconSize(QSize(LAYOUT["toolbar_icon_px"], LAYOUT["toolbar_icon_px"]))
+        b.setFixedSize(*LAYOUT["palette_button"])
+        b.setFont(font("mono", 7.5, caps=True, spacing_pct=104))
+        b.setCursor(Qt.PointingHandCursor)
+        self._lay.insertWidget(self._lay.count() - 1, b, 0, Qt.AlignHCenter)
+        return b
+
+    def add_separator(self):
+        rule = QWidget(self)
+        rule.setObjectName("PaletteRule")
+        rule.setAttribute(Qt.WA_StyledBackground, True)
+        rule.setFixedSize(LAYOUT["palette_button"][0] - 20, 1)
+        self._lay.insertSpacing(self._lay.count() - 1, 4)
+        self._lay.insertWidget(self._lay.count() - 1, rule, 0, Qt.AlignHCenter)
+        self._lay.insertSpacing(self._lay.count() - 1, 4)
+
+    def apply_theme(self, theme):
+        self.theme = theme
+        self.update()
+
+    def paintEvent(self, _event):
+        if self.theme is None:
+            return
+        p = QPainter(self)
+        r = QRectF(self.rect())
+        p.fillRect(r, QColor(self.theme["panel_bg"]))
+        _frame_lines(p, r, self.theme, top=True, bottom=True)
+        p.end()

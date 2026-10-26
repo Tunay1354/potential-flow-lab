@@ -28,11 +28,13 @@ LIGHT = {
     "text":         "#211A12",
     "text_muted":   "#4E4434",
     "text_disabled": "#6E6452",
-    "accent":       "#8A4A12",   # rust: readable as text on paper
-    "accent_strong": "#A65A17",  # rust fill (logo, primary buttons)
-    "accent_hover": "#B8692A",
-    "accent_soft":  "#F0E3C9",   # selected rows, hover
-    "accent_text":  "#FBF7EC",   # text on accent / ink fills
+    # accents are the wood of the header: fills in the plank color, lines / text in a darker oak
+    "accent":       "#6E5640",   # dark oak: readable as text and lines on paper (Export, sliders, focus)
+    "accent_strong": "#A98B6D",  # plank color as a fill (Apply button, radio / check boxes)
+    "accent_hover": "#B99D80",
+    "accent_soft":  "#EFE3CE",   # selected rows, hover
+    "accent_text":  "#211A12",   # text on an accent_strong fill
+    "logo_dot":     "#8C6A45",   # cylinder of the logo
     "toggle_on_bg": "#211A12",   # checked tool buttons (Static, Select ...)
     "toggle_on_text": "#FBF7EC",
     "danger":       "#B03A2E",
@@ -81,11 +83,12 @@ DARK = {
     "text":         "#EDE3D2",
     "text_muted":   "#B5A690",
     "text_disabled": "#A39582",
-    "accent":       "#E08A47",
-    "accent_strong": "#E08A47",
-    "accent_hover": "#F0A86E",
+    "accent":       "#C9A983",   # light oak: text and lines on the dark paper
+    "accent_strong": "#A98B6D",  # plank color of the light theme as a fill
+    "accent_hover": "#B99D80",
     "accent_soft":  "#3A2D22",
     "accent_text":  "#191512",
+    "logo_dot":     "#A98B6D",
     "toggle_on_bg": "#EDE3D2",
     "toggle_on_text": "#191512",
     "danger":       "#E57368",
@@ -151,7 +154,9 @@ LAYOUT = {
     "beaver_perch_px": 120,
     "gap": 16,                      # paper visible between the header, panels, plot and status bar
     "paper_grid_px": 24,
-    "toolbar_icon_px": 30,
+    "toolbar_icon_px": 26,
+    "palette_width": 84,            # element palette left of the plot
+    "palette_button": (68, 58),     # size of one palette button (icon + name)
     "toolbar_show_text": True,      # element names under the toolbar icons
     "right_panel_width": 340,
     "elements_panel_min_height": 210,
@@ -216,12 +221,12 @@ def build_stylesheet(t: dict) -> str:
     QLabel#PlankMuted {{ color: {t['plank_text_muted']}; font-family: "{mono}"; }}
     QLabel#RulerScale {{ color: {t['ruler_text']}; font-family: "{mono}"; }}
 
-    QToolBar#ElementToolbar {{ background: {t['panel_bg']}; border: 1px solid {t['border']};
-        margin: 0 0 {16}px 16px; padding: 6px 4px; spacing: 2px; }}
-    QToolBar#ElementToolbar QToolButton {{ padding: 5px 2px; border: 1px solid transparent; color: {t['text']}; }}
-    QToolBar#ElementToolbar QToolButton:hover {{ background: {t['panel_header']}; border-color: {t['border']}; }}
-    QToolBar#ElementToolbar::separator {{ height: 1px; background: {t['border_soft']}; margin: 6px 10px; }}
-    QLabel#ToolbarHeading {{ color: {t['text']}; padding: 4px 0 6px 0; }}
+    QWidget#ElementPalette QToolButton {{ padding: 6px 0 5px 0; border: 1px solid transparent;
+        color: {t['text']}; background: transparent; }}
+    QWidget#ElementPalette QToolButton:hover {{ background: {t['panel_header']}; border-color: {t['border']}; }}
+    QWidget#ElementPalette QToolButton:pressed {{ background: {t['accent_soft']}; }}
+    QWidget#PaletteRule {{ background: {t['border_soft']}; }}
+    QLabel#ToolbarHeading {{ color: {t['text']}; }}
 
     QWidget#CanvasBar {{ background: {t['panel_bg']}; border-bottom: 1px solid {t['ink']}; }}
     QWidget#CanvasBar QToolButton {{ border: 1px solid {t['border']}; padding: 4px 10px;
@@ -259,7 +264,7 @@ def build_stylesheet(t: dict) -> str:
     QPushButton:hover {{ background: {t['accent_soft']}; }}
     QPushButton:disabled {{ color: {t['text_disabled']}; border-color: {t['border_soft']}; }}
     QPushButton#Primary {{ background: {t['accent_strong']}; color: {t['accent_text']};
-        border-color: {t['ink']}; font-weight: 600; }}
+        border: 1px solid {t['ink']}; font-weight: 600; }}
     QPushButton#Primary:hover {{ background: {t['accent_hover']}; }}
     QPushButton#Danger {{ color: {t['danger']}; }}
     QPushButton#Danger:disabled {{ color: {t['text_disabled']}; }}
@@ -290,14 +295,14 @@ def build_stylesheet(t: dict) -> str:
 
     QSlider::groove:horizontal {{ height: 2px; background: {t['border_inner']}; }}
     QSlider::sub-page:horizontal {{ background: {t['accent']}; }}
-    QSlider::handle:horizontal {{ background: {t['panel_bg']}; border: 2px solid {t['accent']}; width: 10px;
+    QSlider::handle:horizontal {{ background: {t['accent_strong']}; border: 1px solid {t['ink']}; width: 10px;
         height: 10px; margin: -6px 0; }}
 
     QRadioButton {{ spacing: 8px; }}
     QRadioButton::indicator {{ width: 12px; height: 12px; border-radius: 8px;
         border: 2px solid {t['text_muted']}; background: {t['panel_bg']}; }}
     QRadioButton::indicator:hover {{ border-color: {t['accent']}; }}
-    QRadioButton::indicator:checked {{ background: {t['accent']}; border: 2px solid {t['accent']}; }}
+    QRadioButton::indicator:checked {{ background: {t['accent_strong']}; border: 2px solid {t['ink']}; }}
 
     QScrollArea {{ border: none; background: transparent; }}
     QScrollBar:vertical {{ width: 8px; background: transparent; margin: 0; }}
