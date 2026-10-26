@@ -2,9 +2,9 @@
 
 Interactive 2D potential-flow simulator (Aerodynamics semester project, IZTECH Mechanical Engineering).
 
-**Durum:** Faz 2a — fizik çekirdeği tamam; program artık tamamen kullanılabilir: elementler toolbar'dan
-eklenir, listeden / Elements menüsünden düzenlenir, gizlenir, çoğaltılır, silinir ve her değişiklik geri
-alınabilir (Ctrl+Z / Ctrl+Y). Dosyaya kaydet / aç Faz 2b'de gelecek.
+**Durum:** Faz 2b — fizik çekirdeği tamam; elementler toolbar'dan eklenir, listeden / Elements menüsünden
+düzenlenir, gizlenir, çoğaltılır, silinir, her değişiklik geri alınabilir (Ctrl+Z / Ctrl+Y) ve sahneler
+dosyaya kaydedilip açılabilir. Sıradaki işler: `ROADMAP.md`.
 
 ## Kullanım (kısa)
 
@@ -17,12 +17,26 @@ alınabilir (Ctrl+Z / Ctrl+Y). Dosyaya kaydet / aç Faz 2b'de gelecek.
 | Çoğalt | **Duplicate** butonu / Ctrl+D (kopya (0.5, 0.5) kaydırılır) |
 | Sil | **Delete** butonu / listede veya plot'ta Delete tuşu |
 | Geri al / yinele | **Edit → Undo / Redo**, Ctrl+Z / Ctrl+Y |
-| Hazır sahne | **Presets** menüsü (bu da geri alınabilir) |
+| Hazır sahne | **Presets** menüsü (bu da geri alınabilir); ilk grup hocanın doğrulama durumları |
+| Kaydet / aç | **File → Save** (Ctrl+S), **Save as…** (Ctrl+Shift+S), **Open…** (Ctrl+O), **Open recent**; `.pflow` dosyasını pencereye sürükleyip bırakmak da açar |
+| Yeni sahne | **File → New** (Ctrl+N) |
 | Hepsini sil | **File → Clear all** veya **Elements → Delete all elements** (geri alınabilir) |
 
 Dialog, girdiğin değerin sahnede yaratacağı sorunları canlı gösterir (örn. "duvarın arkasında").
 Hata varsa buton **Apply anyway** olur; uygularsan plot'un üstünde kırmızı uyarı şeridi çıkar ve
 status bar'da ✖ görünür (ayrıntı için üzerine gel). Hatalar listedeki numarayla gösterilir: `[2] ...`.
+
+### Sahne dosyaları (.pflow)
+
+- İçinde elementler, başlık, view aralığı ve streamline ayarları (density, line width, oklar) var; sayılar tam
+  hassasiyetle saklanır, yani kaydedip açınca liste ve plot birebir aynı gelir (hocanın 5. doğrulama durumu).
+- Düz JSON'dur, her element bir satır; Not Defteri ile açılıp okunabilir.
+- Kaydedilmemiş değişiklik varsa başlıkta `*` görünür; New / Open / kapatma öncesi program sorar.
+- Bozuk ya da eksik dosyada program çökmez, sebebini söyler; küçük sorunlarda (eksik bir değer vb.) dosyayı
+  açar ve neyi düzelttiğini listeler.
+- Kendi preset'ini eklemek için: sahneyi `presets/` altındaki bir klasöre kaydet
+  (**Presets → Show presets folder**), programı yeniden aç.
+- Komut satırından: `python main.py dosya.pflow`
 
 ## Kurulum (Windows, VS Code) — bir kez
 
@@ -52,11 +66,14 @@ Güncelleme geldiğinde: GitHub Desktop'ta **Fetch origin → Pull origin**.
 
 | Klasör / dosya | İçerik |
 |---|---|
-| `main.py` | Programı başlatır |
-| `app/` | Arayüz. Renkler/boyutlar/marker'lar: `app/theme.py`, başlangıç sahnesi ve presetler: `app/scene.py` |
+| `main.py` | Programı başlatır (`python main.py sahne.pflow` dosyayı da açar) |
+| `app_info.py` | Program adı ve sürümü |
+| `presets/` | Hazır sahneler (`.pflow` dosyaları, klasör = menüdeki grup) |
+| `app/` | Arayüz. Renkler/boyutlar/marker'lar: `app/theme.py`, başlangıç sahnesi ve preset listesi: `app/scene.py`, son açılanlar: `app/recent_files.py` |
 | `app/dialogs.py` | Parametre penceresi (alanlar `app/element_specs.py`'den otomatik; işaretli değerler için Source/Sink, Counter-clockwise/Clockwise seçimi) |
 | `app/geometry.py` | Duvarların çizim geometrisi (köşelerde sadece akışkana bakan kısım çizilir) |
 | `model/` | Sahne modeli: element listesi, komutlar, undo/redo, değişiklik önizlemesi (Qt'siz) |
+| `model/scene_file.py` | Dosya formatı (.pflow, sürüm numaralı JSON), okuma / yazma, anlaşılır hata mesajları |
 | `physics/` | Fizik motoru — GUI'den bağımsız, sadece NumPy |
 | `physics/base.py` | Tüm elementlerin ortak temel sınıfı (`FlowElement`) |
 | `physics/elements/` | Her element ayrı dosya: `uniform.py`, `source.py`, `vortex.py`, `doublet.py`, `sector.py`, `wall.py` |

@@ -1,0 +1,12 @@
+{
+  "format": "potential-flow-lab-scene",
+  "version": 1,
+  "saved_with": "Potential Flow Lab 0.4.0",
+  "title": "Source in a 90° corner (two walls)",
+  "view": {"x": [-0.5, 4.5], "y": [-0.5, 4.0]},
+  "elements": [
+    {"type": "wall", "enabled": true, "xw": 0.0, "yw": 0.0, "theta_w": 0.0, "side": 0},
+    {"type": "wall", "enabled": true, "xw": 0.0, "yw": 0.0, "theta_w": 90.0, "side": 1},
+    {"type": "source", "enabled": true, "m": 2.0, "x0": 1.0, "y0": 1.0}
+  ]
+}

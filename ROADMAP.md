@@ -12,42 +12,41 @@ Bu dosya projenin kalan işlerini ve sırasını tutar. Her adım bittikçe işa
 - ✅ Faz 2a — Sahne modeli, ekle / düzenle / sil / çoğalt / gizle, undo / redo, hatalı girdi uyarıları
 
 ## Sıra
-1. ✅ **Paket A — Hızlı düzeltmeler**
-   - [8] Seçili element mavi halka yerine kendi renginde parlasın (duvar dahil)
-   - [3] Streamline okları küçülsün
-   - Aynı noktadaki doublet + vortex: ⚠ uyarı yerine ℹ bilgi notu
-   - Plot'ta sembole / duvara / sector kenarına tıklayarak seçme, üst üste binenlerde tekrar tıklayınca
-     sıradaki; boş yere, başka bir yere tıklayınca ya da Esc ile seçim kalkar; çift tık → düzenle
+Teslim: yaklaşık 26 Kasım 2026 (rapor + user guide + canlı demo).
+
+1. ✅ **Paket A — Hızlı düzeltmeler**: seçim kendi renginde parlıyor, küçük oklar, coincident uyarısı bilgi notu,
+   plot'ta tıklayarak seçme, başka yere tıklayınca seçimin kalkması
 2. ✅ **Paket B — Streamline kalitesi**
    - [1] Çizgiler eşit aralıklı: ilk çizgiler akışın görünüme girdiği kenardan tam d aralıkla, sonra her
      çizginin iki yanına d mesafede yeni tohum (Jobard–Lefer); uniform flow'da aralık sapması %20 → %0
-   - [1] Oklar plot'a eşit dağılır (sabit hexagonal lattice, satırlar yarım aralık kaymalı, pan'de yerinde durur);
-     ayar "Arrow density"
-   - [2] Kesilen çizgi uçları 4 adımda soluklaşarak biter (tapering); çok kısa parçalar çizilmez
-   - [2] Duvarlar / wedge kenarları streamline sayılır: hiçbir çizgi duvarın üstünden geçmez, duvar yanındaki
-     çizgi de d mesafede
-   - Durma (saddle) noktasında çizgi köşe yapıp yön değiştirmez, orada biter
-   - Hesap arka planda (arayüz donmaz; yeni istek eskisini iptal eder, eski sonuç atılır)
-   - Ölçüm: `python scripts/streamline_quality.py`
-   - Not: kaynaktan duvardaki durma noktasına inen dividing streamline gibi özel çizgiler Faz 4'teki
-     "dividing streamline" katmanında ayrıca çizilecek (`trace_streamlines(seeds=...)` hazır)
-3. ☐ **Faz 2b — File menüsü**: New / Open / Save / Save as (JSON, sürüm numaralı), son açılanlar,
-   presetler dosya olarak (hocanın verification case 5'i)
-4. ☐ **Paket C — Sıcak, tatlı tema** [6]: 2–3 renk seçeneği gösterilip seçilecek (açık + koyu)
-5. ☐ **Paket D — Panel sistemi** [4]: yumuşak animasyonlu yerleşim, sadece izinli yerlere oturma,
+   - [1] Oklar plot'a eşit dağılır (sabit hexagonal lattice, satırlar yarım aralık kaymalı); ayar "Arrow density"
+   - [2] Kesilen çizgi uçları soluklaşarak biter; duvarlar streamline sayılır; saddle noktasında çizgi durur
+   - Hesap arka planda (yeni istek eskisini iptal eder); ölçüm: `python scripts/streamline_quality.py`
+3. ✅ **Faz 2b — File menüsü**: New / Open / Save / Save as (JSON, sürüm numaralı), son açılanlar,
+   kaydedilmemiş değişiklik uyarısı, presetler dosya olarak (hocanın verification case'leri dahil;
+   case 5 = kaydet → aç → aynı liste ve aynı plot)
+4. ▶ **Paket E1 — Akıcılık**: kademeli gösterim (çizgiler hesaplandıkça gelir), overscan (görünenden geniş
+   hesap), artımlı pan (sadece yeni şerit), zoom seviyeleri (eski çizgiler yerinde kalır), Numba `nogil`
+   ile derlenmiş integration (arayüz hiç takılmasın), önce / sonra süre ölçümü
+5. ☐ **Paket F — Stagnation point'ler + dividing streamline**: w(z) = 0 noktaları plot'ta işaretli
+   (hover'da koordinat), image kaynaklı sahte noktalar elenir, sector köşesi, yüzeyden ayrılan nokta
+   (Γ > 4πV∞a); dividing streamline stagnation point'lerden çizilir; analitik karşılaştırma testleri
+6. ☐ **Paket C — Sıcak, tatlı tema** [6]: 2–3 renk seçeneği gösterilip seçilecek (açık + koyu)
+7. ☐ **Paket D — Panel sistemi** [4]: yumuşak animasyonlu yerleşim, sadece izinli yerlere oturma,
    ayrı pencere olarak yüzebilme, her bölüm (View range, Streamlines, Layers, …) ayrı panel,
    başlığa sağ tık → görünecek panelleri tikle, View → Panels, Reset layout, yerleşimi hatırlama
-6. ☐ **Faz 2c — Plot'ta fareyle seçme ve sürükleme** (undo'da tek adım)
-7. ☐ **Faz 3 — Rapor malzemesi**: doğrulama figürleri ve tabloları, user guide taslağı
-8. ☐ **Faz 4 — Ekstralar**: animasyonlu parçacıklar (60 fps hedefi, ayarları ileride değiştirilebilir) [5],
-   dividing streamline / cisim, φ, |V|, Cp katmanları, PNG / PDF / CSV export,
-   isteğe bağlı OpenGL (ekran kartı) çizim, kunduzun akışta süzülmesi [7b]
-9. ☐ **Paket E — Performans**: profiling, Numba ile derlenmiş streamline integrasyonu, kaba → ince çizim,
-   önbellek, zayıf bilgisayarda test (hesap işlemcide, çizim gerekirse ekran kartında)
-10. ☐ **Faz 5 — Paketleme**: Python gerektirmeyen Windows 10/11 exe (zip içinde klasör), GitHub Releases,
-    isteğe bağlı kurulum dosyası (Inno Setup), macOS .app (GitHub Actions)
-11. ☐ **Faz 6 — Kunduz rehber ve cilalama** [7a]: ilk açılışta atlanabilir tanıtım turu, Help yanındaki yeri,
-    açma / kapama ayarı, demo provası
+8. ☐ **Faz 2c — Plot'ta sürükleme**: elementleri fareyle taşıma (undo'da tek adım), sürüklerken canlı streamline
+9. ☐ **Faz 3 — Rapor malzemesi**: doğrulama figürleri ve tabloları (verification case'ler, stagnation
+   karşılaştırmaları), user guide taslağı
+10. ☐ **Faz 4 — Ekstralar**: animasyon [5] (parçacıklar ve / veya çizgi üstünde kayan desen, 60 fps hedefi,
+    ayarları sonradan değiştirilebilir), φ / |V| / Cp katmanları, PNG / PDF / CSV export, probe geliştirmeleri
+11. ☐ **Paket E2 — Animasyon performansı**: profiling, gerekirse OpenGL (ekran kartı) çizim, animasyon ile arka
+    plan hesabının birlikte akıcı çalışması
+12. ☐ **Faz 5 — Paketleme**: Python gerektirmeyen Windows 10/11 exe (zip içinde klasör), GitHub Releases,
+    isteğe bağlı kurulum dosyası (Inno Setup), Numba önbelleği, .pflow dosyasına çift tıklayınca açılma
+    (macOS şimdilik kapsam dışı)
+13. ☐ **Faz 6 — Kunduz rehber ve cilalama** [7]: ilk açılışta atlanabilir tanıtım turu, Help yanındaki yeri,
+    açma / kapama ayarı, animasyon modunda akışla süzülüp kaybolması ve geri dönmesi, demo provası
 
 (Köşeli parantezdeki numaralar 26 Ekim'deki istek listesindeki madde numaralarıdır.)
 

@@ -1,0 +1,12 @@
+{
+  "format": "potential-flow-lab-scene",
+  "version": 1,
+  "saved_with": "Potential Flow Lab 0.4.0",
+  "title": "Lifting (rotating) cylinder",
+  "view": {"x": [-4.0, 4.0], "y": [-3.0, 3.0]},
+  "elements": [
+    {"type": "uniform", "enabled": true, "V": 1.0, "alpha": 0.0},
+    {"type": "doublet", "enabled": true, "mu": 1.0, "x0": 0.0, "y0": 0.0, "delta": 0.0},
+    {"type": "vortex", "enabled": true, "Gamma": -2.0, "x0": 0.0, "y0": 0.0}
+  ]
+}

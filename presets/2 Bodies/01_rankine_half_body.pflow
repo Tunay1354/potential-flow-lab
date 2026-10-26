@@ -1,0 +1,11 @@
+{
+  "format": "potential-flow-lab-scene",
+  "version": 1,
+  "saved_with": "Potential Flow Lab 0.4.0",
+  "title": "Rankine half-body",
+  "view": {"x": [-3.0, 5.0], "y": [-3.0, 3.0]},
+  "elements": [
+    {"type": "uniform", "enabled": true, "V": 1.0, "alpha": 0.0},
+    {"type": "source", "enabled": true, "m": 2.0, "x0": 0.0, "y0": 0.0}
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "format": "potential-flow-lab-scene",
+  "version": 1,
+  "saved_with": "Potential Flow Lab 0.4.0",
+  "title": "Vortex in a 60° corner (two walls)",
+  "view": {"x": [-1.0, 4.0], "y": [-0.8, 3.2]},
+  "elements": [
+    {"type": "wall", "enabled": true, "xw": 0.0, "yw": 0.0, "theta_w": 0.0, "side": 0},
+    {"type": "wall", "enabled": true, "xw": 0.0, "yw": 0.0, "theta_w": 60.0, "side": 1},
+    {"type": "vortex", "enabled": true, "Gamma": 2.0, "x0": 1.6, "y0": 0.6}
+  ]
+}

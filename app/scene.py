@@ -1,11 +1,23 @@
 """
-scene.py — the scene shown at start-up and the Presets menu.
+scene.py — the scene shown at start-up and the preset scenes (Presets menu).
 
-Each preset returns (elements, view) with view = ((xmin, xmax), (ymin, ymax)).
-Phase 2b will store presets as JSON files in the same format as File → Save;
-until then they are defined here.
+Presets are ordinary scene files (.pflow, same format as File → Save) in the folder `presets/`:
+    presets/<group folder>/<file>.pflow
+A group folder name may start with a number for ordering ("1 Verification cases (assignment)");
+the number is not shown in the menu. A new preset = a scene saved into one of these folders.
 """
-from physics import Doublet, SectorFlow, Source, SymmetryWall, Uniform, Vortex
+from __future__ import annotations
+
+import os
+import re
+import sys
+from dataclasses import dataclass
+
+from model import EXTENSION, SceneFileError, load_scene
+from physics import Doublet, Uniform, Vortex
+
+ROOT = getattr(sys, "_MEIPASS", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # exe: bundle dir
+PRESETS_DIR = os.path.join(ROOT, "presets")
 
 
 def starter_scene():
@@ -13,39 +25,31 @@ def starter_scene():
     return [Uniform(V=1.0, alpha=0.0), Doublet(mu=1.0), Vortex(Gamma=-2.0)]
 
 
-WIDE = ((-4.0, 4.0), (-3.0, 3.0))
+@dataclass(frozen=True)
+class Preset:
+    title: str
+    path: str
 
-PRESETS = {
-    "Non-lifting cylinder": lambda: ([Uniform(V=1.0), Doublet(mu=1.0)], WIDE),
-    "Lifting (rotating) cylinder": lambda: (starter_scene(), WIDE),
-    "Rankine half-body": lambda: ([Uniform(V=1.0), Source(m=2.0)], ((-3.0, 5.0), (-3.0, 3.0))),
-    "Rankine oval": lambda: ([Uniform(V=1.0), Source(m=3.0, x0=-1.0), Source(m=-3.0, x0=1.0)], WIDE),
-    "—": None,
-    "Corner flow (90° sector, n = 2)": lambda: ([SectorFlow(V=1.0, theta1=0.0, theta2=90.0)],
-                                                ((-0.6, 3.4), (-0.6, 3.0))),
-    "Sector flow, β = 30° (n = 6)": lambda: ([SectorFlow(V=0.2, theta1=0.0, theta2=30.0)],
-                                             ((-0.3, 2.7), (-0.4, 1.8))),
-    "Flow around a 270° corner (n = 2/3)": lambda: ([SectorFlow(V=1.0, theta1=0.0, theta2=270.0)],
-                                                    ((-3.0, 3.0), (-2.4, 2.4))),
-    "Flow around the tip of a plate (β = 360°)": lambda: ([SectorFlow(V=1.0, theta1=0.0, theta2=360.0)],
-                                                          ((-3.0, 3.0), (-2.4, 2.4))),
-    "Source in a 90° corner flow": lambda: ([SectorFlow(V=1.0, theta1=0.0, theta2=90.0),
-                                             Source(m=2.0, x0=1.0, y0=1.0)], ((-0.6, 3.4), (-0.6, 3.0))),
-    "— ": None,
-    "Source near a wall": lambda: ([SymmetryWall(yw=0.0), Source(m=2.0, y0=1.0)], ((-4.0, 4.0), (-1.0, 5.0))),
-    "Vortex near a wall": lambda: ([SymmetryWall(yw=0.0), Vortex(Gamma=2.0, y0=1.0)], ((-4.0, 4.0), (-1.0, 5.0))),
-    "Cylinder above the ground": lambda: ([SymmetryWall(yw=-1.6), Uniform(V=1.0), Doublet(mu=1.0)],
-                                          ((-4.0, 4.0), (-2.2, 3.8))),
-    "Source in a 90° corner (two walls)": lambda: (
-        [SymmetryWall(xw=0.0, yw=0.0, side=0), SymmetryWall(xw=0.0, yw=0.0, theta_w=90.0, side=1),
-         Source(m=2.0, x0=1.0, y0=1.0)],
-        ((-0.5, 4.5), (-0.5, 4.0))),
-    "Vortex in a 60° corner (two walls)": lambda: (
-        [SymmetryWall(xw=0.0, yw=0.0, side=0), SymmetryWall(xw=0.0, yw=0.0, theta_w=60.0, side=1),
-         Vortex(Gamma=2.0, x0=1.6, y0=0.6)],
-        ((-1.0, 4.0), (-0.8, 3.2))),
-    "Channel: uniform flow + source + vortex": lambda: (
-        [SymmetryWall(yw=-1.0, side=0), SymmetryWall(yw=1.0, side=1), Uniform(V=1.0),
-         Source(m=1.0, x0=-1.5, y0=0.3), Vortex(Gamma=1.0, x0=1.5, y0=-0.3)],
-        ((-5.0, 5.0), (-1.6, 1.6))),
-}
+
+def list_presets(folder: str = PRESETS_DIR) -> list[tuple[str, list[Preset]]]:
+    """[(group label, [Preset, ...]), ...] sorted by folder / file name. Unreadable files are skipped."""
+    groups = []
+    if not os.path.isdir(folder):
+        return groups
+    for name in sorted(os.listdir(folder)):
+        gdir = os.path.join(folder, name)
+        if not os.path.isdir(gdir):
+            continue
+        items = []
+        for fname in sorted(os.listdir(gdir)):
+            if not fname.lower().endswith(EXTENSION):
+                continue
+            path = os.path.join(gdir, fname)
+            try:
+                title = load_scene(path).title
+            except SceneFileError:
+                continue
+            items.append(Preset(title or os.path.splitext(fname)[0], path))
+        if items:
+            groups.append((re.sub(r"^\d+\s*", "", name), items))
+    return groups

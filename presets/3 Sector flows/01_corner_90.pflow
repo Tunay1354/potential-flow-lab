@@ -1,0 +1,10 @@
+{
+  "format": "potential-flow-lab-scene",
+  "version": 1,
+  "saved_with": "Potential Flow Lab 0.4.0",
+  "title": "Corner flow (90° sector, n = 2)",
+  "view": {"x": [-0.6, 3.4], "y": [-0.6, 3.0]},
+  "elements": [
+    {"type": "sector", "enabled": true, "V": 1.0, "x0": 0.0, "y0": 0.0, "theta1": 0.0, "theta2": 90.0}
+  ]
+}

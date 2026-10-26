@@ -1,0 +1,10 @@
+{
+  "format": "potential-flow-lab-scene",
+  "version": 1,
+  "saved_with": "Potential Flow Lab 0.4.0",
+  "title": "Sector flow, β = 30° (n = 6)",
+  "view": {"x": [-0.3, 2.7], "y": [-0.4, 1.8]},
+  "elements": [
+    {"type": "sector", "enabled": true, "V": 0.2, "x0": 0.0, "y0": 0.0, "theta1": 0.0, "theta2": 30.0}
+  ]
+}

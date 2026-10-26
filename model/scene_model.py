@@ -219,6 +219,14 @@ class SceneModel:
         el = self.elements[index]
         return self.push(AddElement(el.translated(*offset), index + 1, f"Duplicate {el.NAME.lower()}"))
 
+    def reset(self, elements):
+        """Start a new document (File → New / Open): new elements, empty undo history, not modified."""
+        self.elements[:] = list(elements)               # same list object (the GUI holds a reference)
+        self._undo.clear()
+        self._redo.clear()
+        self.mark_clean()
+        self._notify(None)
+
     def load(self, elements, text: str = "Load scene"):
         return self.push(ReplaceAll(elements, text))
 

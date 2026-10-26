@@ -270,6 +270,19 @@ class SettingsPanel(QScrollArea):
         s.setValue(val)
         return s
 
+    def set_streamline_settings(self, density: float, line_width: float, show_arrows: bool,
+                                arrow_density: float):
+        """Move the sliders to the given values without emitting signals (File → Open sets the
+        canvas itself, with the exact values from the file)."""
+        for w, val in ((self.s_density, round(density * 5.0)), (self.s_width, round((line_width - 0.6) / 0.4)),
+                       (self.s_arrows, round((arrow_density - 0.5) / 0.5)), (self.c_arrows, show_arrows)):
+            w.blockSignals(True)
+            if isinstance(val, bool):
+                w.setChecked(val)
+            else:
+                w.setValue(int(min(max(val, w.minimum()), w.maximum())))
+            w.blockSignals(False)
+
     def arrow_density(self) -> float:
         """Slider 1…5 -> arrow density 1…3 (1 = default spacing between arrows)."""
         return 0.5 + 0.5 * self.s_arrows.value()

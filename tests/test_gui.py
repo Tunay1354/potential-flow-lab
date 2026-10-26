@@ -96,9 +96,18 @@ def window(qapp):
     from app.main_window import MainWindow
     FakeDialog.result_values = None
     w = MainWindow()
+    w.recent.clear()
+    w._ask_save_changes = lambda: "discard"          # never block on the "unsaved changes" box
+    w.messages = []                                  # message boxes are recorded instead of shown
+    w._notify_user = lambda kind, title, text: w.messages.append((kind, title, text))
     yield w
     w.close()
     w.deleteLater()
+
+
+def preset(title):
+    from app.scene import list_presets
+    return next(p for _, items in list_presets() for p in items if p.title == title)
 
 
 def types(w):
@@ -220,10 +229,9 @@ def test_hide_delete_duplicate_from_panel(window, qapp):
 
 
 def test_preset_and_clear_are_undoable(window):
-    from app.scene import PRESETS
-    window.load_scene(*PRESETS["Source near a wall"](), title="Source near a wall")
+    window.load_preset(preset("Symmetry wall: source near a wall"))
     assert types(window) == ["wall", "source"]
-    assert "Source near a wall" in window.windowTitle()
+    assert "Symmetry wall: source near a wall" in window.windowTitle()
     window.clear_all()
     assert window.elements == [] and window.issue_label.text() == "✓ scene OK"
     window.model_undo()
@@ -333,12 +341,11 @@ def test_click_on_flow_clears_selection(shown, qapp):
 
 
 def test_click_on_wall_and_sector_side(shown, qapp):
-    from app.scene import PRESETS
-    shown.load_scene(*PRESETS["Source near a wall"](), title="t")
+    shown.load_preset(preset("Symmetry wall: source near a wall"))
     qapp.processEvents()
     _click(qapp, shown, 2.0, 0.0)                      # on the wall y = 0
     assert shown.elements_panel.current_row() == 0
-    shown.load_scene(*PRESETS["Corner flow (90° sector, n = 2)"](), title="t")
+    shown.load_preset(preset("Corner flow (90° sector, n = 2)"))
     qapp.processEvents()
     shown.select_element(-1)
     _click(qapp, shown, 0.0, 2.0)                      # on the vertical side of the wedge
@@ -376,9 +383,8 @@ def test_click_empty_list_area_and_escape_clear(shown, qapp):
 
 def test_double_click_symbol_opens_edit(shown, qapp, monkeypatch):
     import app.main_window as mw
-    from app.scene import PRESETS
     monkeypatch.setattr(mw, "ElementDialog", FakeDialog)
-    shown.load_scene(*PRESETS["Rankine half-body"](), title="t")
+    shown.load_preset(preset("Rankine half-body"))
     qapp.processEvents()
     FakeDialog.result_values = {"m": 3.0}
     _click(qapp, shown, 0.0, 0.0, double=True)         # the source of the half-body

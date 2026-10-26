@@ -9,13 +9,19 @@ Data flow (one direction only):
         -> window refreshes list, Elements menu, plot, scene check, Undo/Redo texts
 No widget changes the elements directly, so undo / redo always restores exactly.
 """
-import numpy as np
-from PySide6.QtCore import QEvent, QSize, Qt, QTimer
-from PySide6.QtGui import QAction, QActionGroup, QFont, QKeySequence, QShortcut
-from PySide6.QtWidgets import (QAbstractButton, QApplication, QDockWidget, QLabel, QMainWindow, QMenuBar,
-                               QMessageBox, QToolBar, QToolButton, QWidget)
+import os
+import re
 
-from model import SceneModel, preview_change
+import numpy as np
+from PySide6.QtCore import QEvent, QSize, Qt, QTimer, QUrl
+from PySide6.QtGui import QAction, QActionGroup, QDesktopServices, QFont, QKeySequence, QShortcut
+from PySide6.QtWidgets import (QAbstractButton, QApplication, QDockWidget, QFileDialog, QLabel, QMainWindow,
+                               QMenuBar, QMessageBox, QToolBar, QToolButton, QWidget)
+
+from app_info import APP_NAME, APP_VERSION, ORGANIZATION
+from model import EXTENSION, SceneDocument, SceneFileError, SceneModel, preview_change
+from model import load_scene as read_scene_file
+from model import save_scene as write_scene_file
 from physics import ELEMENT_TYPES, check_scene, reference_speed, velocity
 from physics.field import fluid_mask, singular_points
 
@@ -24,10 +30,12 @@ from .dialogs import ElementDialog
 from .element_specs import spec_for, toolbar_types
 from .icons import make_app_icon, make_element_icon
 from .panels import ElementsPanel, SettingsPanel, element_icon, element_title
-from .scene import PRESETS, starter_scene
+from .recent_files import RecentFiles
+from .scene import PRESETS_DIR, list_presets, starter_scene
 from .theme import DARK, DEFAULT_THEME, FONT, LAYOUT, LIGHT, build_stylesheet
 
 DUPLICATE_OFFSET = (0.5, 0.5)
+FILE_FILTER = f"{APP_NAME} scenes (*{EXTENSION});;JSON files (*.json);;All files (*)"
 
 
 class MainWindow(QMainWindow):
@@ -35,6 +43,9 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.theme = DEFAULT_THEME
         self.scene_title = "Lifting (rotating) cylinder"
+        self.current_path: str | None = None           # file of the scene (None = never saved)
+        self.recent = RecentFiles()
+        self.setAcceptDrops(True)                      # drop a .pflow file on the window to open it
         self.resize(*LAYOUT["window_size"])
 
         # the scene: every change goes through the model (undo / redo)
@@ -131,15 +142,24 @@ class MainWindow(QMainWindow):
     def _build_menus(self):
         mb = self.menuBar()
 
-        # File (New / Open / Save come in Phase 2b)
+        # File
         m = mb.addMenu("&File")
-        self._placeholder(m, "New", QKeySequence.New, "Phase 2b")
-        self._placeholder(m, "Open…", QKeySequence.Open, "Phase 2b")
-        recent = m.addMenu("Open recent")
-        recent.addAction("(empty)").setEnabled(False)
+        self.act_new = m.addAction("New")
+        self.act_new.setShortcut(QKeySequence.New)
+        self.act_new.triggered.connect(self.new_scene)
+        self.act_open = m.addAction("Open…")
+        self.act_open.setShortcut(QKeySequence.Open)
+        self.act_open.triggered.connect(lambda: self.open_scene())
+        self.recent_menu = m.addMenu("Open recent")
+        self.recent_menu.aboutToShow.connect(self._rebuild_recent_menu)
+        self._rebuild_recent_menu()
         m.addSeparator()
-        self._placeholder(m, "Save", QKeySequence.Save, "Phase 2b")
-        self._placeholder(m, "Save as…", QKeySequence.SaveAs, "Phase 2b")
+        self.act_save = m.addAction("Save")
+        self.act_save.setShortcut(QKeySequence.Save)
+        self.act_save.triggered.connect(self.save_scene)
+        self.act_save_as = m.addAction("Save as…")
+        self.act_save_as.setShortcuts([QKeySequence.SaveAs, QKeySequence("Ctrl+Shift+S")])
+        self.act_save_as.triggered.connect(self.save_scene_as)
         m.addSeparator()
         self._placeholder(m, "Export figure (PNG / PDF / SVG)…", "Ctrl+E", "Phase 4")
         self._placeholder(m, "Export data (CSV)…", None, "Phase 4")
@@ -206,14 +226,19 @@ class MainWindow(QMainWindow):
             a.triggered.connect(lambda _=False, p=pal: self.apply_theme(p))
             tg.addAction(a)
 
-        # Presets
+        # Presets: scene files in the presets folder, one section per group folder
         m = mb.addMenu("&Presets")
-        for name, make in PRESETS.items():
-            if name.strip() == "—":
+        for i, (group, items) in enumerate(list_presets()):
+            if i:
                 m.addSeparator()
-                continue
-            a = m.addAction(name)
-            a.triggered.connect(lambda _=False, n=name, mk=make: self.load_scene(*mk(), title=n))
+            hdr = m.addAction(group)
+            hdr.setEnabled(False)
+            for preset in items:
+                a = m.addAction("    " + preset.title)
+                a.triggered.connect(lambda _=False, p=preset: self.load_preset(p))
+        m.addSeparator()
+        m.addAction("Show presets folder").triggered.connect(
+            lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(PRESETS_DIR)))
 
         # Help
         m = mb.addMenu("&Help")
@@ -327,13 +352,183 @@ class MainWindow(QMainWindow):
         return False
 
     def closeEvent(self, event):
+        if not self.maybe_save():
+            event.ignore()
+            return
         QApplication.instance().removeEventFilter(self)
         self.canvas.shutdown()
         super().closeEvent(event)
 
     def _update_title(self):
         star = " *" if self.model.is_modified else ""
-        self.setWindowTitle(f"{LAYOUT['window_title']} — {self.scene_title}{star}")
+        name = os.path.basename(self.current_path) if self.current_path else self.scene_title
+        self.setWindowTitle(f"{LAYOUT['window_title']} — {name}{star}")
+        self.setWindowFilePath(self.current_path or "")
+
+    # ------------------------------------------------------------------ files (File menu)
+    def new_scene(self):
+        """File → New: empty scene, default view, empty undo history."""
+        if not self.maybe_save():
+            return False
+        rng = LAYOUT["plot_initial_range"]
+        self.canvas.set_view(rng["x"], rng["y"])
+        self.current_path = None
+        self.scene_title = "untitled"
+        self.model.reset([])
+        self.flash("New scene — add elements from the toolbar or choose a preset.")
+        return True
+
+    def open_scene(self, path: str | None = None):
+        """File → Open (asks for a file when `path` is None), Open recent, drag & drop, command line."""
+        if not self.maybe_save():
+            return False
+        if path is None:
+            path = self._ask_open_path()
+            if not path:
+                return False
+        try:
+            doc = read_scene_file(path)
+        except SceneFileError as exc:
+            self._notify_user("warning", "Cannot open the file", str(exc))
+            if not os.path.exists(path):
+                self.recent.remove(path)
+            return False
+        self._apply_document(doc)
+        self.current_path = os.path.abspath(path)
+        self.scene_title = doc.title or os.path.splitext(os.path.basename(path))[0]
+        self.recent.add(path)
+        self._update_title()
+        self.flash(f"Opened {os.path.basename(path)}  —  {len(doc.elements)} elements")
+        if doc.warnings:
+            self._notify_user("information", "File opened with small problems",
+                              "The file was opened, but:\n\n• " + "\n• ".join(doc.warnings))
+        return True
+
+    def save_scene(self) -> bool:
+        """File → Save (asks for a name the first time). Returns False if cancelled or failed."""
+        if self.current_path is None:
+            return self.save_scene_as()
+        return self._write(self.current_path)
+
+    def save_scene_as(self) -> bool:
+        base = self.scene_title if self.scene_title != "untitled" else "scene"
+        base = re.sub(r'[\\/:*?"<>|]+', " ", base).strip() or "scene"
+        start = os.path.dirname(self.current_path) if self.current_path else self.recent.last_folder
+        path = self._ask_save_path(os.path.join(start, base + EXTENSION))
+        if not path:
+            return False
+        if not os.path.splitext(path)[1]:
+            path += EXTENSION
+        if self.scene_title == "untitled":
+            self.scene_title = os.path.splitext(os.path.basename(path))[0]
+        return self._write(path)
+
+    def _write(self, path: str) -> bool:
+        try:
+            write_scene_file(path, self._document())
+        except SceneFileError as exc:
+            self._notify_user("warning", "Cannot save the file", str(exc))
+            return False
+        self.current_path = os.path.abspath(path)
+        self.model.mark_clean()
+        self.recent.add(path)
+        self._update_title()
+        self.flash(f"Saved {os.path.basename(path)}")
+        return True
+
+    def _document(self) -> SceneDocument:
+        """The current scene as it is saved: elements, title, view and streamline settings."""
+        cv = self.canvas
+        (x0, x1), (y0, y1) = cv.vb.viewRange()
+        settings = {"density": cv.density, "line_width": cv.line_width,
+                    "show_arrows": cv.show_arrows, "arrow_density": cv.arrow_density}
+        return SceneDocument(list(self.elements), self.scene_title, ((x0, x1), (y0, y1)), settings)
+
+    def _apply_document(self, doc: SceneDocument):
+        cv = self.canvas
+        if doc.view is not None:
+            cv.set_view(*doc.view)
+        s = doc.settings
+        if s:
+            cv.density = s.get("density", cv.density)
+            cv.show_arrows = s.get("show_arrows", cv.show_arrows)
+            cv.arrow_density = s.get("arrow_density", cv.arrow_density)
+            cv.set_line_width(s.get("line_width", cv.line_width))
+            self.settings_panel.set_streamline_settings(cv.density, cv.line_width, cv.show_arrows,
+                                                        cv.arrow_density)
+        self.model.reset(doc.elements)         # one streamline computation with the new view + settings
+
+    def maybe_save(self) -> bool:
+        """Before the scene is replaced or the window closes: offer to save unsaved changes.
+        True = go on, False = the user cancelled (or saving failed)."""
+        if not self.model.is_modified:
+            return True
+        answer = self._ask_save_changes()
+        if answer == "save":
+            return self.save_scene()
+        return answer == "discard"
+
+    # dialogs (separate methods so the tests can answer them)
+    def _ask_save_changes(self) -> str:
+        name = os.path.basename(self.current_path) if self.current_path else self.scene_title
+        box = QMessageBox(QMessageBox.Warning, "Unsaved changes",
+                          f"Do you want to save the changes to “{name}”?",
+                          QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel, self)
+        box.setInformativeText("Your changes will be lost if you don't save them.")
+        box.setDefaultButton(QMessageBox.Save)
+        return {QMessageBox.Save: "save", QMessageBox.Discard: "discard"}.get(box.exec(), "cancel")
+
+    def _ask_open_path(self) -> str:
+        start = os.path.dirname(self.current_path) if self.current_path else self.recent.last_folder
+        path, _ = QFileDialog.getOpenFileName(self, "Open scene", start, FILE_FILTER)
+        return path
+
+    def _ask_save_path(self, suggested: str) -> str:
+        path, _ = QFileDialog.getSaveFileName(self, "Save scene as", suggested, FILE_FILTER)
+        return path
+
+    def _notify_user(self, kind: str, title: str, text: str):
+        if kind == "warning":
+            QMessageBox.warning(self, title, text)
+        else:
+            QMessageBox.information(self, title, text)
+
+    def _rebuild_recent_menu(self):
+        m = self.recent_menu
+        m.clear()
+        paths = self.recent.paths()
+        if not paths:
+            m.addAction("(no recent files)").setEnabled(False)
+            return
+        for i, path in enumerate(paths, 1):
+            folder = os.path.basename(os.path.dirname(path)) or os.path.dirname(path)
+            text = f"&{i}  {os.path.basename(path)}" if i < 10 else os.path.basename(path)
+            a = m.addAction(f"{text}      — {folder}")
+            a.setToolTip(path)
+            a.setStatusTip(path)
+            a.triggered.connect(lambda _=False, p=path: self.open_scene(p))
+        m.addSeparator()
+        m.addAction("Clear this list").triggered.connect(self.recent.clear)
+
+    def dragEnterEvent(self, event):
+        if self._dropped_file(event):
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        path = self._dropped_file(event)
+        if path:
+            event.acceptProposedAction()
+            QTimer.singleShot(0, lambda: self.open_scene(path))   # not inside the drop handler
+
+    @staticmethod
+    def _dropped_file(event) -> str | None:
+        md = event.mimeData()
+        if md.hasUrls():
+            for url in md.urls():
+                path = url.toLocalFile()
+                if path.lower().endswith((EXTENSION, ".json")):
+                    return path
+        return None
 
     # ------------------------------------------------------------------ actions
     def add_element_dialog(self, key):
@@ -392,11 +587,22 @@ class MainWindow(QMainWindow):
         if text:
             self.flash(f"Redone: {text}")
 
+    def load_preset(self, preset):
+        """Presets menu: the preset becomes a new, unsaved scene (one undoable step)."""
+        try:
+            doc = read_scene_file(preset.path)
+        except SceneFileError as exc:
+            self._notify_user("warning", "Cannot load the preset", str(exc))
+            return False
+        self.load_scene(doc.elements, doc.view, title=doc.title or preset.title)
+        return True
+
     def load_scene(self, elements, view=None, title=""):
-        """Presets (and later File → Open): replaces the whole scene in ONE undoable step."""
+        """Presets: replace the whole scene in ONE undoable step (File → Open starts a new history)."""
         if view:
             self.canvas.set_view(*view)
         self.scene_title = title or "untitled"
+        self.current_path = None        # a preset is a new, unsaved scene (Save would not overwrite a file)
         self.model.load(elements, f"Load “{title}”" if title else "Load scene")
         self._flash_done()
 
@@ -523,7 +729,9 @@ def setup_application(app):
     from PySide6.QtCore import QLocale
     # numbers always with a decimal POINT (1.000), whatever the system region is (TR uses 1,000)
     QLocale.setDefault(QLocale(QLocale.English, QLocale.UnitedStates))
-    app.setApplicationName("Potential Flow Lab")
+    app.setOrganizationName(ORGANIZATION)        # where QSettings keeps recent files etc.
+    app.setApplicationName(APP_NAME)
+    app.setApplicationVersion(APP_VERSION)
     app.setStyle("Fusion")          # same look on Windows and macOS
     app.setFont(default_font())
 
