@@ -161,7 +161,7 @@ class SettingsPanel(QScrollArea):
     fit_requested = Signal()
     density_changed = Signal(float)
     line_width_changed = Signal(float)
-    arrows_changed = Signal(bool, int)       # show arrows?, arrows per line
+    arrows_changed = Signal(bool, float)     # show arrows?, arrow density (1 = default)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -205,12 +205,13 @@ class SettingsPanel(QScrollArea):
         f.addRow("Density", self.s_density)
         f.addRow("Line width", self.s_width)
         f.addRow(self.c_arrows)
-        f.addRow("Arrows per line", self.s_arrows)
+        f.addRow("Arrow density", self.s_arrows)
         lay.addWidget(g)
         self.s_density.valueChanged.connect(lambda v: self.density_changed.emit(v / 5.0))
         self.s_width.valueChanged.connect(lambda v: self.line_width_changed.emit(0.6 + 0.4 * v))
-        self.c_arrows.toggled.connect(lambda on: self.arrows_changed.emit(on, self.s_arrows.value()))
-        self.s_arrows.valueChanged.connect(lambda v: self.arrows_changed.emit(self.c_arrows.isChecked(), v))
+        self.c_arrows.toggled.connect(lambda on: self.arrows_changed.emit(on, self.arrow_density()))
+        self.s_arrows.valueChanged.connect(lambda v: self.arrows_changed.emit(self.c_arrows.isChecked(),
+                                                                             self.arrow_density()))
 
         # --- Layers ---------------------------------------------------------
         g = QGroupBox("Layers")
@@ -268,6 +269,10 @@ class SettingsPanel(QScrollArea):
         s.setSingleStep(0.5)
         s.setValue(val)
         return s
+
+    def arrow_density(self) -> float:
+        """Slider 1…5 -> arrow density 1…3 (1 = default spacing between arrows)."""
+        return 0.5 + 0.5 * self.s_arrows.value()
 
     @staticmethod
     def _slider(lo, hi, val, tip=""):

@@ -18,11 +18,19 @@ Bu dosya projenin kalan işlerini ve sırasını tutar. Her adım bittikçe işa
    - Aynı noktadaki doublet + vortex: ⚠ uyarı yerine ℹ bilgi notu
    - Plot'ta sembole / duvara / sector kenarına tıklayarak seçme, üst üste binenlerde tekrar tıklayınca
      sıradaki; boş yere, başka bir yere tıklayınca ya da Esc ile seçim kalkar; çift tık → düzenle
-2. ▶ **Paket B — Streamline kalitesi**
-   - [1] Çizgiler daha düzenli / eşit aralıklı (komşu çizgiden d mesafede tohumlama), oklar düzenli dizilsin
-   - [2] Çizgiler ortada aniden başlayıp bitmesin: kenarlardan / duvar boyunca tohumlama, daha uzun çizgiler,
-     uçlarda yumuşak incelme (tapering), çok kısa parçaları atma
-   - Streamline hesabı arka planda (arayüz hiç donmasın; yeni çizgiler hazır olana kadar eskiler kalır)
+2. ✅ **Paket B — Streamline kalitesi**
+   - [1] Çizgiler eşit aralıklı: ilk çizgiler akışın görünüme girdiği kenardan tam d aralıkla, sonra her
+     çizginin iki yanına d mesafede yeni tohum (Jobard–Lefer); uniform flow'da aralık sapması %20 → %0
+   - [1] Oklar plot'a eşit dağılır (sabit hexagonal lattice, satırlar yarım aralık kaymalı, pan'de yerinde durur);
+     ayar "Arrow density"
+   - [2] Kesilen çizgi uçları 4 adımda soluklaşarak biter (tapering); çok kısa parçalar çizilmez
+   - [2] Duvarlar / wedge kenarları streamline sayılır: hiçbir çizgi duvarın üstünden geçmez, duvar yanındaki
+     çizgi de d mesafede
+   - Durma (saddle) noktasında çizgi köşe yapıp yön değiştirmez, orada biter
+   - Hesap arka planda (arayüz donmaz; yeni istek eskisini iptal eder, eski sonuç atılır)
+   - Ölçüm: `python scripts/streamline_quality.py`
+   - Not: kaynaktan duvardaki durma noktasına inen dividing streamline gibi özel çizgiler Faz 4'teki
+     "dividing streamline" katmanında ayrıca çizilecek (`trace_streamlines(seeds=...)` hazır)
 3. ☐ **Faz 2b — File menüsü**: New / Open / Save / Save as (JSON, sürüm numaralı), son açılanlar,
    presetler dosya olarak (hocanın verification case 5'i)
 4. ☐ **Paket C — Sıcak, tatlı tema** [6]: 2–3 renk seçeneği gösterilip seçilecek (açık + koyu)

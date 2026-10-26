@@ -5,6 +5,10 @@ The plot asks the physics engine for streamlines of the CURRENT view. After ever
 zoom / pan (and a short delay, LAYOUT["recompute_delay_ms"]) they are recomputed,
 so the streamlines always fill whatever region is visible.
 
+The computation runs in a background thread, so the window never freezes. Every request gets a
+generation number; a newer request cancels the running one, and results of old requests are
+thrown away. `recompute()` is the synchronous version (used by tests and scripts).
+
 Layers planned for later phases (each will become a separate class in render/layers/):
 animated particles, dividing streamline / body, equipotential lines, |V| and Cp contours, walls.
 """
@@ -12,15 +16,30 @@ import time
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QPointF, Qt, QTimer, Signal
+from PySide6.QtCore import QObject, QPointF, QRunnable, Qt, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QPainterPath, QPen, QPolygonF
 from PySide6.QtWidgets import (QButtonGroup, QFrame, QGraphicsPathItem, QHBoxLayout, QLabel, QToolButton,
                                QVBoxLayout, QWidget)
 
-from physics.streamlines import trace_streamlines
+from physics.streamlines import FADE_LEVELS, Cancelled, fade_pieces, trace_streamlines
 
 from .geometry import fluid_polygon, ray_in_rect, rect_polygon, sector_shading, visible_wall_segment
 from .theme import FONT, LAYOUT, MARKERS
+
+
+class _ResultSignal(QObject):
+    """Carries a finished background computation to the GUI thread (queued connection)."""
+    done = Signal(int, object, float)        # generation, StreamlineSet (or exception), time in ms
+
+
+class _Job(QRunnable):
+    def __init__(self, fn):
+        super().__init__()
+        self.fn = fn
+        self.setAutoDelete(True)
+
+    def run(self):
+        self.fn()
 
 
 class CanvasBar(QWidget):
@@ -105,7 +124,7 @@ class PlotCanvas(QWidget):
         self.elements = elements
         # streamline settings (changed from the Plot settings panel)
         self.density = 1.0
-        self.arrows_per_line = 1
+        self.arrow_density = 1.0
         self.show_arrows = True
         self.line_width = LAYOUT["streamline_width"]
         self.selected = -1                       # index of the selected element (highlighted)
@@ -131,15 +150,29 @@ class PlotCanvas(QWidget):
         lay.addWidget(self.plot, 1)
         self.vb = self.plot.getPlotItem().getViewBox()
 
-        self._lines = pg.PlotCurveItem(connect="finite")
-        self._lines.setZValue(1)
-        self.plot.addItem(self._lines)
+        # streamlines: one curve item per opacity level (index 0 = full opacity, then the
+        # steps of the fading line ends); lines are separated by NaN inside each item
+        self._line_items = []
+        for _ in range(FADE_LEVELS + 1):
+            item = pg.PlotCurveItem(connect="finite")
+            item.setZValue(1)
+            self.plot.addItem(item)
+            self._line_items.append(item)
+        self._lines = self._line_items[0]
         self._arrows, self._markers, self._walls = [], [], []
 
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.setInterval(LAYOUT["recompute_delay_ms"])
-        self._timer.timeout.connect(self.recompute)
+        self._timer.timeout.connect(self.request)
+
+        # background computation: one worker thread, newest request wins
+        self.background = True
+        self._generation = 0
+        self._pool = QThreadPool(self)
+        self._pool.setMaxThreadCount(1)
+        self._results = _ResultSignal(self)
+        self._results.done.connect(self._on_result)
 
         self.plot.scene().sigMouseMoved.connect(self._mouse_moved)
         self.plot.scene().sigMouseClicked.connect(self._mouse_clicked)
@@ -153,7 +186,8 @@ class PlotCanvas(QWidget):
     # ------------------------------------------------------------------ public API
     def set_elements(self, elements: list):
         self.elements = elements
-        self.recompute()
+        self._draw_overlays()                # symbols and walls at once, streamlines when ready
+        self.request()
 
     def set_selected(self, index: int):
         """Highlight one element (no streamline recomputation needed)."""
@@ -178,15 +212,15 @@ class PlotCanvas(QWidget):
         self.density = density
         self.schedule()
 
-    def set_arrows(self, show: bool, per_line: int | None = None):
+    def set_arrows(self, show: bool, density: float | None = None):
         self.show_arrows = show
-        if per_line is not None:
-            self.arrows_per_line = per_line
+        if density is not None:
+            self.arrow_density = density
         self.schedule()
 
     def set_line_width(self, width: float):
         self.line_width = width
-        self._lines.setPen(pg.mkPen(self.theme["streamline"], width=width))
+        self._set_line_pens()
 
     def set_view(self, xr, yr):
         self.plot.setRange(xRange=xr, yRange=yr, padding=0)
@@ -223,27 +257,74 @@ class PlotCanvas(QWidget):
         pi.setLabel("bottom", "x", **label_style)
         pi.setLabel("left", "y", **label_style)
         pi.showGrid(x=True, y=True, alpha=0.18 if t["name"] == "light" else 0.14)
-        self._lines.setPen(pg.mkPen(t["streamline"], width=self.line_width))
-        self.recompute()
+        self._set_line_pens()
+        self.request()
+
+    def _set_line_pens(self):
+        n = len(self._line_items)
+        for k, item in enumerate(self._line_items):
+            color = QColor(self.theme["streamline"])
+            color.setAlphaF(color.alphaF() * (n - k) / n)
+            item.setPen(pg.mkPen(color, width=self.line_width))
+
+    def _job_args(self):
+        (x0, x1), (y0, y1) = self.vb.viewRange()
+        return (tuple(self.elements), (x0, x1), (y0, y1),
+                dict(density=self.density, arrow_density=self.arrow_density if self.show_arrows else 0))
+
+    def request(self):
+        """Recompute now: in the background thread (normal use) or synchronously."""
+        if not self.background:
+            self.recompute()
+            return
+        self._timer.stop()
+        self._generation += 1
+        gen = self._generation
+        elements, xr, yr, kw = self._job_args()
+
+        def work():
+            if gen != self._generation:
+                return                                   # a newer request is already waiting
+            t0 = time.perf_counter()
+            try:
+                result = trace_streamlines(elements, xr, yr, cancelled=lambda: gen != self._generation, **kw)
+            except Cancelled:
+                return
+            except Exception as exc:                     # report bugs in the GUI thread
+                result = exc
+            self._results.done.emit(gen, result, (time.perf_counter() - t0) * 1000.0)
+
+        self._pool.start(_Job(work))
+
+    def _on_result(self, gen, result, ms):
+        if gen != self._generation:
+            return                                       # the scene / view changed meanwhile
+        if isinstance(result, BaseException):
+            raise result
+        self._draw_result(result, ms)
 
     def recompute(self):
+        """Synchronous computation (cancels a running background one)."""
         self._timer.stop()
-        (x0, x1), (y0, y1) = self.vb.viewRange()
+        self._generation += 1
+        elements, xr, yr, kw = self._job_args()
         t0 = time.perf_counter()
-        result = trace_streamlines(self.elements, (x0, x1), (y0, y1), density=self.density,
-                                   arrows_per_line=self.arrows_per_line if self.show_arrows else 0)
-        ms = (time.perf_counter() - t0) * 1000.0
+        result = trace_streamlines(elements, xr, yr, **kw)
+        self._draw_result(result, (time.perf_counter() - t0) * 1000.0)
 
-        # all lines in one curve item, separated by NaN (much faster than one item per line)
-        if result.lines:
-            parts = []
-            for ln in result.lines:
-                parts.append(ln)
-                parts.append(np.array([[np.nan, np.nan]]))
-            xy = np.vstack(parts)
-            self._lines.setData(xy[:, 0], xy[:, 1])
-        else:
-            self._lines.setData([], [])
+    def wait_idle(self, msecs: int = 10000) -> bool:
+        """Wait until the background thread is idle (results still arrive via the event loop)."""
+        return self._pool.waitForDone(msecs)
+
+    def shutdown(self):
+        """Cancel and wait for the background computation (call before the window closes)."""
+        self._timer.stop()
+        self._generation += 1
+        self._pool.waitForDone(10000)
+
+    def _draw_result(self, result, ms):
+        for item, xy in zip(self._line_items, fade_pieces(result.lines, result.tapers, result.separation)):
+            item.setData(xy[:, 0], xy[:, 1])
 
         for it in self._arrows:
             self.plot.removeItem(it)

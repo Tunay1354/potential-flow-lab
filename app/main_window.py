@@ -328,6 +328,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         QApplication.instance().removeEventFilter(self)
+        self.canvas.shutdown()
         super().closeEvent(event)
 
     def _update_title(self):

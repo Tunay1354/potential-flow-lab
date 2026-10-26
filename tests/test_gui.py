@@ -392,3 +392,57 @@ def test_pick_ignores_hidden_elements(shown):
     shown.model.set_enabled(2, False)
     pt = shown.canvas.vb.mapViewToScene(QPointF(0.0, 0.0))
     assert shown.canvas.pick(pt) == []
+
+
+# ---------------------------------------------------------------- background streamline computation
+def _wait_for(qapp, canvas, cond, timeout_s=20.0):
+    import time
+    end = time.time() + timeout_s
+    while time.time() < end:
+        canvas.wait_idle(100)
+        qapp.processEvents()
+        if cond():
+            return True
+    return False
+
+
+def test_scene_change_computes_streamlines_in_the_background(shown, qapp):
+    cv = shown.canvas
+    assert cv.background
+    done = []
+    cv.computed.connect(lambda n, ms: done.append(n))
+    shown.load_scene([Uniform(), Doublet(mu=1.0)], title="cylinder")
+    assert _wait_for(qapp, cv, lambda: bool(done))
+    assert done[-1] > 10 and cv._lines.getData()[0].size > 0
+
+
+def test_only_the_newest_request_is_drawn(shown, qapp):
+    cv = shown.canvas
+    cv.wait_idle()
+    qapp.processEvents()
+    done = []
+    cv.computed.connect(lambda n, ms: done.append(n))
+    for density in (0.4, 0.7, 1.6):                  # three quick changes: only the last one counts
+        cv.density = density
+        cv.request()
+    elements, xr, yr, kw = cv._job_args()             # what the last request computes
+    assert _wait_for(qapp, cv, lambda: bool(done))
+    for _ in range(5):
+        cv.wait_idle(100)
+        qapp.processEvents()
+    assert len(done) == 1
+    from physics.streamlines import trace_streamlines
+    assert kw["density"] == 1.6
+    assert done[0] == len(trace_streamlines(elements, xr, yr, **kw).lines)
+
+
+def test_closing_during_a_computation_waits_and_does_not_hang(window, qapp):
+    import time
+    window.show()
+    window.load_scene([Uniform(), Doublet(mu=1.0), Vortex(Gamma=-2.0)], title="lifting")
+    window.canvas.density = 2.0
+    window.canvas.request()
+    t0 = time.time()
+    window.close()
+    assert window.canvas.wait_idle(0)                # nothing running any more
+    assert time.time() - t0 < 10.0

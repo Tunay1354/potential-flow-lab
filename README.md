@@ -64,10 +64,11 @@ Güncelleme geldiğinde: GitHub Desktop'ta **Fetch origin → Pull origin**.
 | `physics/validation.py` | Sahne kontrolü: duvar arkasında/üstünde element, paralel olmayan uniform flow ... |
 | `physics/registry.py` | Hangi element tipleri var (yeni element otomatik eklenir) |
 | `physics/field.py` | Superposition (w = Σ wₖ), grid hesabı, Cp, singularity masking, fluid region |
-| `physics/streamlines.py` | Eşit aralıklı streamline'lar (Jobard–Lefer, RK4) ve ok yerleri |
+| `physics/streamlines.py` | Eşit aralıklı streamline'lar (Jobard–Lefer, RK4), soluklaşan uçlar, ok yerleri |
 | `physics/diagnostics.py` | Flux, circulation, yüzey kuvvetleri (L′, D′) ölçümleri |
 | `tests/` | Otomatik doğrulama testleri (`pytest`) |
 | `scripts/verify_physics.py` | Rapor için doğrulama tablosu |
+| `scripts/streamline_quality.py` | Streamline resminin kalite ölçümü (aralık düzgünlüğü, kesik uçlar, süre) |
 
 ## Notasyon (ders notlarıyla aynı)
 
