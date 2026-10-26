@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout
                                QHBoxLayout, QLabel, QPushButton, QScrollArea, QSlider, QTreeWidget,
                                QTreeWidgetItem, QVBoxLayout, QWidget)
 
+from .chrome import button_font
 from .icons import make_element_icon
 
 
@@ -43,14 +44,15 @@ class ElementsPanel(QWidget):
         self.setObjectName("DockBody")
         self.setAttribute(Qt.WA_StyledBackground, True)
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(10, 10, 10, 10)
-        lay.setSpacing(8)
+        lay.setContentsMargins(8, 2, 8, 8)
+        lay.setSpacing(10)
 
         self.tree = QTreeWidget()
         self.tree.setHeaderLabels(["Element", "Parameters"])
+        self.tree.setHeaderHidden(True)
         self.tree.setRootIsDecorated(False)
-        self.tree.setAlternatingRowColors(True)
-        self.tree.setColumnWidth(0, 138)
+        self.tree.setAlternatingRowColors(False)
+        self.tree.setColumnWidth(0, 150)
         self.tree.setToolTip("Untick an element to hide it temporarily without deleting it.\n"
                              "Double-click or Enter: edit   ·   Delete: remove   ·   Ctrl+D: duplicate")
         self.tree.itemDoubleClicked.connect(lambda it, _c: self._later(self.edit_requested,
@@ -73,6 +75,7 @@ class ElementsPanel(QWidget):
         self.btn_del.setObjectName("Danger")
         for b in (self.btn_edit, self.btn_dup, self.btn_del):
             b.setCursor(Qt.PointingHandCursor)
+            b.setFont(button_font())
             row.addWidget(b)
         lay.addLayout(row)
 
@@ -180,16 +183,17 @@ class SettingsPanel(QScrollArea):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWidgetResizable(True)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         body = QWidget()
         body.setObjectName("DockBody")
         body.setAttribute(Qt.WA_StyledBackground, True)
         self.setWidget(body)
         lay = QVBoxLayout(body)
-        lay.setContentsMargins(10, 4, 10, 10)
-        lay.setSpacing(4)
+        lay.setContentsMargins(10, 0, 10, 10)
+        lay.setSpacing(2)
 
         # --- View range ---------------------------------------------------
-        g = QGroupBox("View range")
+        g = QGroupBox("VIEW RANGE")
         grid = QGridLayout(g)
         self.xmin, self.xmax = self._spin(-4.0), self._spin(4.0)
         self.ymin, self.ymax = self._spin(-2.6), self._spin(2.6)
@@ -202,6 +206,7 @@ class SettingsPanel(QScrollArea):
         grid.addWidget(QLabel("to"), 1, 2)
         grid.addWidget(self.ymax, 1, 3)
         fit = QPushButton("Fit to elements")
+        fit.setFont(button_font())
         fit.clicked.connect(self.fit_requested)
         grid.addWidget(fit, 2, 0, 1, 4)
         for sp in (self.xmin, self.xmax, self.ymin, self.ymax):
@@ -209,7 +214,7 @@ class SettingsPanel(QScrollArea):
         lay.addWidget(g)
 
         # --- Streamlines ----------------------------------------------------
-        g = QGroupBox("Streamlines")
+        g = QGroupBox("STREAMLINES")
         f = QFormLayout(g)
         self.s_density = self._slider(1, 10, 5, "Number of streamlines")
         self.s_width = self._slider(1, 5, 2)
@@ -228,7 +233,7 @@ class SettingsPanel(QScrollArea):
                                                                              self.arrow_density()))
 
         # --- Layers ---------------------------------------------------------
-        g = QGroupBox("Layers")
+        g = QGroupBox("LAYERS")
         v = QVBoxLayout(g)
         self.layer_boxes = {}
         for key, text, on, ready in LAYERS:
@@ -243,7 +248,7 @@ class SettingsPanel(QScrollArea):
         lay.addWidget(g)
 
         # --- Animation ------------------------------------------------------
-        g = QGroupBox("Animation")
+        g = QGroupBox("ANIMATION")
         f = QFormLayout(g)
         f.addRow("Particles", self._slider(200, 5000, 1500))
         f.addRow("Speed", self._slider(1, 10, 5))
@@ -251,7 +256,7 @@ class SettingsPanel(QScrollArea):
         lay.addWidget(g)
 
         # --- Computation ----------------------------------------------------
-        g = QGroupBox("Computation")
+        g = QGroupBox("COMPUTATION")
         f = QFormLayout(g)
         q = QComboBox()
         q.addItems(["Low (fast)", "Medium", "High (export quality)"])

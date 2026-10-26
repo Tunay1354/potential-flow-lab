@@ -9,13 +9,17 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from app.main_window import MainWindow, setup_application
+from app.theme import LAYOUT
 
 
 def main():
     app = QApplication(sys.argv)
     setup_application(app)
     win = MainWindow()
-    win.show()
+    if LAYOUT["start_maximized"]:
+        win.showMaximized()          # fills the screen (the title bar's restore button gives window_size)
+    else:
+        win.show()
     files = [a for a in sys.argv[1:] if not a.startswith("-")]
     if files:
         QTimer.singleShot(0, lambda: win.open_scene(files[0]))

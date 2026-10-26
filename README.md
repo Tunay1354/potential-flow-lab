@@ -115,3 +115,8 @@ açılışlarda hazır gelir.
   tam olarak eklenir (90°: 3 image); diğer β'larda, β > 180°'de, birden fazla sector'da, sector + symmetry
   wall'da ve wedge dışındaki/kenarındaki elementlerde hata verilir. Uniform flow sadece β = 180° ve duvara
   paralelse kabul edilir. Sector flow'un kendisi image'lanmaz (zaten kendi duvarlarını sağlar).
+
+## Fonts
+
+The program ships IBM Plex Mono, Barlow and Barlow Condensed (`assets/fonts`), all under the
+SIL Open Font License 1.1 (license text next to each font).

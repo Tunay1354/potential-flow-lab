@@ -16,7 +16,7 @@ import numpy as np
 from PySide6.QtCore import QEvent, QSize, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QActionGroup, QDesktopServices, QFont, QKeySequence, QShortcut
 from PySide6.QtWidgets import (QAbstractButton, QApplication, QDockWidget, QFileDialog, QLabel, QMainWindow,
-                               QMenuBar, QMessageBox, QToolBar, QToolButton, QWidget)
+                               QMenuBar, QMessageBox, QToolBar, QToolButton, QVBoxLayout, QWidget)
 
 from app_info import APP_NAME, APP_VERSION, ORGANIZATION
 from model import EXTENSION, SceneDocument, SceneFileError, SceneModel, preview_change
@@ -26,6 +26,7 @@ from physics import ELEMENT_TYPES, check_scene, reference_speed, velocity
 from physics.field import fluid_mask, singular_points
 
 from .canvas import PlotCanvas
+from .chrome import HeaderBar, PanelBody, PanelTitle, font, heading_font, load_fonts, paint_paper_grid
 from .dialogs import ElementDialog
 from .element_specs import spec_for, toolbar_types
 from .icons import make_app_icon, make_element_icon
@@ -35,12 +36,16 @@ from .scene import PRESETS_DIR, list_presets, starter_scene
 from .theme import DARK, DEFAULT_THEME, FONT, LAYOUT, LIGHT, build_stylesheet
 
 DUPLICATE_OFFSET = (0.5, 0.5)
+# short names under the toolbar icons (the full name is in the tooltip)
+TOOLBAR_NAMES = {"uniform": "Uniform", "source": "Source", "vortex": "Vortex", "doublet": "Doublet",
+                 "sector": "Sector", "wall": "Wall"}
 FILE_FILTER = f"{APP_NAME} scenes (*{EXTENSION});;JSON files (*.json);;All files (*)"
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        load_fonts()
         self.theme = DEFAULT_THEME
         self.scene_title = "Lifting (rotating) cylinder"
         self.current_path: str | None = None           # file of the scene (None = never saved)
@@ -53,9 +58,20 @@ class MainWindow(QMainWindow):
         self.model.mark_clean()
         self.elements = self.model.elements            # same list object for the whole session
 
-        # central plot
+        # header: wooden plank (logo, name, file) + ruler with the menus (and, later, the beaver)
+        self.header = HeaderBar(self)
+        self.setMenuWidget(self.header)
+        self._menu_bar = self.header.menu_bar
+        self.header.plank.version.setText(f"REV {APP_VERSION}")
+
+        # central plot card on the paper
         self.canvas = PlotCanvas(self.theme, self.elements, self)
-        self.setCentralWidget(self.canvas)
+        desk = QWidget(self)
+        desk_lay = QVBoxLayout(desk)
+        g = LAYOUT["gap"]
+        desk_lay.setContentsMargins(g, 0, g - 4, g)            # 4 = dock separator
+        desk_lay.addWidget(self.canvas)
+        self.setCentralWidget(desk)
         self.canvas.bar.message.connect(self.flash)
         self.canvas.probe.connect(self._update_probe)
         self.canvas.element_clicked.connect(self.select_element)
@@ -95,6 +111,7 @@ class MainWindow(QMainWindow):
         self._build_statusbar()
         self._build_plot_shortcuts()
         self.canvas.computed.connect(self._update_status)
+        self.canvas.view_changed.connect(self._update_title_block_view)
         self.apply_theme(self.theme)
 
         # a click anywhere else in the window clears the selection (see eventFilter)
@@ -106,14 +123,40 @@ class MainWindow(QMainWindow):
         self._on_model_changed(None)
 
     # ------------------------------------------------------------------ building blocks
+    def menuBar(self) -> QMenuBar:
+        """The menus live on the ruler of the header (not in Qt's own menu bar)."""
+        return self._menu_bar
+
     def _dock(self, title, widget):
+        """Side panel: a card with a double frame; its title bar (heading over a rule) moves it."""
         d = QDockWidget(title, self)
         d.setObjectName(title)
-        d.setWidget(widget)
+        d.setWidget(PanelBody(widget))
+        d.setTitleBarWidget(PanelTitle(title))
         d.setFeatures(QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable |
                       QDockWidget.DockWidgetClosable)
+        d.dockLocationChanged.connect(lambda _area, d=d: self._place_dock_card(d))
+        d.topLevelChanged.connect(lambda _floating, d=d: self._place_dock_card(d))
         self.addDockWidget(Qt.RightDockWidgetArea, d)
+        self._place_dock_card(d)
         return d
+
+    def _place_dock_card(self, d):
+        """Paper margin between the card and the window edge, depending on where the dock is."""
+        g = LAYOUT["gap"]
+        if d.isFloating():
+            title, body = (0, 0, 0, 0), (0, 0, 0, 0)
+        elif self.dockWidgetArea(d) == Qt.LeftDockWidgetArea:
+            title, body = (g, 0, 0, 0), (g, 0, 0, g)
+        else:
+            title, body = (0, 0, g, 0), (0, 0, g, g)
+        d.titleBarWidget().set_outer(title)
+        d.widget().set_outer(body)
+
+    def _dock_parts(self):
+        for d in (self.dock_elements, self.dock_settings):
+            yield d.titleBarWidget()
+            yield d.widget()
 
     def _build_toolbar(self):
         tb = QToolBar("Add element", self)
@@ -125,6 +168,11 @@ class MainWindow(QMainWindow):
         tb.setToolButtonStyle(Qt.ToolButtonTextUnderIcon if LAYOUT["toolbar_show_text"]
                               else Qt.ToolButtonIconOnly)
         self.addToolBar(Qt.LeftToolBarArea, tb)
+        heading = QLabel("Add")
+        heading.setObjectName("ToolbarHeading")
+        heading.setFont(heading_font())
+        heading.setAlignment(Qt.AlignCenter)
+        tb.addWidget(heading)
         self.element_actions = {}
         separated = False
         for key in toolbar_types():
@@ -132,13 +180,15 @@ class MainWindow(QMainWindow):
             if ELEMENT_TYPES[key].IS_BOUNDARY and not separated:
                 tb.addSeparator()       # walls are boundaries, not flows -> visually separated
                 separated = True
-            act = QAction(spec.name, self)
+            act = QAction(TOOLBAR_NAMES.get(key, spec.name), self)
             act.setToolTip(f"<b>{spec.name}</b><br>{spec.description}")
             act.triggered.connect(lambda _=False, k=key: self.add_element_dialog(k))
             tb.addAction(act)
             self.element_actions[key] = act
         for btn in tb.findChildren(QToolButton):
             btn.setCursor(Qt.PointingHandCursor)
+            btn.setFixedWidth(70)
+            btn.setFont(font("mono", 7.5, caps=True, spacing_pct=104))     # explicit: kept on theme change
         self.element_toolbar = tb
 
     def _build_menus(self):
@@ -302,6 +352,8 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------ model -> view
     def _on_model_changed(self, focus):
         self.elements_panel.set_elements(self.elements, select=focus)
+        self.dock_elements.titleBarWidget().note.setText(
+            f"{len(self.elements)} ITEM{'' if len(self.elements) == 1 else 'S'}")
         self._rebuild_elements_menu()
         self.canvas.set_elements(self.elements)
         self.canvas.set_selected(self.elements_panel.current_row())
@@ -376,6 +428,21 @@ class MainWindow(QMainWindow):
         name = os.path.basename(self.current_path) if self.current_path else self.scene_title
         self.setWindowTitle(f"{LAYOUT['window_title']} — {name}{star}")
         self.setWindowFilePath(self.current_path or "")
+        file = os.path.basename(self.current_path) if self.current_path else "not saved"
+        self.header.plank.file.setText(f"SHEET  {file}{star}")
+        tb = self.canvas.title_block
+        tb.set("scene", self.scene_title)
+        tb.set("file", file + star)
+        self._update_title_block_counts()
+
+    def _update_title_block_counts(self):
+        n = len(self.elements)
+        k = len(self.canvas.stagnation_points)
+        self.canvas.title_block.set("elements", f"{n}  ·  ⊗ {k}")
+
+    def _update_title_block_view(self, xr, yr):
+        self.canvas.title_block.set("view", f"x[{xr[0]:.2f}, {xr[1]:.2f}]  y[{yr[0]:.2f}, {yr[1]:.2f}]"
+                                    .replace("-", "−"))
 
     # ------------------------------------------------------------------ files (File menu)
     def new_scene(self):
@@ -712,6 +779,7 @@ class MainWindow(QMainWindow):
             self.canvas.set_banner(None)
 
     def _update_status(self, n_lines, ms):
+        self._update_title_block_counts()
         n = len(self.elements)
         on = sum(e.enabled for e in self.elements)
         self.count_label.setText(f"{n} elements ({on} shown)  |  {n_lines} streamlines in {ms:.0f} ms")
@@ -722,6 +790,12 @@ class MainWindow(QMainWindow):
         app = QApplication.instance()
         app.setStyleSheet(build_stylesheet(theme))
         self.setWindowIcon(make_app_icon(theme))
+        self.header.apply_theme(theme)
+        if hasattr(self, "dock_settings"):
+            for part in self._dock_parts():
+                part.theme = theme
+                part.update()
+        self.update()                                  # paper
         for key, act in self.element_actions.items():
             act.setIcon(make_element_icon(key, theme))
         self.canvas.apply_theme(theme)
@@ -729,6 +803,9 @@ class MainWindow(QMainWindow):
         if hasattr(self, "issue_label"):
             self._update_issues()
             self._rebuild_elements_menu()
+
+    def paintEvent(self, _event):
+        paint_paper_grid(self, self.theme)
 
     def _show_conventions(self):
         QMessageBox.information(self, "Sign conventions",
@@ -761,6 +838,7 @@ def setup_application(app):
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(APP_VERSION)
     app.setStyle("Fusion")          # same look on Windows and macOS
+    load_fonts()                    # bundled fonts (assets/fonts), the same on every computer
     app.setFont(default_font())
 
 
@@ -772,5 +850,5 @@ def default_font():
         if fam in families:
             f.setFamily(fam)
             break
-    f.setPointSize(FONT["size_pt"])
+    f.setPointSizeF(FONT["size_pt"])
     return f

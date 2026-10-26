@@ -20,15 +20,17 @@ import time
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QObject, QPointF, QRunnable, Qt, QThreadPool, QTimer, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QPainterPath, QPen, QPolygonF
+from PySide6.QtCore import QObject, QPointF, QRunnable, QSize, Qt, QThreadPool, QTimer, Signal
+from PySide6.QtGui import QBrush, QColor, QIcon, QPainter, QPainterPath, QPen, QPolygonF
 from PySide6.QtWidgets import (QButtonGroup, QFrame, QGraphicsPathItem, QHBoxLayout, QLabel, QToolButton,
                                QVBoxLayout, QWidget)
 
 from physics.streamlines import FADE_LEVELS, Cancelled, StreamlineCache, fade_piece_lists
 
 from .arrows_item import ArrowsItem
+from .chrome import TitleBlock, button_font, font
 from .geometry import fluid_polygon, ray_in_rect, rect_polygon, sector_shading, visible_wall_segment
+from .icons import make_tool_icon
 from .theme import FONT, LAYOUT, MARKERS
 
 
@@ -68,14 +70,10 @@ class CanvasBar(QWidget):
         super().__init__(parent)
         self.setObjectName("CanvasBar")
         self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setFixedHeight(46)
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(10, 6, 10, 6)
-        lay.setSpacing(6)
-
-        title = QLabel("Total-flow streamlines")
-        title.setObjectName("CanvasTitle")
-        lay.addWidget(title)
-        lay.addSpacing(14)
+        lay.setContentsMargins(12, 0, 12, 0)
+        lay.setSpacing(8)
 
         self.btn_static = self._tool("Static", "Streamlines with direction arrows", checkable=True)
         self.btn_anim = self._tool("Animated", "Particles moving with the flow", checkable=True)
@@ -84,13 +82,16 @@ class CanvasBar(QWidget):
         mode.setExclusive(True)
         mode.addButton(self.btn_static)
         mode.addButton(self.btn_anim)
-        lay.addWidget(self.btn_static)
-        lay.addWidget(self.btn_anim)
+        pair = QHBoxLayout()                      # the two mode buttons touch each other
+        pair.setSpacing(0)
+        pair.addWidget(self.btn_static)
+        pair.addWidget(self.btn_anim)
+        lay.addLayout(pair)
 
         lay.addWidget(self._separator())
-        self.btn_select = self._tool("Select / Drag", "Click an element to select, drag to move it",
-                                     checkable=True)
-        self.btn_pan = self._tool("Pan / Zoom", "Drag to pan, scroll to zoom", checkable=True)
+        self.btn_select = self._tool("Select", "Click an element to select, drag to move it",
+                                     checkable=True, icon="select")
+        self.btn_pan = self._tool("Pan", "Drag to pan, scroll to zoom", checkable=True, icon="pan")
         self.btn_select.setChecked(True)
         tools = QButtonGroup(self)
         tools.setExclusive(True)
@@ -98,32 +99,48 @@ class CanvasBar(QWidget):
         tools.addButton(self.btn_pan)
         lay.addWidget(self.btn_select)
         lay.addWidget(self.btn_pan)
-
-        lay.addWidget(self._separator())
-        self.btn_fit = self._tool("Fit view", "Fit plot limits to the elements")
+        self.btn_fit = self._tool("Fit", "Fit plot limits to the elements   [F]", icon="fit")
         lay.addWidget(self.btn_fit)
 
         lay.addStretch(1)
-        self.btn_export = self._tool("Export figure…", "Save the current plot as PNG / PDF / SVG")
+        self.btn_export = self._tool("Export", "Save the current plot as PNG / PDF / SVG", icon="export")
+        self.btn_export.setObjectName("Export")
         lay.addWidget(self.btn_export)
 
         for b in (self.btn_anim, self.btn_select, self.btn_pan, self.btn_export):
             b.clicked.connect(lambda _=False, b=b: self.message.emit(
                 f"Prototype: “{b.text()}” is not connected yet."))
 
-    def _tool(self, text, tip, checkable=False):
+    def _tool(self, text, tip, checkable=False, icon=None):
         b = QToolButton(self)
         b.setText(text)
         b.setToolTip(tip)
         b.setCheckable(checkable)
         b.setCursor(Qt.PointingHandCursor)
+        b.setFont(button_font())
+        b.setFixedHeight(30)
+        if icon:
+            b.setProperty("tool_icon", icon)
+            b.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+            b.setIconSize(QSize(15, 15))
         return b
+
+    def apply_theme(self, theme: dict):
+        """Icons in the text color of each button (rust for Export, paper on a checked button)."""
+        for b in self.findChildren(QToolButton):
+            name = b.property("tool_icon")
+            if name:
+                col = theme["accent"] if b is self.btn_export else theme["text"]
+                icon = make_tool_icon(name, col)
+                icon.addPixmap(make_tool_icon(name, theme["toggle_on_text"]).pixmap(32, 32),
+                               QIcon.Normal, QIcon.On)
+                b.setIcon(icon)
 
     @staticmethod
     def _separator():
         s = QFrame()
         s.setFrameShape(QFrame.VLine)
-        s.setFixedWidth(10)
+        s.setFixedWidth(14)
         s.setStyleSheet("color: transparent;")
         return s
 
@@ -148,8 +165,9 @@ class PlotCanvas(QWidget):
         self.line_width = LAYOUT["streamline_width"]
         self.selected = -1                       # index of the selected element (highlighted)
 
+        # the plot card: a strong ink frame (painted in paintEvent) around bar, plot and title block
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setContentsMargins(2, 2, 2, 2)
         lay.setSpacing(0)
         self.bar = CanvasBar(self)
         lay.addWidget(self.bar)
@@ -167,6 +185,8 @@ class PlotCanvas(QWidget):
         self.plot.setMenuEnabled(False)
         self.plot.hideButtons()
         lay.addWidget(self.plot, 1)
+        self.title_block = TitleBlock(self)          # SCENE | ELEMENTS | VIEW | FILE (filled by the window)
+        lay.addWidget(self.title_block)
         self.vb = self.plot.getPlotItem().getViewBox()
 
         # background grid: one GridItem (the axis-based grid of pyqtgraph is ~15× slower to draw)
@@ -349,7 +369,7 @@ class PlotCanvas(QWidget):
             where = {"flow": "in the flow", "wall": "on the wall", "vertex": "corner vertex",
                      "body": "on the body surface"}[p.kind]
             self._stag_label.setHtml(
-                f'<div style="color:{t["text"]}; font-size:9pt; padding:2px 4px;">'
+                f'<div style="color:{t["text"]}; font-family:{self._mono_css}; font-size:9pt; padding:2px 4px;">'
                 f'<b>Stagnation point</b> <span style="color:{t["text_muted"]}">({where})</span><br>'
                 f'x = {x:.4f}<br>y = {y:.4f}</div>')
             self._stag_label.fill = pg.mkBrush(t["panel_bg"])
@@ -429,20 +449,23 @@ class PlotCanvas(QWidget):
     # ------------------------------------------------------------------ drawing
     def apply_theme(self, theme: dict):
         self.theme = t = theme
+        self.update()                                # frame color
+        self.bar.apply_theme(t)
         self.plot.setBackground(t["plot_bg"])
         pi = self.plot.getPlotItem()
-        font = QFont()
-        font.setPointSize(FONT["plot_label_size_pt"])
+        tick_font = font("mono", FONT["plot_label_size_pt"] - 1)
+        self._mono_css = "'" + tick_font.family() + "'"      # for the HTML of the stagnation box
         for name in ("left", "bottom"):
             ax = pi.getAxis(name)
             ax.setPen(pg.mkPen(t["plot_axis"]))
             ax.setTextPen(pg.mkPen(t["plot_axis"]))
-            ax.setTickFont(font)
-        label_style = {"color": t["plot_axis"], "font-size": f"{FONT['plot_label_size_pt']}pt"}
+            ax.setTickFont(tick_font)
+        label_style = {"color": t["plot_axis"], "font-size": f"{FONT['plot_label_size_pt']}pt",
+                       "font-family": tick_font.family()}
         pi.setLabel("bottom", "x", **label_style)
         pi.setLabel("left", "y", **label_style)
         grid_color = QColor(t["plot_axis"])
-        grid_color.setAlphaF(0.30 if t["name"] == "light" else 0.25)
+        grid_color.setAlphaF(0.22)
         self._grid.setPen(pg.mkPen(grid_color, width=1))
         self._set_line_pens()
         self._dividing_item.setPen(pg.mkPen(t["dividing_streamline"], width=LAYOUT["dividing_streamline_width"]))
@@ -452,6 +475,14 @@ class PlotCanvas(QWidget):
             self._draw_stagnation()
         self._force = True
         self.request()
+
+    def paintEvent(self, _event):
+        """Frame of the plot card (2 px ink line)."""
+        p = QPainter(self)
+        p.fillRect(self.rect(), QColor(self.theme["plot_bg"]))
+        p.setPen(QPen(QColor(self.theme["ink"]), 2))
+        p.drawRect(self.rect().adjusted(1, 1, -1, -1))
+        p.end()
 
     def _set_line_pens(self):
         n = len(self._line_items)

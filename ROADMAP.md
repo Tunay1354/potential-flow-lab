@@ -49,8 +49,22 @@ Teslim: yaklaşık 26 Kasım 2026 (rapor + user guide + canlı demo).
    - Analitik karşılaştırma testleri: silindir, lifting cylinder (sin θ = Γ/4πV∞a, Γ = 4πV∞a çift kök,
      Γ > 4πV∞a), Rankine half-body / oval, köşe, duvar, vortex çiftleri
    - Not: cisim içindeki streamline'ları gizleme / cismi doldurma seçeneği Faz 4 katmanlarına eklenebilir
-6. ▶ **Paket C — Sıcak, tatlı tema** [6]: 2–3 renk seçeneği gösterilip seçilecek (açık + koyu)
-7. ☐ **Paket D — Panel sistemi** [4]: yumuşak animasyonlu yerleşim, sadece izinli yerlere oturma,
+6. ✅ **Paket C — Tema "teknik çizim kâğıdı"** [6] (konseptler canvas'ta seçildi, Tur 2 = C revize)
+   - Program tam ekran açılır; üstte füme meşe (#A98B6D) ahşap band: logo (kare kâğıt + streamline + silindir),
+     POTENTIAL FLOW LAB, sürüm, açık dosya
+   - Menüler cetvel şeklindeki rail'de (mm / cm çizgili); Help'in sağında kunduz için boş yer (`beaver_perch_px`)
+   - Kareli kâğıt zemin; paneller çift çizgili kart (antet gibi), başlık + kalın çizgi; plot kalın mürekkep
+     çerçeveli kart, altında antet şeridi (SCENE / ELEMENTS / VIEW / FILE)
+   - Açık + koyu tema (View → Theme); fontlar programla birlikte geliyor (IBM Plex Mono, Barlow,
+     Barlow Condensed — SIL OFL, `assets/fonts`)
+   - Tüm renk / boyutlar `app/theme.py`, çizimler `app/chrome.py`
+   - Not (Paket D'de bakılacak): panellerin yeri değişince kartların görünümü; Properties paneli
+   - Not (Faz 6): kunduz bu turda eklenmedi — tasarımı daha "tatlı" olacak şekilde revize edilecek.
+     Yeri ve duruşu kesin: Help'in sağında; kafası cetvelin üst kenarının üstünde (ahşap bandın içinde),
+     patileri cetvelin kenarına tutunuyor, gövdesi cetvelin arkasında; sürükleyince yerinden çıkar.
+     Konuşma kutusu: pixel yazı (VT323), harf harf yazılır, kâğıt renk kutu + mürekkep pixel çerçeve;
+     "İleri" butonu ileride header ahşap rengi olacak
+7. ▶ **Paket D — Panel sistemi** [4]: yumuşak animasyonlu yerleşim, sadece izinli yerlere oturma,
    ayrı pencere olarak yüzebilme, her bölüm (View range, Streamlines, Layers, …) ayrı panel,
    başlığa sağ tık → görünecek panelleri tikle, View → Panels, Reset layout, yerleşimi hatırlama
 8. ☐ **Faz 2c — Plot'ta sürükleme**: elementleri fareyle taşıma (undo'da tek adım), sürüklerken canlı streamline

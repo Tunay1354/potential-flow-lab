@@ -128,27 +128,37 @@ def _color_key(key: str) -> str:
 
 
 def make_app_icon(theme: dict, size: int = 128) -> QIcon:
-    """Program icon: a cylinder with two streamlines."""
+    """Program icon: the logo of the header (paper tile, streamlines around a cylinder)."""
+    from .chrome import logo_pixmap
+    icon = QIcon()
+    for s in (16, 32, 48, size, 256):
+        icon.addPixmap(logo_pixmap(theme, s))
+    return icon
+
+
+# tool icons of the bar above the plot: polylines in a 24 × 24 design (like the concept drawing)
+_TOOL_PATHS = {
+    "select": [[(5, 3), (19, 11), (12.8, 12.8), (10.8, 19), (5, 3)]],
+    "pan": [[(12, 3), (12, 21)], [(3, 12), (21, 12)], [(9.5, 5.5), (12, 3), (14.5, 5.5)],
+            [(9.5, 18.5), (12, 21), (14.5, 18.5)], [(5.5, 9.5), (3, 12), (5.5, 14.5)],
+            [(18.5, 9.5), (21, 12), (18.5, 14.5)]],
+    "fit": [[(4, 9), (4, 4), (9, 4)], [(20, 9), (20, 4), (15, 4)], [(4, 15), (4, 20), (9, 20)],
+            [(20, 15), (20, 20), (15, 20)]],
+    "export": [[(12, 3), (12, 15)], [(7, 10), (12, 15), (17, 10)], [(5, 21), (19, 21)]],
+}
+
+
+def make_tool_icon(name: str, color: str, size: int = 32) -> QIcon:
     pm = QPixmap(size, size)
     pm.fill(Qt.transparent)
     p = QPainter(pm)
     p.setRenderHint(QPainter.Antialiasing)
-    s = float(size)
-    p.setBrush(QColor(theme["accent"]))
-    p.setPen(Qt.NoPen)
-    p.drawRoundedRect(QRectF(0, 0, s, s), s * 0.2, s * 0.2)
-    white = QColor("#FFFFFF")
-    p.setPen(QPen(white, s * 0.05, Qt.SolidLine, Qt.RoundCap))
-    for sgn in (-1, 1):
-        path = QPainterPath()
-        path.moveTo(s * 0.1, s * (0.5 + sgn * 0.13))
-        path.cubicTo(s * 0.35, s * (0.5 + sgn * 0.13), s * 0.33, s * (0.5 + sgn * 0.32),
-                     s * 0.5, s * (0.5 + sgn * 0.32))
-        path.cubicTo(s * 0.67, s * (0.5 + sgn * 0.32), s * 0.65, s * (0.5 + sgn * 0.13),
-                     s * 0.9, s * (0.5 + sgn * 0.13))
+    k = size / 24.0
+    p.setPen(QPen(QColor(color), 1.9 * k, Qt.SolidLine, Qt.SquareCap, Qt.MiterJoin))
+    for line in _TOOL_PATHS[name]:
+        path = QPainterPath(QPointF(line[0][0] * k, line[0][1] * k))
+        for x, y in line[1:]:
+            path.lineTo(x * k, y * k)
         p.drawPath(path)
-    p.setBrush(white)
-    p.setPen(Qt.NoPen)
-    p.drawEllipse(QPointF(s * 0.5, s * 0.5), s * 0.17, s * 0.17)
     p.end()
     return QIcon(pm)
