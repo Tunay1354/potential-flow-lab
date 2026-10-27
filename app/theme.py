@@ -336,6 +336,7 @@ def build_stylesheet(t: dict) -> str:
     QStatusBar::item {{ border: none; }}
     QStatusBar QLabel {{ padding: 0 10px; font-family: "{mono}"; font-size: 9pt; }}
     QLabel#Muted {{ color: {t['text_muted']}; }}
+    QLabel#LayerNote {{ color: {t['text_muted']}; font-size: 8.5pt; margin-left: 22px; }}
     QLabel#Formula {{ font-family: "Cambria Math", "STIX Two Math", "Times New Roman", serif;
         font-size: 13pt; padding: 6px; background: {t['window_bg']}; border: 1px solid {t['border_soft']}; }}
     QLabel#DialogTitle {{ font-size: 13pt; font-weight: 600; }}

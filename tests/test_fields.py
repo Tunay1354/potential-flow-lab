@@ -192,14 +192,40 @@ def test_one_color_map_at_a_time(win, qapp):
 
 def test_cp_checkbox_says_when_a_reference_is_needed(win, qapp):
     from physics import Source, Uniform
-    box = win.settings_panel.layer_boxes["cp"]
+    sp = win.settings_panel
     win.load_scene([Source(m=-2.0)], VIEW, title="sink")
-    assert "needs V_ref" in box.text()
+    assert sp.cp_needs_reference and not sp.cp_note.isHidden()
     win.load_scene([Uniform(), Source(m=1.0)], VIEW, title="half body")
-    assert "needs V_ref" not in box.text()
+    assert not sp.cp_needs_reference and sp.cp_note.isHidden()
     win.load_scene([Source(m=-2.0)], VIEW, title="sink")
     win.settings_panel.c_cp_ref.setCurrentIndex(1)                   # a custom V_ref is enough
-    assert "needs V_ref" not in box.text()
+    assert not sp.cp_needs_reference and sp.cp_note.isHidden()
+
+
+def test_the_cp_note_link_opens_the_reference_setting(win, qapp):
+    from physics import Source
+    sp = win.settings_panel
+    win.load_scene([Source(m=-2.0)], VIEW, title="sink")
+    sp.set_section_visible("computation", False)
+    sp.cp_note.linkActivated.emit("vref")
+    assert sp.section_visible("computation") and sp.c_cp_ref.currentIndex() == 1
+
+
+def test_plot_settings_content_never_wider_than_the_panel(win, qapp):
+    """A scene without V∞ once made the Cp layer's text longer, the content wider than the panel and
+    its right part (slider ends, handles at the maximum, text) was cut off."""
+    from PySide6.QtCore import QPoint
+    from PySide6.QtWidgets import QSlider
+    from physics import Source, Uniform
+    sp = win.settings_panel
+    for scene in ([Uniform(), Source(m=1.0)], [Source(m=-2.0)], [Uniform()]):
+        win.load_scene(scene, VIEW, title="scene")
+        for _ in range(5):
+            qapp.processEvents()
+        assert sp.widget().minimumSizeHint().width() <= sp.viewport().width()
+        for s in sp.findChildren(QSlider):
+            if s.isVisibleTo(sp):
+                assert s.mapTo(sp.viewport(), QPoint(s.width(), 0)).x() <= sp.viewport().width()
 
 
 def test_clicking_the_cp_note_opens_the_reference_setting(win, qapp):

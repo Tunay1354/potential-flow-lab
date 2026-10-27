@@ -1,7 +1,7 @@
 """
 panels.py — right-side panels: Elements list and Plot settings.
 """
-from PySide6.QtCore import QModelIndex, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QModelIndex, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox,
                                QHBoxLayout, QLabel, QPushButton, QScrollArea, QSlider, QTreeWidget,
@@ -181,6 +181,7 @@ class SettingsPanel(QScrollArea):
         body.setObjectName("DockBody")
         body.setAttribute(Qt.WA_StyledBackground, True)
         self.setWidget(body)
+        body.installEventFilter(self)            # content got wider: the panel too (see eventFilter)
         lay = QVBoxLayout(body)
         lay.setContentsMargins(10, 0, 10, 10)
         lay.setSpacing(2)
@@ -230,6 +231,17 @@ class SettingsPanel(QScrollArea):
             c.toggled.connect(lambda checked, k=key: self.layer_changed.emit(k, checked))
             v.addWidget(c)
             self.layer_boxes[key] = c
+            if key == "cp":
+                # under the box, not in its text: a longer text would make the panel wider than it is
+                # (everything on the right — slider ends, text — was cut off then)
+                note = self.cp_note = QLabel('needs a reference speed V_ref: <a href="vref">set V_ref…</a>')
+                note.setObjectName("LayerNote")
+                note.setWordWrap(True)
+                note.setTextFormat(Qt.RichText)
+                note.linkActivated.connect(lambda _link: self.show_cp_reference())
+                note.setVisible(False)
+                v.addWidget(note)
+                self.cp_needs_reference = False
         self._add_section("layers", "Layers", g, lay)
 
         # --- the animations: Particles, Pulses ---------------------------------
@@ -281,6 +293,14 @@ class SettingsPanel(QScrollArea):
         body = self.widget().minimumSizeHint().width() if self.widget() else 0
         bar = self.verticalScrollBar().sizeHint().width()
         return QSize(max(hint.width(), body + bar + 2 * self.frameWidth()), hint.height())
+
+    def eventFilter(self, obj, event):
+        """The content asks for a new layout (e.g. a longer text): the panel's minimum width
+        (minimumSizeHint) may have changed with it, so the dock is told to lay out again — otherwise the
+        content would be wider than the panel and its right part cut off (no horizontal scrollbar)."""
+        if obj is self.widget() and event.type() == QEvent.LayoutRequest:
+            self.updateGeometry()
+        return super().eventFilter(obj, event)
 
     # ------------------------------------------------------------------ sections
     def _add_section(self, key, title, group, layout):
@@ -345,11 +365,10 @@ class SettingsPanel(QScrollArea):
 
     def set_cp_available(self, available: bool):
         """The Cp layer needs a reference speed (V∞ of a uniform flow, or a custom V_ref)."""
-        box = self.layer_boxes["cp"]
-        base = dict((k, t) for k, t, _on in LAYERS)["cp"]
-        box.setText(base if available else base + "  — needs V_ref")
-        box.setToolTip("" if available else "This scene has no uniform flow (V∞): set a custom V_ref in "
-                       "Computation → Cp reference")
+        self.cp_needs_reference = not available
+        self.cp_note.setVisible(not available)
+        self.layer_boxes["cp"].setToolTip("" if available else "This scene has no uniform flow (V∞): set a "
+                                          "custom V_ref in Computation → Cp reference")
 
     def show_cp_reference(self):
         """Bring the V_ref field into view: Computation section shown, 'Custom' chosen, field focused."""

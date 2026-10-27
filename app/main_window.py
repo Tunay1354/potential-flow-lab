@@ -345,6 +345,7 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         pal = app.palette()
         pal.setColor(QPalette.Highlight, QColor(theme["accent_strong"]))
         pal.setColor(QPalette.HighlightedText, QColor(theme["accent_text"]))
+        pal.setColor(QPalette.Link, QColor(theme["accent"]))           # links in labels (e.g. "set V_ref…")
         app.setPalette(pal)
         self.setWindowIcon(make_app_icon(theme))
         self.header.apply_theme(theme)
