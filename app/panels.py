@@ -168,7 +168,7 @@ SLIDER_SCALES = {"density": (0.0, 0.2),          # 1…10 -> 0.2…2   (1 = defa
 
 def slider_value(key: str, position: int) -> float:
     offset, step = SLIDER_SCALES[key]
-    return offset + step * position
+    return round(offset + step * position, 9)          # 1.4, not 1.4000000000000001 (saved in the scene)
 
 
 def slider_position(key: str, value: float) -> int:
