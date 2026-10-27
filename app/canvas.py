@@ -117,7 +117,7 @@ class CanvasBar(QWidget):
         self.btn_export.setObjectName("Export")
         lay.addWidget(self.btn_export)
 
-        for b in (self.btn_anim, self.btn_export):
+        for b in (self.btn_anim,):
             b.clicked.connect(lambda _=False, b=b: self.message.emit(
                 f"Prototype: “{b.text()}” is not connected yet."))
 
@@ -279,6 +279,7 @@ class PlotCanvas(QWidget):
         self._stag_label.setVisible(False)
         self.plot.addItem(self._stag_label)
         self.stagnation_points = []
+        self.last_result = None
         self._dividing_lines, self._dividing_owner = [], []
         self.selected_stagnation = None          # index of the selected stagnation point (or None)
         # "dividing": ALL dividing streamlines; those of a selected stagnation point are always shown
@@ -546,6 +547,7 @@ class PlotCanvas(QWidget):
         grid_color.setAlphaF(0.22)
         self._grid.setPen(pg.mkPen(grid_color, width=1))
         self._set_line_pens()
+        self._arrow_item.setColor(t["streamline"])
         self._dividing_item.setPen(pg.mkPen(t["dividing_streamline"], width=LAYOUT["dividing_streamline_width"]))
         self._stag_item.setPen(pg.mkPen(t["stagnation"], width=2))
         self._stag_item.setBrush(pg.mkBrush(t["plot_bg"]))
@@ -673,6 +675,7 @@ class PlotCanvas(QWidget):
     def _draw_result(self, result, level, ms):
         """Draw a StreamlineSet. ms = None for a partial result (the visible part; more follows)."""
         self._drawn_domain, self._drawn_level = result.domain, level
+        self.last_result = result                        # (File → Export data: the streamlines)
         self._pieces = []
         for parts in fade_piece_lists(result.lines, result.tapers, result.separation):
             boxes = np.array([(p[:, 0].min(), p[:, 0].max(), p[:, 1].min(), p[:, 1].max()) for p in parts]) \

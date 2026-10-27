@@ -62,6 +62,8 @@ class ArrowsItem(pg.GraphicsObject):
         n = self._x.size
         if n == 0:
             return
+        k = self._exportOpts.get("resolutionScale", 1.0) if self._exportOpts else 1.0   # k× PNG export
+        size, length = self.size * k, self.length * k
         tr = p.transform()
         m11, m12, m21, m22, dx, dy = tr.m11(), tr.m12(), tr.m21(), tr.m22(), tr.dx(), tr.dy()
         sx = m11 * self._x + m21 * self._y + dx            # tips in screen pixels
@@ -71,8 +73,8 @@ class ArrowsItem(pg.GraphicsObject):
         norm = np.hypot(ux, uy)
         norm[norm == 0] = 1.0
         ux, uy = ux / norm, uy / norm
-        bx, by = sx - self.length * ux, sy - self.length * uy      # middle of the base
-        hx, hy = -uy * 0.5 * self.size, ux * 0.5 * self.size      # half base, perpendicular
+        bx, by = sx - length * ux, sy - length * uy                # middle of the base
+        hx, hy = -uy * 0.5 * size, ux * 0.5 * size                # half base, perpendicular
         # every head: tip -> base corner -> base corner -> tip, as one path built from arrays
         xs = np.column_stack([sx, bx + hx, bx - hx, sx]).ravel()
         ys = np.column_stack([sy, by + hy, by - hy, sy]).ravel()

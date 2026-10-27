@@ -87,8 +87,15 @@ Teslim: yaklaşık 26 Kasım 2026 (rapor + user guide + canlı demo).
    - Düzeltme: sürüklemeden sonra stagnation point'e tıklayınca dividing streamline yine çiziliyor
    - Sector köşesi artık stagnation point olarak işaretlenmiyor (ödevde istenmiyor; köşe zaten duvarların
      birleşimi); fizik tarafında hâlâ biliniyor
-9. ▶ **Export** (Faz 4'ten öne alındı): plot'u PNG / PDF / SVG olarak kaydetme, veri CSV (rapor figürleri için)
-10. ☐ **Faz 3 — Rapor malzemesi**: doğrulama figürleri ve tabloları (verification case'ler, stagnation
+9. ✅ **Export** (File menüsü, Ctrl+E, plot barındaki Export butonu)
+   - Figür: PNG (1×–4×; çizgi, ok ve semboller ölçekle büyür → ekrandaki gibi ama keskin), SVG ve PDF (vektör,
+     rapor için); arka plan: plot rengi / beyaz / şeffaf; koyu temada "Light colors (for printing)"
+   - SVG'de plot alanı kırpılır (Qt'nin SVG çıktısı kırpamadığı için eksenler ayrı çizilip birleştirilir),
+     fontlar başka bilgisayarda yoksa Consolas / Arial'a düşer
+   - Veri (CSV): elementler, stagnation point'ler, görünen streamline'lar, ızgarada u, v, |V|, Cp, φ, ψ
+     (katı bölge ve tekil noktalar boş); ayraç virgül veya noktalı virgül + ondalık virgül (Türkçe Excel)
+   - Seçenekler ve son klasör hatırlanır
+10. ▶ **Faz 3 — Rapor malzemesi**: doğrulama figürleri ve tabloları (verification case'ler, stagnation
    karşılaştırmaları), user guide taslağı
 11. ☐ **Faz 4 — Ekstralar**: animasyon [5] (parçacıklar ve / veya çizgi üstünde kayan desen, 60 fps hedefi,
     ayarları sonradan değiştirilebilir), φ / |V| / Cp katmanları, probe geliştirmeleri

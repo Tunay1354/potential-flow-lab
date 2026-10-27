@@ -28,8 +28,8 @@ def fresh_layout():
     except ImportError:                       # pragma: no cover
         yield
         return
-    for group in ("layout", "shortcuts"):
+    for group in ("layout", "shortcuts", "export"):
         QSettings().remove(group)
     yield
-    for group in ("layout", "shortcuts"):
+    for group in ("layout", "shortcuts", "export"):
         QSettings().remove(group)

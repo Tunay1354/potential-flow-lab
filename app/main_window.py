@@ -78,6 +78,7 @@ class MainWindow(QMainWindow):
         desk_lay.addWidget(self.canvas, 1)
         self.setCentralWidget(desk)
         self.canvas.bar.message.connect(self.flash)
+        self.canvas.bar.btn_export.clicked.connect(self.export_figure)
         self.canvas.probe.connect(self._update_probe)
         self.canvas.element_clicked.connect(self.select_element)
         self.canvas.stagnation_clicked.connect(self.select_stagnation)
@@ -308,8 +309,11 @@ class MainWindow(QMainWindow):
         self.act_save_as.setShortcuts([QKeySequence.SaveAs, QKeySequence("Ctrl+Shift+S")])
         self.act_save_as.triggered.connect(self.save_scene_as)
         m.addSeparator()
-        self._placeholder(m, "Export figure (PNG / PDF / SVG)…", "Ctrl+E", "Phase 4")
-        self._placeholder(m, "Export data (CSV)…", None, "Phase 4")
+        self.act_export_fig = m.addAction("Export figure (PNG / SVG / PDF)…")
+        self.act_export_fig.setShortcut("Ctrl+E")
+        self.act_export_fig.triggered.connect(self.export_figure)
+        self.act_export_data = m.addAction("Export data (CSV)…")
+        self.act_export_data.triggered.connect(self.export_data)
         m.addSeparator()
         m.addAction("Clear all").triggered.connect(self.clear_all)
         m.addSeparator()
@@ -432,6 +436,8 @@ class MainWindow(QMainWindow):
                 ("file.open", self.act_open, "Open…", "File"),
                 ("file.save", self.act_save, "Save", "File"),
                 ("file.save_as", self.act_save_as, "Save as…", "File"),
+                ("file.export_figure", self.act_export_fig, "Export figure…", "File"),
+                ("file.export_data", self.act_export_data, "Export data (CSV)…", "File"),
                 ("file.exit", self.act_exit, "Exit", "File"),
                 ("edit.undo", self.act_undo, "Undo", "Edit"),
                 ("edit.redo", self.act_redo, "Redo", "Edit"),
@@ -703,7 +709,79 @@ class MainWindow(QMainWindow):
             return self.save_scene()
         return answer == "discard"
 
+    # ------------------------------------------------------------------ export (File menu)
+    def _export_settings(self, kind: str) -> dict:
+        s = QSettings()
+        raw = s.value(f"export/{kind}")
+        try:
+            import json
+            return json.loads(raw) if raw else {}
+        except (TypeError, ValueError):
+            return {}
+
+    def _save_export_settings(self, kind: str, options: dict, path: str):
+        import json
+        s = QSettings()
+        s.setValue(f"export/{kind}", json.dumps(options))
+        s.setValue("export/folder", os.path.dirname(os.path.abspath(path)))
+
+    def _export_base_name(self) -> str:
+        base = os.path.splitext(os.path.basename(self.current_path))[0] if self.current_path else self.scene_title
+        return re.sub(r'[\\/:*?"<>|]+', " ", base).strip() or "figure"
+
+    def export_figure(self):
+        """File → Export figure…: options dialog, then where to save."""
+        from .export import ExportFigureDialog, render_figure
+        dlg = ExportFigureDialog(self.canvas, self._export_settings("figure"), self)
+        if not self._run_dialog(dlg):
+            return False
+        opt = dlg.options()
+        fmt = opt["format"]
+        folder = QSettings().value("export/folder", "") or self.recent.last_folder
+        path = self._ask_export_path(os.path.join(folder, self._export_base_name() + "." + fmt),
+                                     f"{fmt.upper()} files (*.{fmt})")
+        if not path:
+            return False
+        if not os.path.splitext(path)[1]:
+            path += "." + fmt
+        try:
+            render_figure(self.canvas, path, fmt, opt["scale"], opt["background"], opt["light"])
+        except (OSError, ValueError) as exc:
+            self._notify_user("warning", "Cannot export the figure", str(exc))
+            return False
+        self._save_export_settings("figure", opt, path)
+        self.flash(f"Figure saved: {os.path.basename(path)}")
+        return True
+
+    def export_data(self):
+        """File → Export data (CSV)…: which tables, then where to save."""
+        from .export import ExportDataDialog
+        from .export import export_data as write_tables
+        dlg = ExportDataDialog(self._export_settings("data"), self)
+        if not self._run_dialog(dlg):
+            return False
+        opt = dlg.options()
+        folder = QSettings().value("export/folder", "") or self.recent.last_folder
+        path = self._ask_export_path(os.path.join(folder, self._export_base_name() + ".csv"), "CSV files (*.csv)")
+        if not path:
+            return False
+        try:
+            written = write_tables(path, opt["datasets"], self.elements, self.canvas, opt["grid"], opt["separator"])
+        except OSError as exc:
+            self._notify_user("warning", "Cannot export the data", str(exc))
+            return False
+        self._save_export_settings("data", opt, path)
+        self.flash("Saved " + ", ".join(os.path.basename(p) for p in written))
+        return True
+
     # dialogs (separate methods so the tests can answer them)
+    def _run_dialog(self, dlg) -> bool:
+        return bool(dlg.exec())
+
+    def _ask_export_path(self, suggested: str, file_filter: str) -> str:
+        path, _ = QFileDialog.getSaveFileName(self, "Export", suggested, file_filter)
+        return path
+
     def _ask_save_changes(self) -> str:
         name = os.path.basename(self.current_path) if self.current_path else self.scene_title
         box = QMessageBox(QMessageBox.Warning, "Unsaved changes",
