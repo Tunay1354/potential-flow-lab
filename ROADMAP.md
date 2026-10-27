@@ -95,6 +95,8 @@ Teslim: yaklaşık 26 Kasım 2026 (rapor + user guide + canlı demo).
    - Veri (CSV): elementler, stagnation point'ler, görünen streamline'lar, ızgarada u, v, |V|, Cp, φ, ψ
      (katı bölge ve tekil noktalar boş); ayraç virgül veya noktalı virgül + ondalık virgül (Türkçe Excel)
    - Seçenekler ve son klasör hatırlanır
+   - Figürde eksenler dört tarafta (üst / sağ, alt / sol ile aynı; plot alanı ortada) — sadece dosyada,
+     ekran değişmez; "with numbers and axis titles" ile üst / sağdaki sayılar kapatılabilir
 10. ▶ **Faz 3 — Rapor malzemesi**: doğrulama figürleri ve tabloları (verification case'ler, stagnation
    karşılaştırmaları), user guide taslağı
 11. ☐ **Faz 4 — Ekstralar**: animasyon [5] (parçacıklar ve / veya çizgi üstünde kayan desen, 60 fps hedefi,

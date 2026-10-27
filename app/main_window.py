@@ -745,7 +745,8 @@ class MainWindow(QMainWindow):
         if not os.path.splitext(path)[1]:
             path += "." + fmt
         try:
-            render_figure(self.canvas, path, fmt, opt["scale"], opt["background"], opt["light"])
+            render_figure(self.canvas, path, fmt, opt["scale"], opt["background"], opt["light"],
+                          opt.get("mirror", True), opt.get("mirror_numbers", True))
         except (OSError, ValueError) as exc:
             self._notify_user("warning", "Cannot export the figure", str(exc))
             return False

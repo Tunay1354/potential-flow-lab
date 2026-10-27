@@ -11,6 +11,7 @@ in view, and u, v, |V|, Cp, φ, ψ on a grid over the view.
 """
 import csv
 import os
+from contextlib import contextmanager, nullcontext
 
 import numpy as np
 import pyqtgraph as pg
@@ -30,9 +31,60 @@ BACKGROUNDS = ("paper", "white", "transparent")
 
 # ---------------------------------------------------------------------------------------- figure
 def figure_size(canvas) -> QSize:
-    """Size (screen pixels) of the exported region: plot area with axes and axis labels."""
+    """Size (screen pixels) of the exported region: plot area with axes and axis labels (the same with
+    mirrored axes: the plot area gets smaller instead)."""
     r = canvas.plot.getPlotItem().sceneBoundingRect()
     return QSize(int(round(r.width())), int(round(r.height())))
+
+
+@contextmanager
+def mirrored_axes(canvas, numbers: bool = True):
+    """For the export only: axes also on the top and the right, as wide as the left / bottom ones, so
+    the plot area sits in the middle of the figure (closed frame). numbers = also tick values and
+    axis titles there. The screen layout and the visible region come back afterwards."""
+    from PySide6.QtWidgets import QApplication
+    pi, vb = canvas.plot.getPlotItem(), canvas.vb
+    (x0, x1), (y0, y1) = vb.viewRange()
+    left, bottom = pi.getAxis("left"), pi.getAxis("bottom")
+    pi.showAxis("top")
+    pi.showAxis("right")
+    pairs = ((pi.getAxis("right"), left), (pi.getAxis("top"), bottom))
+    try:
+        for ax, twin in pairs:
+            ax.setPen(twin.pen())
+            ax.setTextPen(twin.textPen())
+            ax.setTickFont(twin.style["tickFont"])
+            ax.setStyle(showValues=numbers)
+            ax.setLabel(twin.labelText if numbers else None, **twin.labelStyle)
+            if not numbers:
+                ax.showLabel(False)
+        right, top = pairs[0][0], pairs[1][0]
+        right.setWidth(left.width())
+        top.setHeight(bottom.height())
+        pi.layout.activate()
+        QApplication.processEvents()
+        for _ in range(3):              # equal paper on both sides of the plot area (layout margins differ)
+            r, area = pi.sceneBoundingRect(), vb.sceneBoundingRect()
+            dx = (r.right() - area.right()) - (area.left() - r.left())
+            dy = (area.top() - r.top()) - (r.bottom() - area.bottom())
+            if abs(dx) < 0.5 and abs(dy) < 0.5:
+                break
+            right.setWidth(max(1.0, right.width() - dx))
+            top.setHeight(max(1.0, top.height() - dy))
+            pi.layout.activate()
+            QApplication.processEvents()
+        vb.setRange(xRange=(x0, x1), yRange=(y0, y1), padding=0)   # the same region (or a bit more)
+        QApplication.processEvents()
+        yield
+    finally:
+        pi.hideAxis("top")
+        pi.hideAxis("right")
+        pi.getAxis("right").setWidth(None)
+        pi.getAxis("top").setHeight(None)
+        pi.layout.activate()
+        QApplication.processEvents()
+        vb.setRange(xRange=(x0, x1), yRange=(y0, y1), padding=0)
+        QApplication.processEvents()
 
 
 def _scale_pens(scene, k: float) -> list:
@@ -55,60 +107,67 @@ def _scale_pens(scene, k: float) -> list:
 
 
 def render_figure(canvas, path: str, fmt: str, scale: float = 2.0, background: str = "paper",
-                  light: bool = False):
-    """Write the plot to `path` (png / svg / pdf). Raises OSError if the file cannot be written."""
+                  light: bool = False, mirror: bool = True, mirror_numbers: bool = True):
+    """Write the plot to `path` (png / svg / pdf). Raises OSError if the file cannot be written.
+    mirror: axes on all four sides (centered plot area), see mirrored_axes."""
     fmt = fmt.lower()
     theme_before = canvas.theme
     if light and canvas.theme["name"] != "light":
         canvas.apply_theme(LIGHT)                          # print colors; the screen theme comes back
     try:
-        plot_item = canvas.plot.getPlotItem()
-        scene = canvas.plot.scene()
-        source = plot_item.sceneBoundingRect()
-        w, h = source.width(), source.height()
-        bg = None if background == "transparent" else \
-            QColor("#FFFFFF" if background == "white" else canvas.theme["plot_bg"])
-        k = float(scale) if fmt == "png" else 1.0
-        items = [it for it in scene.items() if hasattr(it, "setExportMode")]
-        saved = _scale_pens(scene, k)
-        for it in items:
-            it.setExportMode(True, {"antialias": True, "resolutionScale": k, "background": bg})
-        try:
-            if fmt == "png":
-                img = QImage(int(round(w * k)), int(round(h * k)), QImage.Format_ARGB32)
-                img.fill(bg if bg is not None else Qt.transparent)
-                p = QPainter(img)
-                p.setRenderHint(QPainter.Antialiasing, True)
-                p.setRenderHint(QPainter.TextAntialiasing, True)
-                scene.render(p, QRectF(0, 0, img.width(), img.height()), source)
-                p.end()
-                if not img.save(path, "PNG"):
-                    raise OSError(f"Could not write {path}")
-            elif fmt == "svg":
-                _write_svg(canvas, path, source, bg)
-            elif fmt == "pdf":
-                writer = QPdfWriter(path)
-                writer.setResolution(96)                    # 1 screen pixel = 1/96 inch: lines as on screen
-                writer.setPageSize(QPageSize(QSizeF(w * 72.0 / 96.0, h * 72.0 / 96.0), QPageSize.Point))
-                writer.setPageMargins(QMarginsF(0, 0, 0, 0))
-                writer.setTitle("Potential Flow Lab figure")
-                p = QPainter(writer)
-                if bg is not None:
-                    p.fillRect(QRectF(0, 0, w, h), bg)
-                scene.render(p, QRectF(0, 0, w, h), source)
-                p.end()
-            else:
-                raise ValueError(f"Unknown format: {fmt}")
-        finally:
-            for it in items:
-                it.setExportMode(False)
-            for it, pen in saved:
-                it.setPen(pen)
-        if fmt != "png" and not os.path.exists(path):
-            raise OSError(f"Could not write {path}")
+        with mirrored_axes(canvas, mirror_numbers) if mirror else nullcontext():
+            _render(canvas, path, fmt, scale, background)
     finally:
         if canvas.theme is not theme_before:
             canvas.apply_theme(theme_before)
+
+
+def _render(canvas, path, fmt, scale, background):
+    """Draw the plot region into the file (see render_figure)."""
+    plot_item = canvas.plot.getPlotItem()
+    scene = canvas.plot.scene()
+    source = plot_item.sceneBoundingRect()
+    w, h = source.width(), source.height()
+    bg = None if background == "transparent" else \
+        QColor("#FFFFFF" if background == "white" else canvas.theme["plot_bg"])
+    k = float(scale) if fmt == "png" else 1.0
+    items = [it for it in scene.items() if hasattr(it, "setExportMode")]
+    saved = _scale_pens(scene, k)
+    for it in items:
+        it.setExportMode(True, {"antialias": True, "resolutionScale": k, "background": bg})
+    try:
+        if fmt == "png":
+            img = QImage(int(round(w * k)), int(round(h * k)), QImage.Format_ARGB32)
+            img.fill(bg if bg is not None else Qt.transparent)
+            p = QPainter(img)
+            p.setRenderHint(QPainter.Antialiasing, True)
+            p.setRenderHint(QPainter.TextAntialiasing, True)
+            scene.render(p, QRectF(0, 0, img.width(), img.height()), source)
+            p.end()
+            if not img.save(path, "PNG"):
+                raise OSError(f"Could not write {path}")
+        elif fmt == "svg":
+            _write_svg(canvas, path, source, bg)
+        elif fmt == "pdf":
+            writer = QPdfWriter(path)
+            writer.setResolution(96)                    # 1 screen pixel = 1/96 inch: lines as on screen
+            writer.setPageSize(QPageSize(QSizeF(w * 72.0 / 96.0, h * 72.0 / 96.0), QPageSize.Point))
+            writer.setPageMargins(QMarginsF(0, 0, 0, 0))
+            writer.setTitle("Potential Flow Lab figure")
+            p = QPainter(writer)
+            if bg is not None:
+                p.fillRect(QRectF(0, 0, w, h), bg)
+            scene.render(p, QRectF(0, 0, w, h), source)
+            p.end()
+        else:
+            raise ValueError(f"Unknown format: {fmt}")
+    finally:
+        for it in items:
+            it.setExportMode(False)
+        for it, pen in saved:
+            it.setPen(pen)
+    if fmt != "png" and not os.path.exists(path):
+        raise OSError(f"Could not write {path}")
 
 
 def _svg_body(scene, source) -> str:
@@ -341,6 +400,14 @@ class ExportFigureDialog(QDialog):
             self.background.addItem(text, key)
         form.addRow("Background", self.background)
 
+        self.mirror = QCheckBox("Axes on all four sides (plot area centered)")
+        self.mirror.setToolTip("The figure gets the same axis bar on the top and the right as on the bottom "
+                               "and the left (only in the file; the screen does not change)")
+        self.mirror_numbers = QCheckBox("with numbers and axis titles")
+        self.mirror.toggled.connect(self._update)
+        form.addRow("Frame", self.mirror)
+        form.addRow("", self.mirror_numbers)
+
         self.light = QCheckBox("Light colors (for printing)")
         self.light.setToolTip("The dark theme is exported with the colors of the light theme")
         self.light.setVisible(canvas.theme["name"] != "light")
@@ -363,6 +430,8 @@ class ExportFigureDialog(QDialog):
         self.scale.setCurrentIndex(max(0, self.scale.findData(int(settings.get("scale", 2)))))
         self.background.setCurrentIndex(max(0, self.background.findData(settings.get("background", "paper"))))
         self.light.setChecked(bool(settings.get("light", True)))
+        self.mirror.setChecked(bool(settings.get("mirror", True)))
+        self.mirror_numbers.setChecked(bool(settings.get("mirror_numbers", True)))
         self._update()
 
     def fmt(self) -> str:
@@ -371,11 +440,14 @@ class ExportFigureDialog(QDialog):
     def options(self) -> dict:
         return {"format": self.fmt(), "scale": int(self.scale.currentData()),
                 "background": self.background.currentData(),
-                "light": self.light.isChecked() and self.light.isVisible()}
+                "light": self.light.isChecked() and self.light.isVisible(),
+                "mirror": self.mirror.isChecked(), "mirror_numbers": self.mirror_numbers.isChecked()}
 
     def _update(self, *_):
         png = self.fmt() == "png" if any(b.isChecked() for b in self.fmt_buttons.values()) else True
         self.res_row.setEnabled(png)
+        if hasattr(self, "mirror"):
+            self.mirror_numbers.setEnabled(self.mirror.isChecked())
         s = figure_size(self.canvas)
         k = int(self.scale.currentData() or 1)
         self.size_label.setText(f"→ {s.width() * k} × {s.height() * k} px" if png

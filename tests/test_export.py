@@ -163,3 +163,24 @@ def test_export_options_are_remembered(win, qapp, tmp_path):
 def test_export_cancelled(win):
     win._run_dialog = lambda dlg: False
     assert not win.export_figure() and not win.export_data()
+
+
+def test_mirrored_axes_only_in_the_file(win, qapp, tmp_path):
+    """Axes on all four sides in the figure, the plot area in the middle; the screen keeps two axes
+    and the same visible region."""
+    from app.export import mirrored_axes, render_figure
+    pi, vb = win.canvas.plot.getPlotItem(), win.canvas.vb
+    view = vb.viewRange()
+    with mirrored_axes(win.canvas, numbers=True):
+        r, area = pi.sceneBoundingRect(), vb.sceneBoundingRect()
+        assert pi.getAxis("top").isVisible() and pi.getAxis("right").isVisible()
+        assert abs((area.left() - r.left()) - (r.right() - area.right())) <= 2         # centered
+        assert abs((area.top() - r.top()) - (r.bottom() - area.bottom())) <= 2
+        x0, x1 = vb.viewRange()[0]
+        assert x0 <= view[0][0] + 1e-6 and x1 >= view[0][1] - 1e-6                     # nothing cut off
+    assert not pi.getAxis("top").isVisible() and not pi.getAxis("right").isVisible()
+    (x0, x1), (y0, y1) = vb.viewRange()                          # the region on the screen is still shown
+    assert x0 <= view[0][0] + 1e-6 and x1 >= view[0][1] - 1e-6
+    assert (y0, y1) == pytest.approx(view[1], abs=1e-6) or (y0 <= view[1][0] and y1 >= view[1][1])
+    render_figure(win.canvas, str(tmp_path / "m.png"), "png", 1, mirror=True, mirror_numbers=False)
+    assert not pi.getAxis("right").isVisible()
