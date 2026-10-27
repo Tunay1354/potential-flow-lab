@@ -59,6 +59,10 @@ class FlowFeatures:
     dividing: list[np.ndarray] = field(default_factory=list)      # (N, 2) arrays
     owners: list[int] = field(default_factory=list)              # index (in points) of each line's point
     region: tuple[float, float, float, float] | None = None
+    # branches that run INTO a body (not drawn): the Solid bodies layer still needs them as borders —
+    # e.g. a hair of free stream through a nearly closed body runs between such branches
+    inner: list[np.ndarray] = field(default_factory=list)
+    inner_owners: list[int] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------- finding the points
@@ -87,6 +91,12 @@ def find_stagnation_points(elements, region, classify: bool = True, scale: float
     z = z[_in_fluid(els, z, 2 * m)]                                    # no starts deep in the solid
     for s in sing:
         z = np.concatenate([z, s + 0.05 * L * np.exp(2j * np.pi * (np.arange(12) + 0.5) / 12)])
+    # … and at the distance where each element's own stagnation points are (its size in the flow AT it:
+    # m/(2πU), √(μ/U), Γ/(2πU)). A weak source in a fast flow has its point much closer than 0.05·L;
+    # Newton from the ring above then ran to another root and the point (with its dividing
+    # streamlines, the half-body's surface) was missing at most zooms.
+    for r in _own_scales(els, flows, sing, L):
+        z = np.concatenate([z, r[0] + r[1] * np.exp(2j * np.pi * (np.arange(12) + 0.25) / 12)])
     z = _newton(els, flows, z, L, (x0 - L, x1 + L, y0 - L, y1 + L))
 
     with np.errstate(invalid="ignore"):
@@ -111,6 +121,29 @@ def find_stagnation_points(elements, region, classify: bool = True, scale: float
         points = _classify_bodies(els, points, region, L)
     points.sort(key=lambda p: (round(p.x, 9), round(p.y, 9)))
     return points
+
+
+def _own_scales(els, flows, sing, L):
+    """(point, radius) of the extra Newton start rings: 0.5, 1 and 2 × the size each source / doublet /
+    vortex has in the flow at it (only those between 1e-4·L and L: the others are not of this view)."""
+    out = []
+    for e in els:
+        if e.TYPE not in ("source", "doublet", "vortex"):
+            continue
+        for p in e.singular_points():
+            U = _speed_at(flows, sing, p)
+            if not U:
+                continue
+            if e.TYPE == "source":
+                size = abs(e.m) / (2.0 * np.pi * U)
+            elif e.TYPE == "vortex":
+                size = abs(e.Gamma) / (2.0 * np.pi * U)
+            else:
+                size = float(np.sqrt(abs(e.mu) / U))
+            for k in (0.5, 1.0, 2.0):
+                if 1e-4 * L < k * size < L:
+                    out.append((complex(p), k * size))
+    return out
 
 
 def _typical_speed(els, flows, region):
@@ -342,26 +375,73 @@ def _trace_raw(els, z, region, scale, sign):
     return out, which, loops
 
 
+# ---------------------------------------------------------------------- the flow at a singular point
+ALIGN_TOL_DEG = 0.5      # doublet axis vs the flow at it: within this the body is (practically) closed —
+                         # the free stream through it is ≈ (angle in rad) × the flow the body blocks
+
+
+def flow_at(flows, sing, p) -> complex | None:
+    """Velocity u + i v at the point p made by everything EXCEPT the singular points at p (a doublet,
+    a vortex at its center, a source): the mean of w over a small ring round p — the terms
+    1/(z − p)^k of those average to zero, the rest is analytic there (mean value property). None if 0."""
+    sing = np.asarray(sing, complex)
+    near = np.abs(sing - p)
+    near = near[near > 1e-9 * (1.0 + abs(p))]
+    r = 1e-3 * (min(1.0, float(near.min())) if near.size else 1.0)
+    ring = p + r * np.exp(2j * np.pi * (np.arange(32) + 0.5) / 32)
+    with np.errstate(all="ignore"):
+        w = complex(np.mean(complex_velocity(flows, ring)))
+    if not np.isfinite(w) or abs(w) < 1e-12:
+        return None
+    return complex(np.conj(w))
+
+
+def doublet_alignment(els, e, flows=None, sing=None):
+    """(angle of the flow at the doublet e in degrees, axis − angle in −180 … 180) or None (no flow
+    there). The doublet makes a closed body only when its axis (δ, + 180° for μ < 0) is along that flow:
+    otherwise part of the free stream goes in at one side and out at the other (as for δ ≠ α)."""
+    flows = resolve(els) if flows is None else flows
+    sing = singular_points(els) if sing is None else sing
+    local = flow_at(flows, sing, e.z0)
+    if local is None or e.mu == 0:
+        return None
+    angle = float(np.degrees(np.angle(local)))
+    axis = e.delta + (180.0 if e.mu < 0 else 0.0)
+    return angle, (axis - angle + 180.0) % 360.0 - 180.0
+
+
+def _speed_at(flows, sing, p) -> float:
+    v = flow_at(flows, sing, p)
+    return 0.0 if v is None else abs(v)
+
+
 # ---------------------------------------------------------------------- free stream through a body?
 RING_POINTS = 64                 # open_elements: points round every source / doublet
 _OPEN_CACHE: dict = {}
 
 
 def open_elements(elements) -> frozenset:
-    """The sources / doublets (indices in active(elements)) the free stream passes THROUGH, which
-    therefore make no body. A real body cannot swallow the free stream: free-stream fluid flowing into
-    a sink or a doublet (a doublet not along the flow at it — δ ≠ α, or a vortex beside it turns the
-    flow there —, a source–sink pair across the flow) means that what looks like a body has the free
-    stream going in at one place and out at another.
+    """See _groups: the sources / doublets the free stream passes THROUGH (indices in active(elements))."""
+    return _groups(elements)[0]
+
+
+def _groups(elements):
+    """(open, no_outflow): the sources / doublets (indices in active(elements)) the free stream
+    passes THROUGH, which therefore make no body; and those of the other groups that give out no more
+    than they take in (no_outflow_elements). A real body cannot swallow the free stream: free-stream
+    fluid flowing into a sink, a doublet not along the flow at it (δ ≠ α, or a vortex / source beside
+    it turns the flow there; doublet_alignment, the same test as the warning in the status bar), a
+    source–sink pair across the flow: what looks like a body has the free stream going in at one place
+    and out at another.
     Test: streamlines from a small ring round every source / doublet, followed both ways. Elements
     whose fluid reaches each other form a group; a group is open when free-stream fluid flows into
-    one of its sinks / doublets, or when its fluid goes off to the far field although its sources do
-    not give more than its sinks take in. (A source with more outflow — the Rankine half-body — is no
-    such case: its body is open downstream.) Depends on the scene only, not on the view: the same
-    answer at every zoom (cached per scene)."""
+    one of its sinks or a doublet is not aligned, or when its fluid goes off to the far field although
+    its sources do not give more than its sinks take in. (A source with more outflow — the Rankine
+    half-body — is no such case: its body is open downstream.) Depends on the scene only, not on the
+    view: the same answer at every zoom (cached per scene)."""
     els = active(elements)
     if not has_free_stream(els):
-        return frozenset()
+        return frozenset(), frozenset()
     import json
     key = tuple(json.dumps(e.to_dict(), sort_keys=True) for e in els)
     hit = _OPEN_CACHE.get(key)
@@ -378,6 +458,15 @@ def open_elements(elements) -> frozenset:
         return i
 
     takes_far, sends_far = set(), set()
+    flows = resolve(els)
+    for i, e in enumerate(els):
+        # a doublet: open exactly when its axis is not along the flow at it — the same test as the
+        # warning in the status bar (validation), so the picture and the message always agree. (Small
+        # leaks of an aligned doublet in a non-uniform flow are left as a body: practically closed.)
+        if e.TYPE == "doublet":
+            al = doublet_alignment(els, e, flows, sing)
+            if al is not None and abs(al[1]) > ALIGN_TOL_DEG:
+                takes_far.add(i)
     for i, p in mass:
         e = els[i]
         if (e.TYPE == "source" and e.m == 0) or (e.TYPE == "doublet" and e.mu == 0):
@@ -399,7 +488,7 @@ def open_elements(elements) -> frozenset:
         region = (p.real - r, p.real + r, p.imag - r, p.imag + r)
         for sign, far_set in ((-1.0, takes_far), (1.0, sends_far)):
             kinds, ends, _loops = _trace_raw(els, ring, region, 20.0 * r, sign)
-            if (kinds == FAR).any():
+            if (kinds == FAR).any() and e.TYPE != "doublet":    # doublets: by their alignment (below)
                 far_set.add(i)
             for j in set(ends[ends >= 0].tolist()):
                 if j in parent:
@@ -407,19 +496,30 @@ def open_elements(elements) -> frozenset:
     groups: dict = {}
     for i, _p in mass:
         groups.setdefault(find(i), set()).add(i)
-    opened = set()
+    opened, no_outflow = set(), set()
     for members in groups.values():
         net = sum(els[i].m for i in members if els[i].TYPE == "source")
         scale = sum(abs(els[i].m) for i in members if els[i].TYPE == "source")
         takes = any(i in takes_far and not (els[i].TYPE == "source" and els[i].m > 0) for i in members)
-        through = net <= 1e-9 * (1.0 + scale) and any(i in sends_far for i in members)
+        zero = net <= 1e-9 * (1.0 + scale)
+        through = zero and any(i in sends_far for i in members)
         if takes or through:
             opened |= members
-    out = frozenset(opened)
+        elif zero:
+            no_outflow |= members
+    out = (frozenset(opened), frozenset(no_outflow))
     if len(_OPEN_CACHE) > 16:
         _OPEN_CACHE.clear()
     _OPEN_CACHE[key] = out
     return out
+
+
+def no_outflow_elements(elements) -> frozenset:
+    """The sources / doublets (indices in active(elements)) of closed groups that give out no more
+    than they take in (a doublet, a Rankine oval): their body closes on itself, so fluid that comes
+    out of them and goes off to the far field is no body fluid (an aligned doublet in a non-uniform
+    flow lets a hair of free stream through; without this it showed as a thin tail)."""
+    return _groups(elements)[1]
 
 
 def _encloses(ring, pts) -> np.ndarray:
@@ -442,6 +542,22 @@ def _probe_radius(p, others, sing, L):
     return r
 
 
+def _tracer_near(els, z, sing, L, tracer):
+    """The tracer for lines from the point z: the view's, unless a singular point is so close that the
+    view's tracer would stop the lines at once (it stops them L/160 before one; e.g. the nose of a small
+    half-body seen at the scale of the whole scene) — then a finer one."""
+    if not len(sing):
+        return tracer
+    d = float(np.min(np.abs(np.asarray(sing) - z)))
+    return tracer if d >= 20.0 * tracer.r_sing else _tracer(els, max(20.0 * d, 1e-9))
+
+
+def _probe_scale(r, L):
+    """Tracing scale for probes at distance r round a stagnation point: the tracer stops lines
+    scale/160 before a singular point and counts 4× that as 'reached it'; at most the view's scale."""
+    return min(L, 20.0 * r)
+
+
 def _classify_bodies(els, points, region, L):
     sing = [complex(s) for s in singular_points(els)]
     zs = [p.z for p in points]
@@ -456,7 +572,10 @@ def _classify_bodies(els, points, region, L):
         if ring.size == 0:
             out.append(p)
             continue
-        origin = trace_origin(els, ring, region, L)
+        # traced at the probe's scale: at the view's scale the tracer stops lines a whole step before a
+        # singular point and counts everything that close as body — a point next to a weak source
+        # (closer than that) was dropped as 'inside a body' when zoomed out
+        origin = trace_origin(els, ring, region, _probe_scale(r, L))
         body = origin == BODY
         known = origin != STOPPED
         if known.any() and body[known].all():
@@ -529,8 +648,9 @@ def features_with_context(elements, region, scale, context: FlowFeatures | None)
     for k, p in enumerate(context.points):
         if x0 <= p.x <= x1 and y0 <= p.y <= y1:
             continue                                     # searched here at the finer scale
-        new = []
-        for ln, owner in zip(context.dividing, context.owners):
+        new, new_inner = [], []
+        for ln, owner, inner in ([(a, b, False) for a, b in zip(context.dividing, context.owners)]
+                                 + [(a, b, True) for a, b in zip(context.inner, context.inner_owners)]):
             if owner != k:
                 continue
             z = ln[:, 0] + 1j * ln[:, 1]
@@ -545,11 +665,13 @@ def features_with_context(elements, region, scale, context: FlowFeatures | None)
                 bwd, _c, _l = tracer.free_trace(np.array([seed]), -1.0, region)
                 pts = np.concatenate([bwd[0][::-1], [seed], fwd[0]])            # along the flow
                 if pts.size >= 3:
-                    new.append(np.column_stack([pts.real, pts.imag]))
-        if new:
+                    (new_inner if inner else new).append(np.column_stack([pts.real, pts.imag]))
+        if new or new_inner:
             feats.points.append(p)
             feats.dividing += new
             feats.owners += [len(feats.points) - 1] * len(new)
+            feats.inner += new_inner
+            feats.inner_owners += [len(feats.points) - 1] * len(new_inner)
     return feats
 
 
@@ -597,19 +719,18 @@ def flow_features(elements, region, dividing: bool = True, scale: float | None =
             # one side and is kept.
             u = (starts - p.z) / r
             probes = np.concatenate([starts, starts + 0.3 * r * 1j * u, starts - 0.3 * r * 1j * u])
-            origin = trace_origin(els, probes, region, L).reshape(3, -1)
+            origin = trace_origin(els, probes, region, _probe_scale(r, L)).reshape(3, -1)
             keep = ((origin == FAR) | (origin == LOOP) | (origin == OPEN)).any(axis=0)
-            starts, signs = starts[keep], signs[keep]
-            if not starts.size:
-                continue
+        else:
+            keep = np.ones(starts.size, bool)
         for sgn in (1.0, -1.0):
             sel = signs == sgn
             if not sel.any():
                 continue
-            lines, _closed, _left = tracer.free_trace(starts[sel], sgn, box)
-            for s, ln in zip(starts[sel], lines):
+            lines, _closed, _left = _tracer_near(els, p.z, sing, L, tracer).free_trace(starts[sel], sgn, box)
+            for shown, ln in zip(keep[sel], lines):
                 pts = np.concatenate([[p.z], ln]) if sgn > 0 else np.concatenate([ln[::-1], [p.z]])
                 if pts.size >= 3:
-                    feats.dividing.append(np.column_stack([pts.real, pts.imag]))
-                    feats.owners.append(k)
+                    (feats.dividing if shown else feats.inner).append(np.column_stack([pts.real, pts.imag]))
+                    (feats.owners if shown else feats.inner_owners).append(k)
     return feats

@@ -288,6 +288,7 @@ def test_off_center_vortex_warning_names_the_flow_at_the_doublet():
     from physics.validation import check_scene
     (w,) = [s for s in check_scene(OFF_CENTER) if s.severity == "warning"]
     assert w.index == 1 and "-15.59°" in w.message and "vortex at the doublet's center" in w.message
+    assert "set δ = -15.59°" in w.message
     ground = [__import__("physics").SymmetryWall(xw=0.0, yw=0.0, theta_w=0.0, side=0), Uniform(),
               Doublet(mu=1.0, x0=0.0, y0=1.5)]                       # the wall's image keeps it along
     assert not [s for s in check_scene(ground) if s.severity == "warning"]
@@ -313,3 +314,35 @@ def test_zoom_into_a_source_in_a_wall_corner_does_not_crash():
     for x0, x1, y0, y1 in ((0.645, 1.895, -0.181, 0.944), (-0.276, 0.974, 0.258, 1.383), (0.9, 2.15, 0.013, 1.138)):
         W, H = x1 - x0, y1 - y0
         flow_features(els, (x0 - W, x1 + W, y0 - H, y1 + H), scale=max(W, H))
+
+
+# user's screenshot (27 Oct): lifting cylinder with a source upstream-above it
+WITH_SOURCE = [Uniform(), Doublet(mu=1.0), Vortex(Gamma=-2.0), Source(m=1.0, x0=-1.729, y0=1.079)]
+
+
+@pytest.mark.parametrize("region", [(-4.41, 4.24, -2.03, 2.43), (-20.0, 20.0, -15.0, 15.0)])
+def test_stagnation_point_next_to_a_weak_source_is_found(region):
+    """m/(2πU) ≈ 0.15 from the source: Newton started 0.05 × view away ran to other roots (and at
+    large views the point was then dropped as 'inside a body', traced at the view's coarse scale)."""
+    pts = find_stagnation_points(WITH_SOURCE, region)
+    assert min(abs(p.z - (-1.8795 + 1.0295j)) for p in pts) < 1e-3
+
+
+def test_warning_and_fill_agree_for_a_doublet():
+    """The status bar warning (doublet not along the flow at it) and the Solid bodies layer use one
+    test: misaligned (the source turns the flow at the doublet by −2.2°) = no body; δ set as the
+    warning says = a closed body (the source's half-body is there in both)."""
+    from physics.stagnation import open_elements
+    from physics.validation import check_scene
+    assert open_elements(WITH_SOURCE) == {1}
+    (w,) = [s for s in check_scene(WITH_SOURCE) if s.severity == "warning"]
+    assert "set δ = -2.221°" in w.message
+    aligned = [Uniform(), Doublet(mu=1.0, delta=-2.221), Vortex(Gamma=-2.0), Source(m=1.0, x0=-1.729, y0=1.079)]
+    assert open_elements(aligned) == set()
+    assert not [s for s in check_scene(aligned) if s.severity == "warning"]
+    box = (-4.41, 4.24, -2.03, 2.43)
+    for els, cylinder in ((WITH_SOURCE, False), (aligned, True)):
+        m = body_map(els, box, (240, 470), _dividing(els, box))
+        assert m.contains(np.array([0.0 + 0.5j, 0.0 - 0.5j])).tolist() == [cylinder, cylinder]
+        assert m.contains(np.array([-1.0 + 1.25j]))[0]                     # the half-body
+        assert not m.contains(np.array([1.6 - 0.3j, 2.5 - 0.35j])).any()   # no tail behind the cylinder

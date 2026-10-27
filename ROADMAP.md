@@ -229,6 +229,26 @@ sadece genel teknikler öğrenildi: döngünün tamamını derlemek, trail buffe
     - Hata düzeltmesi (bu kontrolde bulundu): "Source in a 90° corner" sahnesinde bazı zoom'larda derlenmiş
       tracer hızı tam 0 olan noktaya (iki duvarın köşesi) basınca ZeroDivisionError veriyordu → o görünümde
       stagnation point / çizgiler hesaplanmıyordu
+14e. ✅ **Solid bodies kökten + φ kesik boşluğu** (28 Ekim, kullanıcı geri bildirimi)
+    - φ: vortex'in branch cut'ında (solunda) boşluk vardı (çizgiler iki yanda duruyordu, aralık eşit değildi).
+      Δφ artık en güçlü vortex'in Γ'sını çift katına tam bölen değere yakın seçiliyor ve çizgiler sin(πφ/Δφ)'nin
+      sıfırları olarak çiziliyor (bu fonksiyon Γ'lık sıçramayı görmüyor): çizgiler kesikten geçip vortex'in
+      etrafında kapanıyor; her nokta Newton ile tam φ = n·Δφ'ye oturtuluyor
+    - Kök neden 1 — kayıp stagnation point: zayıf bir source hızlı bir akıştaysa noktası çok yakında
+      (m/2πU); Newton'un başlangıç halkası görünüme göre (0.05·L) olduğundan bulunmuyordu → half-body'nin
+      yüzeyi yok, bölgeler birleşiyor, dolgu saçmalıyordu. Artık her elemanın kendi ölçeğinde de halka var;
+      uzak görünümde "cismin içinde" diye atılmaması için o noktalar kendi ölçeklerinde izleniyor
+    - Kök neden 2 — uyarı ile dolgu çelişiyordu: doublet'in açık/kapalı kararı artık uyarıyla AYNI test
+      (doublet ekseni oradaki akışla ±0.5° içinde mi; sızıntı ≈ açı(rad) × cismin kestiği akış). Uyarı
+      "For a (nearly) closed body set δ = …" diyor; söyleneni yapınca cisim temiz kapanıyor
+    - Kök neden 3 — neredeyse kapalı doublet'in ince sızıntısı kuyruk / çentik yapıyordu: net çıkışı olmayan
+      cismin fluid'i uzağa gidiyorsa cisim sayılmıyor; cismin içine giden dallar (çizilmeyen) sınır olarak
+      kullanılıyor; birkaç piksellik kıymıklar çevresine göre doluyor; kenar çizgisi durma noktasında kapanıyor
+    - Kök neden 4 — tüm sahne ölçeğinde küçük half-body'nin burnundaki yüzey dalları tracer'ın tekil nokta
+      yarıçapının içinde kalıp siliniyordu (zoom'da o yüzey eksik): yakında tekil nokta varsa ince tracer
+    - Kontrol: 21 preset + 11 elle seçilmiş + 65 rastgele sahne (uniform + 1–3 source / sink / doublet / vortex),
+      her biri 3–7 görünümde, sahne ölçeğinde izlenen referans haritayla karşılaştırıldı (sonuç commit
+      mesajında)
 15. ▶ **Paket S — Surface pressure paneli**: cisimlerin yüzeyi Cp'ye göre renkli, dock panelde Cp – θ grafiği
     (silindirde analitik eğri), yüzey integraliyle lift / drag ↔ Kutta–Joukowski / d'Alembert, surface Cp CSV
 16. ☐ **Paket V — Komut satırı + otomatik doğrulama**: pencere açmadan figür / CSV export, `--verify`: verification

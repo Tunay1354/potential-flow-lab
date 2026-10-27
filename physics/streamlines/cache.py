@@ -123,8 +123,10 @@ class StreamlineCache:
             res.stagnation = list(self.features.points)
             res.dividing = list(self.features.dividing)
             res.dividing_owner = list(self.features.owners)
+            res.inner = list(self.features.inner)
         if self._context:
             res.scene_dividing, res.scene_region = self._context.dividing, self._context.region
+            res.scene_inner = self._context.inner
         return res
 
     def _update_features(self, visible, cancelled):

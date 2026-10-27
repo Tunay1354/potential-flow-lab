@@ -31,7 +31,7 @@ import numpy as np
 
 from . import kernel
 from .field import active, fluid_mask, singular_points
-from .stagnation import BODY, STOPPED, has_free_stream, trace_ends
+from .stagnation import BODY, FAR, OPEN, STOPPED, has_free_stream, no_outflow_elements, trace_ends
 
 SAMPLES = 5                      # cells traced per region
 MIN_CELLS = 12                   # smaller regions (slivers between two dividing lines) stay free stream
@@ -144,6 +144,7 @@ def body_map(elements, box, shape, dividing, rng=None, hint: BodyMap | None = No
     barrier = draw_barriers(dividing, box, shape)
     labels, n = _label(~barrier & ~solid)
     body = _classify(els, box, labels, n, x, y, rng, hint)
+    _absorb_slivers(labels, n, body)
     numbers = np.zeros(n + 1, np.int32)
     numbers[np.nonzero(body)[0]] = np.arange(1, int(body.sum()) + 1)
     out = numbers[labels]
@@ -157,6 +158,41 @@ def body_map(elements, box, shape, dividing, rng=None, hint: BodyMap | None = No
             grow[dst][take] = out[src][take]
         out = grow
     return BodyMap(box, out, int(body.sum()))
+
+
+SLIVER_SHARE = 5e-4             # regions up to this share of the cells (at least MIN_CELLS) …
+SLIVER_REACH = 2                 # … with body on most sides within this many cells become body
+
+
+def _absorb_slivers(labels, n, body):
+    """Tiny regions surrounded mostly by body become body (in place). Next to the stagnation points of
+    a practically closed body (a doublet in a slightly non-uniform flow lets a hair of free stream
+    through) the branches into the body and its surface cut off a wedge of a few pixels: real flow,
+    but drawn white inside the body it looked like a crack."""
+    rows, cols = labels.shape
+    counts = np.bincount(labels.ravel(), minlength=n + 1)
+    limit = max(MIN_CELLS, SLIVER_SHARE * rows * cols)
+    small = np.nonzero((counts > 0) & (counts <= limit) & ~body)[0]
+    small = small[small > 0]
+    if not small.size or not body.any():
+        return
+    order = np.argsort(labels.ravel(), kind="stable")
+    starts = np.concatenate([[0], np.cumsum(counts)])
+    k_reach = SLIVER_REACH
+    offsets = [(dr, dc) for dr in range(-k_reach, k_reach + 1) for dc in range(-k_reach, k_reach + 1)
+               if (dr, dc) != (0, 0)]
+    for k in small:
+        cells = order[starts[k]:starts[k + 1]]
+        r, c = cells // cols, cells % cols
+        near = []
+        for dr, dc in offsets:
+            rr, cc = r + dr, c + dc
+            ok = (rr >= 0) & (rr < rows) & (cc >= 0) & (cc < cols)
+            near.append(labels[rr[ok], cc[ok]])
+        near = np.concatenate(near)
+        near = near[(near > 0) & (near != k)]                # other regions (not barrier, not itself)
+        if near.size and body[near].mean() > 0.5:
+            body[k] = True
 
 
 def _classify(els, box, labels, n, x, y, rng, hint=None) -> np.ndarray:
@@ -178,7 +214,14 @@ def _classify(els, box, labels, n, x, y, rng, hint=None) -> np.ndarray:
         return body
     width = max(box[1] - box[0], box[3] - box[2])
     seeds, owner = np.array(seeds), np.array(owner)
-    found, _ = trace_ends(els, seeds, box, width, -1.0)
+    found, came_from = trace_ends(els, seeds, box, width, -1.0)
+    # body fluid of a group without net outflow (a doublet, a Rankine oval) must go back into it: if
+    # it goes off to the far field, it is a hair of free stream passing through (no body)
+    closed = no_outflow_elements(els)
+    check = np.nonzero((found == BODY) & np.isin(came_from, list(closed)))[0] if closed else []
+    if len(check):
+        goes, _ = trace_ends(els, seeds[check], box, width, 1.0)
+        found[check[goes == FAR]] = OPEN
     for k in np.unique(owner):
         votes = found[(owner == k) & (found != STOPPED)]
         if votes.size:
@@ -190,6 +233,26 @@ def _classify(els, box, labels, n, x, y, rng, hint=None) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------- surfaces
+GAP_CELLS = 12                   # a surface piece broken for at most this long (both sides body there) goes on
+
+
+def _bridge(side, s, gap):
+    """In place: short runs of 0 between two runs of the same body on the same side take that value.
+    Next to the stagnation points of a practically closed body a sliver beside the surface is body
+    too (_absorb_slivers): there the line has body on both sides, and the outline had a small break."""
+    k, n = 0, side.size
+    while k < n:
+        if side[k] != 0:
+            k += 1
+            continue
+        j = k
+        while j < n and side[j] == 0:
+            j += 1
+        if 0 < k and j < n and side[k - 1] == side[j] and s[j] - s[k - 1] <= gap:
+            side[k:j] = side[j]
+        k = j
+
+
 def surface_pieces(bmap: BodyMap, lines) -> list[tuple[int, np.ndarray]]:
     """The parts of the lines ((N, 2) arrays: the dividing streamlines) with a body on one side and no
     body on the other: [(body number, (N, 2) piece), …], each piece turned so
@@ -207,6 +270,7 @@ def surface_pieces(bmap: BodyMap, lines) -> list[tuple[int, np.ndarray]]:
         n = 1j * t / np.where(np.abs(t) > 0, np.abs(t), 1.0)              # left normal
         left, right = bmap.body_at(z + probe * n), bmap.body_at(z - probe * n)
         side = np.where((left > 0) & (right == 0), left, np.where((right > 0) & (left == 0), -right, 0))
+        _bridge(side, np.concatenate([[0.0], np.cumsum(np.abs(np.diff(z)))]), GAP_CELLS * cell)
         # runs of points with the same body on the same side
         k = 0
         while k < side.size:
@@ -253,7 +317,8 @@ def scene_map(elements, result, cells: int = 400) -> BodyMap | None:
     x0, x1, y0, y1 = result.scene_region
     w, h = x1 - x0, y1 - y0
     shape = (max(8, int(round(cells * h / max(w, h)))), max(8, int(round(cells * w / max(w, h)))))
-    return body_map(elements, result.scene_region, shape, result.scene_dividing)
+    return body_map(elements, result.scene_region, shape,
+                    list(result.scene_dividing) + list(getattr(result, "scene_inner", [])))
 
 
 def find_bodies(elements, dividing, region, cells: int = 480) -> list[Body]:

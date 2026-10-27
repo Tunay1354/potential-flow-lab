@@ -40,6 +40,7 @@ class BodyLayer(PlotLayer):
         self.raster = None                     # without contourpy: a pixel image instead of the shapes
         self.map = None                        # physics.bodies.BodyMap of the view; None = no bodies
         self.lines = None                      # dividing streamlines of the drawn scene (None: none yet)
+        self._inner = []                       # branches into bodies (borders only, see set_result)
         self._scene_lines, self._hint = None, None   # the whole scene's (coarser) and its body map
         self.changed = []                      # callbacks: the bodies changed (particles)
         self._timer = QTimer(plot)
@@ -82,6 +83,7 @@ class BodyLayer(PlotLayer):
     def set_result(self, result):
         """New streamlines with their dividing streamlines (full results only)."""
         self.lines = list(result.dividing)
+        self._inner = list(result.inner)              # branches into bodies: borders, never drawn
         self._result = result
         if result.scene_dividing is not self._scene_lines:     # a new scene-wide search: a new hint
             self._scene_lines, self._hint = result.scene_dividing, None
@@ -121,7 +123,7 @@ class BodyLayer(PlotLayer):
             cols, rows = int(max(size.width(), 2)), int(max(size.height(), 2))
             if self._hint is None and self._scene_lines:
                 self._hint = scene_map(self.canvas.elements, self._result) or False
-            bmap = body_map(self.canvas.elements, (x0, x1, y0, y1), (rows, cols), self.lines,
+            bmap = body_map(self.canvas.elements, (x0, x1, y0, y1), (rows, cols), self.lines + self._inner,
                             hint=self._hint or None)
             if bmap is not None and bmap.count == 0:
                 bmap = None
@@ -170,6 +172,55 @@ class BodyLayer(PlotLayer):
         """The surfaces (the parts of the dividing streamlines with a body on one side), NaN rows
         between the parts."""
         out = []
-        for _body, xy in surface_pieces(self.map, self.lines):
+        x0, x1, _y0, _y1 = self.map.box
+        join = JOIN_PX * (x1 - x0) / self.map.mask.shape[1]
+        stag = np.array([p.z for p in getattr(self.canvas, "stagnation_points", [])], dtype=complex)
+        pieces = [_to_stagnation(xy, stag, join) for _body, xy in surface_pieces(self.map, self.lines)]
+        for xy in pieces + _bridges(pieces, join):
             out += [xy, np.full((1, 2), np.nan)]
         return np.vstack(out) if out else np.zeros((0, 2))
+
+
+JOIN_PX = 14              # a surface piece ending this close to a stagnation point is drawn up to it
+
+
+def _to_stagnation(xy, stag, reach):
+    """The piece with its ends joined to a stagnation point within `reach`: a body surface runs
+    through its stagnation points, but next to them a piece can stop a few pixels short (where the
+    surface is another line, e.g. a branch into a practically closed body)."""
+    if not stag.size or len(xy) < 2:
+        return xy
+    z = xy[:, 0] + 1j * xy[:, 1]
+    head, tail = [], []
+    for end, lst in ((z[0], head), (z[-1], tail)):
+        d = np.abs(stag - end)
+        k = int(np.argmin(d))
+        if 1e-12 < d[k] < reach:
+            lst.append(stag[k])
+    z = np.concatenate([head, z, tail])
+    return np.column_stack([z.real, z.imag])
+
+
+def _bridges(pieces, reach):
+    """Short segments joining piece ends that are within `reach` of an end of another piece (each
+    end once, nearest first): the surface of a practically closed body changes from one line to
+    another a few pixels before a stagnation point."""
+    ends = []
+    for k, xy in enumerate(pieces):
+        if len(xy) >= 2:
+            ends += [(k, complex(*xy[0])), (k, complex(*xy[-1]))]
+    pairs = []
+    for a in range(len(ends)):
+        for b in range(a + 1, len(ends)):
+            if ends[a][0] != ends[b][0]:
+                d = abs(ends[a][1] - ends[b][1])
+                if 1e-12 < d < reach:
+                    pairs.append((d, a, b))
+    used, out = set(), []
+    for _d, a, b in sorted(pairs):
+        if a in used or b in used:
+            continue
+        used |= {a, b}
+        za, zb = ends[a][1], ends[b][1]
+        out.append(np.array([[za.real, za.imag], [zb.real, zb.imag]]))
+    return out
