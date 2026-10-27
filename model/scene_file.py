@@ -47,8 +47,9 @@ EXTENSION = ".pflow"
 # plot settings stored with a scene: name -> type
 SETTINGS = {"density": float, "line_width": float, "show_arrows": bool, "arrow_density": float,
             "field_quality": float, "cp_reference": float, "particles": float, "anim_speed": float, "trail": float,
-            "anim_style": float}
-ZERO_ALLOWED = {"trail", "anim_style"}            # settings that may be 0 (the others must be > 0)
+            "pulse_speed": float, "pulse_length": float, "pulse_spacing": float}
+ZERO_ALLOWED = {"trail", "pulse_length"}            # settings that may be 0 (the others must be > 0)
+IGNORED = {"anim_style"}            # older settings, now not saved (no warning when a file has them)
 
 # MIGRATIONS[n] converts the dict of a version-n file into version n + 1
 MIGRATIONS: dict[int, Callable[[dict], dict]] = {}
@@ -192,6 +193,8 @@ def from_data(data, name: str = "the file") -> SceneDocument:
         raw_settings = {}
     for key, value in raw_settings.items():
         kind = SETTINGS.get(key)
+        if key in IGNORED:
+            continue
         if kind is None:
             warnings.append(f"Unknown plot setting “{key}” was ignored.")
         elif kind is bool and isinstance(value, bool):

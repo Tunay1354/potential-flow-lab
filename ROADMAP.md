@@ -152,11 +152,13 @@ sadece genel teknikler öğrenildi: döngünün tamamını derlemek, trail buffe
       ~2–3 ms, ~60 fps (test makinesinde); export sırasında önbellek kapanır (keskin çıktı)
     - Ayarlar: Particles / Speed / Trail length (sahneyle kaydedilir); Space = Pause (kısayol değiştirilebilir)
     - Sürüklerken particle'lar yeni akışta akmaya devam eder
-    - ✅ Stil B (27 Ekim, seçenek: Animation → Style): her streamline ~2 piksellik parçalara bölünür, her parçaya
-      çizginin başından yolculuk süresi τ = ∫ds/|V| hesaplanır; frac((t − τ)/T) küçükken parça yanar (parlak baş,
-      sönen kuyruk). Darbeler eşit ZAMAN aralıklı: hızlı yerde uzar, yavaş yerde (durma noktası) sıkışır.
-      Trail length = darbe uzunluğu, Particles ayarı bu stilde kapalı; stil sahneyle kaydedilir; sürüklerken
-      önizleme çizgilerini takip eder; Pause'dayken zoom / pan yeniden çizer. Kare ~3–4 ms
+    - ✅ Stil B (27 Ekim): her streamline ~2 piksellik parçalara bölünür, her parçaya çizginin başından
+      yolculuk süresi τ = ∫ds/|V| hesaplanır; frac((t − τ)/T) küçükken parça yanar (parlak baş, sönen kuyruk).
+      Darbeler eşit ZAMAN aralıklı: hızlı yerde uzar, yavaş yerde (durma noktası) sıkışır. Sürüklerken önizleme
+      çizgilerini takip eder; Pause'dayken zoom / pan yeniden çizer. Kare ~3–4 ms
+    - ✅ Üst barda üç görünüm düğmesi: Static · Particles · Pulses (View menüsünde de, kısayol atanabilir).
+      Plot settings'te iki ayrı bölüm: Particles (Count, Speed, Trail length) ve Pulses (Speed, Pulse length,
+      Spacing); ayarlar sahneyle kaydedilir, görünüm modu kaydedilmez
     - Sonraya: GIF / MP4 kaydı
 15. ☐ **Paket S — Surface pressure paneli**: cisimlerin yüzeyi Cp'ye göre renkli, dock panelde Cp – θ grafiği
     (silindirde analitik eğri), yüzey integraliyle lift / drag ↔ Kutta–Joukowski / d'Alembert, surface Cp CSV

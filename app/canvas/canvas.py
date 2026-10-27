@@ -28,6 +28,7 @@ from .stagnation_layer import StagnationLayer
 from .streamline_layer import StreamlineLayer
 
 LIVE_DRAG_DEFAULT = True          # "Live update while dragging" until the user changes it
+VIEW_MODES = ("static", "particles", "pulses")      # the buttons at the left of the bar
 
 # layer switches: key, label (Plot settings → Layers, View → Layers), shown at the start.
 # "dividing": ALL dividing streamlines (those of a selected stagnation point are always shown)
@@ -55,7 +56,7 @@ class PlotCanvas(QWidget):
     element_dropped = Signal(str, object)   # palette drag: element type, (x, y) or None (no position)
     mode_changed = Signal(str)          # mouse mode: "select", "move", "pan"
     cp_reference_requested = Signal()   # the "Set V_ref" note of the Cp legend was clicked
-    animated_changed = Signal(bool)     # Static / Animated
+    view_mode_changed = Signal(str)     # "static", "particles", "pulses" (VIEW_MODES)
     paused_changed = Signal(bool)
     message = Signal(str)               # a short note for the status bar
 
@@ -67,7 +68,7 @@ class PlotCanvas(QWidget):
         self.layers = {key: on for key, _label, on in LAYERS}
         self.selected = -1                       # index of the selected element (highlighted)
         self.live_drag = LIVE_DRAG_DEFAULT       # streamlines follow a dragged element (program setting)
-        self.animated = False                    # Animated: particles / pulses over faint streamlines
+        self.view_mode = "static"                # static streamlines, or an animation (VIEW_MODES)
         self.static_cache = False                # plot items cached as pictures (while animating)
         self.last_result = None                  # the drawn StreamlineSet (File → Export data)
 
@@ -111,7 +112,7 @@ class PlotCanvas(QWidget):
         self.bar.message.connect(self.message)
         self.bar.btn_fit.clicked.connect(self.fit_view)
         self.bar.mode_selected.connect(self.set_mode)
-        self.bar.animated_selected.connect(self.set_animated)
+        self.bar.view_mode_selected.connect(self.set_view_mode)
         rng = LAYOUT["plot_initial_range"]
         self.plot.setRange(xRange=rng["x"], yRange=rng["y"], padding=0)
         self.vb.sigRangeChanged.connect(self._range_changed)
@@ -168,46 +169,49 @@ class PlotCanvas(QWidget):
         for layer in self._layers:
             layer.visibility_changed()
 
-    # ------------------------------------------------------------------ animation
+    # ------------------------------------------------------------------ view mode, animation
+    @property
+    def animated(self) -> bool:
+        """An animation runs (particles or pulses over faint streamlines, no arrows)."""
+        return self.view_mode != "static"
+
     @property
     def animation(self):
-        """The layer of the chosen animation style (settings.anim_style: 0 particles, 1 pulses)."""
-        return self.pulses if self.settings.anim_style == 1 else self.particles
+        """The layer of the running animation (particles also in Static mode: nothing runs then)."""
+        return self.pulses if self.view_mode == "pulses" else self.particles
 
     def _animation_layers(self):
         return (self.particles, self.pulses)
 
-    def set_animated(self, on: bool):
-        """Animated: particles / pulses over faint streamlines (no arrows); Static: streamlines + arrows."""
-        on = bool(on)
-        if on == self.animated:
+    def set_view_mode(self, mode: str):
+        """Static: streamlines + arrows; Particles / Pulses: that animation over faint streamlines."""
+        if mode not in VIEW_MODES or mode == self.view_mode:
             return
-        self.animated = on
-        self.bar.set_animated(on)
-        self.set_static_cache(on)
-        self._start_style()
-        if not on and self.paused:
-            self.set_paused(False)
-        self.animated_changed.emit(on)
-
-    def set_animation_style(self, style: int):
-        """0: particles, 1: pulses along streamlines (the running animation changes at once)."""
-        self.settings.anim_style = 1 if int(style) == 1 else 0
-        if self.animated:
-            self._start_style()
-
-    def _start_style(self):
-        chosen = self.animation
+        was = self.animated
+        self.view_mode = mode
+        self.bar.set_view_mode(mode)
+        if self.animated != was:
+            self.set_static_cache(self.animated)
+        chosen = self.animation if self.animated else None
         for layer in self._animation_layers():
             if layer is not chosen:
                 layer.set_animated(False)
-        chosen.set_animated(self.animated)
+        if chosen is not None:
+            chosen.set_animated(True)
         self.streamlines.set_line_pens()
         self.apply_visibility()
+        if self.paused and not self.animated:
+            self.set_paused(False)
+        self.view_mode_changed.emit(mode)
+
+    def set_animated(self, on: bool):
+        """Static, or the particle animation (if no animation runs yet)."""
+        if bool(on) != self.animated:
+            self.set_view_mode("particles" if on else "static")
 
     @property
     def paused(self) -> bool:
-        return self.animation.paused
+        return self.particles.paused
 
     def set_paused(self, on: bool):
         for layer in self._animation_layers():
@@ -236,14 +240,22 @@ class PlotCanvas(QWidget):
         self.particles.set_count(count)
 
     def set_animation_speed(self, slider: int):
-        self.settings.anim_speed = int(slider)
-        for layer in self._animation_layers():
-            layer.speed_slider = int(slider)
+        """Particles: speed slider 1 … 10."""
+        self.settings.anim_speed = self.particles.speed_slider = int(slider)
 
     def set_trail(self, slider: int):
-        self.settings.trail = int(slider)
-        for layer in self._animation_layers():
-            layer.trail_slider = int(slider)
+        """Particles: trail length slider 0 … 10."""
+        self.settings.trail = self.particles.trail_slider = int(slider)
+
+    def set_pulse_speed(self, slider: int):
+        self.settings.pulse_speed = self.pulses.speed_slider = int(slider)
+
+    def set_pulse_length(self, slider: int):
+        self.settings.pulse_length = self.pulses.trail_slider = int(slider)
+
+    def set_pulse_spacing(self, slider: int):
+        self.settings.pulse_spacing = int(slider)
+        self.pulses.set_spacing(slider)
 
     def lines_shown(self, result):
         """StreamlineLayer drew new lines (also a preview of a dragged element): pulses run along them."""
@@ -255,10 +267,9 @@ class PlotCanvas(QWidget):
         self.settings = settings
         self.streamlines.set_line_pens()
         self.particles.set_count(settings.particles)
-        for layer in self._animation_layers():
-            layer.speed_slider, layer.trail_slider = settings.anim_speed, settings.trail
-        if self.animated:
-            self._start_style()
+        self.particles.speed_slider, self.particles.trail_slider = settings.anim_speed, settings.trail
+        self.pulses.speed_slider, self.pulses.trail_slider = settings.pulse_speed, settings.pulse_length
+        self.pulses.set_spacing(settings.pulse_spacing)
 
     def set_density(self, density: float):
         self.settings.density = density

@@ -76,13 +76,13 @@ def test_palette_drag_with_the_mouse(win, qapp):
 
 def test_plot_settings_sections_can_be_hidden(win, qapp):
     sp = win.settings_panel
-    assert list(sp.sections) == ["view", "streamlines", "layers", "animation", "computation"]
-    win.section_actions["animation"].setChecked(False)
+    assert list(sp.sections) == ["view", "streamlines", "layers", "particles", "pulses", "computation"]
+    win.section_actions["pulses"].setChecked(False)
     qapp.processEvents()
-    assert not sp.section_visible("animation") and sp.hidden_sections() == ["animation"]
+    assert not sp.section_visible("pulses") and sp.hidden_sections() == ["pulses"]
     assert win.dock_settings.titleBarWidget().note.text() == "1 HIDDEN"
-    sp.set_section_visible("animation", True)
-    assert win.section_actions["animation"].isChecked()
+    sp.set_section_visible("pulses", True)
+    assert win.section_actions["pulses"].isChecked()
     assert win.dock_settings.titleBarWidget().note.text() == ""
     title = win.dock_settings.titleBarWidget()
     from PySide6.QtCore import Qt

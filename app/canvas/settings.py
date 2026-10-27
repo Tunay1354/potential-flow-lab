@@ -8,6 +8,8 @@ from dataclasses import asdict, dataclass, fields
 
 from ..theme import LAYOUT
 
+INT_FIELDS = ("particles", "anim_speed", "trail", "pulse_speed", "pulse_length", "pulse_spacing")
+
 
 @dataclass
 class PlotSettings:
@@ -17,15 +19,17 @@ class PlotSettings:
     line_width: float = LAYOUT["streamline_width"]
     field_quality: int = 2                      # grid of the field layers: 1 low, 2 medium, 3 high
     cp_reference: float | None = None           # Cp reference speed; None = V∞ of the uniform flow(s)
-    particles: int = 1500                       # animation: number of tracer particles
-    anim_speed: int = 5                         # animation speed slider (5: a typical particle crosses the view in 6 s)
-    trail: int = 4                              # trail length slider (0 = no trails / short pulses)
-    anim_style: int = 0                         # animation: 0 particles, 1 pulses along streamlines
+    particles: int = 1500                       # particles: number of tracer particles
+    anim_speed: int = 5                         # particles: speed slider (5: a typical one crosses the view in 6 s)
+    trail: int = 4                              # particles: trail length slider (0 = no trails)
+    pulse_speed: int = 5                        # pulses: speed slider (as anim_speed)
+    pulse_length: int = 4                       # pulses: length slider (0 = short dashes)
+    pulse_spacing: int = 4                      # pulses: spacing slider (4: 4 streamline spacings apart)
 
     def to_document(self) -> dict:
         """The settings as stored in a scene file (no Cp reference = the uniform flow's V∞)."""
         out = asdict(self)
-        for key in ("field_quality", "particles", "anim_speed", "trail", "anim_style"):
+        for key in ("field_quality",) + INT_FIELDS:
             out[key] = float(getattr(self, key))
         if not self.cp_reference:
             del out["cp_reference"]
@@ -37,7 +41,7 @@ class PlotSettings:
         values = asdict(self)
         values.update({f.name: saved[f.name] for f in fields(self) if f.name in saved})
         values["field_quality"] = int(saved.get("field_quality", 2))
-        for key in ("particles", "anim_speed", "trail", "anim_style"):
+        for key in INT_FIELDS:
             values[key] = int(values[key])
         values["cp_reference"] = saved.get("cp_reference") or None
         return PlotSettings(**values)

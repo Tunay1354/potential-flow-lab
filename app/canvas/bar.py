@@ -1,5 +1,6 @@
 """
-bar.py — the bar above the plot: Static / Animated, mouse mode (Select · Move · Pan), Fit view, Export.
+bar.py — the bar above the plot: view mode (Static · Particles · Pulses), mouse mode (Select · Move · Pan),
+Fit view, Export.
 """
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QIcon
@@ -10,10 +11,11 @@ from ..icons import make_tool_icon
 
 
 class CanvasBar(QWidget):
-    """Bar above the plot: Static/Animated, mouse mode (Select · Move · Pan), Fit view, Export."""
+    """Bar above the plot: view mode (Static · Particles · Pulses), mouse mode (Select · Move · Pan), Fit view,
+    Export."""
     message = Signal(str)
     mode_selected = Signal(str)               # "select", "move" or "pan" (clicked by the user)
-    animated_selected = Signal(bool)          # Static (False) / Animated (True) clicked
+    view_mode_selected = Signal(str)          # "static", "particles" or "pulses" (clicked by the user)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -25,17 +27,20 @@ class CanvasBar(QWidget):
         lay.setSpacing(8)
 
         self.btn_static = self._tool("Static", "Streamlines with direction arrows", checkable=True)
-        self.btn_anim = self._tool("Animated", "Particles moving with the flow, colored by speed   [Space: pause]",
-                                   checkable=True)
+        self.btn_particles = self._tool("Particles", "Animated: tracer particles moving with the flow, colored by "
+                                        "speed   [Space: pause]", checkable=True)
+        self.btn_pulses = self._tool("Pulses", "Animated: bright pulses running along the streamlines at the local "
+                                     "speed, colored by speed   [Space: pause]", checkable=True)
+        self.view_buttons = {"static": self.btn_static, "particles": self.btn_particles, "pulses": self.btn_pulses}
         self.btn_static.setChecked(True)
-        mode = QButtonGroup(self)
-        mode.setExclusive(True)
-        mode.addButton(self.btn_static)
-        mode.addButton(self.btn_anim)
-        pair = QHBoxLayout()                      # the two mode buttons touch each other
+        views = QButtonGroup(self)
+        views.setExclusive(True)
+        pair = QHBoxLayout()                      # the view mode buttons touch each other
         pair.setSpacing(0)
-        pair.addWidget(self.btn_static)
-        pair.addWidget(self.btn_anim)
+        for key, b in self.view_buttons.items():
+            views.addButton(b)
+            pair.addWidget(b)
+            b.clicked.connect(lambda _=False, k=key: self.view_mode_selected.emit(k))
         lay.addLayout(pair)
 
         lay.addWidget(self._separator())
@@ -63,11 +68,8 @@ class CanvasBar(QWidget):
         self.btn_export.setObjectName("Export")
         lay.addWidget(self.btn_export)
 
-        self.btn_static.clicked.connect(lambda: self.animated_selected.emit(False))
-        self.btn_anim.clicked.connect(lambda: self.animated_selected.emit(True))
-
-    def set_animated(self, on: bool):
-        (self.btn_anim if on else self.btn_static).setChecked(True)
+    def set_view_mode(self, mode: str):
+        self.view_buttons[mode].setChecked(True)
 
     def set_mode(self, mode: str):
         self.mode_buttons[mode].setChecked(True)

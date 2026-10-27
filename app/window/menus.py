@@ -121,19 +121,20 @@ class MenusMixin:
             self.layer_actions[key] = a
         mode = QActionGroup(self)
         self.view_mode_actions = {}
-        for animated, text in ((False, "Static streamlines"), (True, "Animated particles")):
+        for key, text in (("static", "Static streamlines"), ("particles", "Particles (animated)"),
+                          ("pulses", "Pulses along streamlines (animated)")):
             a = m.addAction(text)
             a.setCheckable(True)
-            a.setChecked(not animated)
-            a.triggered.connect(lambda _=False, on=animated: self.canvas.set_animated(on))
+            a.setChecked(key == "static")
+            a.triggered.connect(lambda _=False, k=key: self.canvas.set_view_mode(k))
             mode.addAction(a)
-            self.view_mode_actions[animated] = a
+            self.view_mode_actions[key] = a
         self.act_pause = m.addAction("Pause animation")
         self.act_pause.setCheckable(True)
         self.act_pause.setShortcut("Space")
         self.act_pause.setEnabled(False)
         self.act_pause.triggered.connect(self._toggle_pause)
-        self.canvas.animated_changed.connect(self._animated_changed)
+        self.canvas.view_mode_changed.connect(self._view_mode_changed)
         self.canvas.paused_changed.connect(self.act_pause.setChecked)
         m.addSeparator()
         self.act_fit = m.addAction("Fit view")
@@ -257,7 +258,9 @@ class MenusMixin:
                 ("edit.redo", self.act_redo, "Redo", "Edit"),
                 ("edit.duplicate", self.act_dup, "Duplicate selected element", "Edit"),
                 ("view.fit", self.act_fit, "Fit view", "View"),
-                ("view.animated", self.view_mode_actions[True], "Animated particles", "View"),
+                ("view.static", self.view_mode_actions["static"], "View: static streamlines", "View"),
+                ("view.particles", self.view_mode_actions["particles"], "View: particles (animated)", "View"),
+                ("view.pulses", self.view_mode_actions["pulses"], "View: pulses along streamlines (animated)", "View"),
                 ("view.pause", self.act_pause, "Pause / continue the animation", "View"),
                 ("mode.select", self.mode_actions["select"], "Mouse mode: Select", "Plot"),
                 ("mode.move", self.mode_actions["move"], "Mouse mode: Move elements", "Plot"),
@@ -268,9 +271,9 @@ class MenusMixin:
         sc.listeners.append(self._shortcuts_changed)
         sc.load()
 
-    def _animated_changed(self, on: bool):
-        self.view_mode_actions[on].setChecked(True)
-        self.act_pause.setEnabled(on)
+    def _view_mode_changed(self, mode: str):
+        self.view_mode_actions[mode].setChecked(True)
+        self.act_pause.setEnabled(mode != "static")
 
     def _toggle_pause(self):
         paused = self.canvas.toggle_pause()

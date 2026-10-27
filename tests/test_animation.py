@@ -146,8 +146,8 @@ def _trail_alpha(cv):
 def test_animated_button_starts_particles_over_faint_streamlines(win, qapp):
     cv = win.canvas
     alpha_static = cv.streamlines.line_items[0].opts["pen"].color().alphaF()
-    cv.bar.btn_anim.click()
-    assert cv.animated and cv.particles._timer.isActive() and win.view_mode_actions[True].isChecked()
+    cv.bar.btn_particles.click()
+    assert cv.animated and cv.particles._timer.isActive() and win.view_mode_actions["particles"].isChecked()
     _frames(qapp)
     assert _trail_alpha(cv) > 100                                    # trails are drawn
     assert cv.streamlines.line_items[0].opts["pen"].color().alphaF() < 0.5 * alpha_static
@@ -229,15 +229,26 @@ def test_particles_follow_a_dragged_element(win, qapp):
     assert cv.particles.particles.flows == flows_before
 
 
-# ---------------------------------------------------------------- style "Pulses along streamlines"
-def test_pulse_style_runs_instead_of_the_particles(win, qapp):
-    sp, cv = win.settings_panel, win.canvas
-    assert sp.c_anim_style.currentText() == "Particles" and sp.s_particles.isEnabled()
+# ---------------------------------------------------------------- view "Pulses along streamlines"
+def test_three_view_buttons_do_not_overlap_the_mouse_mode_buttons(win, qapp):
+    bar = win.canvas.bar
+    b = [bar.btn_static, bar.btn_particles, bar.btn_pulses, bar.btn_select, bar.btn_move, bar.btn_pan, bar.btn_fit,
+         bar.btn_export]
+    for w in (1300, win.minimumSizeHint().width()):
+        win.resize(w, 820)
+        qapp.processEvents()
+        for left, right in zip(b, b[1:]):
+            assert left.geometry().right() < right.geometry().left()
+        assert bar.btn_export.geometry().right() <= bar.width()
+        assert all(x.width() >= x.sizeHint().width() for x in b)                 # no cut text
+
+
+def test_pulse_view_button(win, qapp):
+    cv = win.canvas
     alpha_static = cv.streamlines.line_items[0].opts["pen"].color().alphaF()
-    sp.c_anim_style.setCurrentIndex(1)
-    assert cv.settings.anim_style == 1 and cv.animation is cv.pulses and not sp.s_particles.isEnabled()
-    cv.bar.btn_anim.click()
-    assert cv.pulses._timer.isActive() and not cv.particles._timer.isActive()
+    cv.bar.btn_pulses.click()
+    assert cv.view_mode == "pulses" and cv.animation is cv.pulses and win.view_mode_actions["pulses"].isChecked()
+    assert cv.pulses._timer.isActive() and not cv.particles._timer.isActive() and win.act_pause.isEnabled()
     _frames(qapp)
     img = cv.pulses.trail.image
     assert img is not None and cv.pulses.trail.isVisible() and not cv.particles.trail.isVisible()
@@ -249,17 +260,37 @@ def test_pulse_style_runs_instead_of_the_particles(win, qapp):
     t = cv.pulses.t
     _frames(qapp, 6)
     assert cv.pulses.t > t                                                 # running
-    sp.c_anim_style.setCurrentIndex(0)                                     # switched while animating
+    cv.bar.btn_particles.click()                                           # straight to the other animation
+    assert cv.view_mode == "particles" and cv.static_cache
     assert cv.particles._timer.isActive() and not cv.pulses._timer.isActive()
     assert not cv.pulses.trail.isVisible() and cv.particles.legend.isVisible()
     _frames(qapp)
     assert _trail_alpha(cv) > 100
+    cv.bar.btn_static.click()
+    assert not cv.animated and not cv.static_cache and not win.act_pause.isEnabled()
+    assert cv.streamlines.arrow_item.isVisible()
+
+
+def test_pulse_settings_are_their_own(win, qapp):
+    sp, cv = win.settings_panel, win.canvas
+    assert set(sp.sections) >= {"particles", "pulses"}
+    sp.s_pulse_speed.setValue(8)
+    sp.s_pulse_length.setValue(0)
+    sp.s_pulse_spacing.setValue(7)
+    assert (cv.pulses.speed_slider, cv.pulses.trail_slider, cv.pulses.spacing_slider) == (8, 0, 7)
+    assert (cv.particles.speed_slider, cv.particles.trail_slider) == (5, 4)          # particles unchanged
+    sp.s_anim_speed.setValue(2)
+    assert cv.pulses.speed_slider == 8
+    cv.set_view_mode("pulses")
+    _frames(qapp, 4)
+    from app.canvas.animation_layer import pulse_spacing
+    sep = cv.pulses.result.separation
+    assert cv.pulses.period == pytest.approx(pulse_spacing(7) * sep / cv.pulses.v_typ)
 
 
 def test_pulses_pause_and_follow_new_streamlines(win, qapp):
     cv = win.canvas
-    cv.set_animation_style(1)
-    cv.set_animated(True)
+    cv.set_view_mode("pulses")
     _frames(qapp, 4)
     win.act_pause.trigger()
     assert cv.paused and cv.pulses.paused
@@ -287,23 +318,31 @@ def test_pulses_pause_and_follow_new_streamlines(win, qapp):
 def test_pulses_without_numba(win, qapp, monkeypatch):
     cv = win.canvas
     monkeypatch.setattr(kernel, "HAVE_NUMBA", False)
-    cv.set_animation_style(1)
-    cv.set_animated(True)
+    cv.set_view_mode("pulses")
     _frames(qapp, 6)
     img = cv.pulses.trail.image
     a = np.frombuffer(img.bits(), np.uint8).reshape(img.height(), img.bytesPerLine() // 4, 4)[..., 3]
     assert a.max() > 100
 
 
-def test_animation_style_is_saved_with_the_scene(win, qapp, tmp_path):
+def test_pulse_settings_are_saved_with_the_scene_but_not_the_view_mode(win, qapp, tmp_path):
     sp, cv = win.settings_panel, win.canvas
-    sp.c_anim_style.setCurrentIndex(1)
+    sp.s_pulse_length.setValue(9)
+    sp.s_pulse_spacing.setValue(2)
     path = str(tmp_path / "pulses.pflow")
     win._ask_save_path = lambda suggested: path
     assert win.save_scene_as()
-    sp.c_anim_style.setCurrentIndex(0)
-    assert cv.settings.anim_style == 0
-    cv.set_animated(True)
+    sp.s_pulse_length.setValue(4)
+    sp.s_pulse_spacing.setValue(4)
+    cv.set_view_mode("pulses")
     assert win.open_scene(path)
-    assert cv.settings.anim_style == 1 and sp.c_anim_style.currentIndex() == 1
-    assert cv.pulses.animated and not cv.particles.animated                # the opened style runs
+    assert (cv.settings.pulse_length, cv.settings.pulse_spacing) == (9, 2)
+    assert (sp.s_pulse_length.value(), sp.s_pulse_spacing.value()) == (9, 2)
+    assert (cv.pulses.trail_slider, cv.pulses.spacing_slider) == (9, 2)
+    assert cv.view_mode == "pulses" and cv.pulses.animated                 # the view stays as it was
+
+
+def test_older_files_with_an_animation_style_open_without_a_warning():
+    from model.scene_file import FORMAT, from_data
+    doc = from_data({"format": FORMAT, "version": 1, "elements": [], "settings": {"anim_style": 1.0, "trail": 2.0}})
+    assert doc.warnings == [] and doc.settings == {"trail": 2.0}

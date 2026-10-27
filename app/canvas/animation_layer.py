@@ -1,5 +1,5 @@
 """
-animation_layer.py — the animated view, in two styles (Plot settings → Animation → Style):
+animation_layer.py — the animated views (buttons Particles / Pulses at the left of the plot bar):
 
     ParticleLayer  "Particles": tracer particles carried by the flow, with fading trails
     PulseLayer     "Pulses along streamlines": bright dashes that run along the drawn streamlines at
@@ -15,8 +15,8 @@ would be in the wrong place).
 
 Pulses: every streamline is cut into ~2 pixel pieces with the travel time τ from the start of its line
 (physics.particles.travel_times). With the animation time t and the pulse period T, a piece is lit
-when s = frac((t − τ) / T) < L (L = the lit part of a period, Trail length slider), brightest at the
-head (s = 0). Equal spacing in TIME: pulses stretch where the flow is fast and crowd where it is slow.
+when s = frac((t − τ) / T) < L (L = the lit part of a period, Pulse length slider), brightest at the
+head (s = 0); T follows from the Spacing slider. Equal spacing in TIME: pulses stretch where the flow is fast and crowd where it is slow.
 The picture is drawn anew every frame.
 
 While animating, every other plot item is cached as a picture in device pixels (Qt's
@@ -49,8 +49,6 @@ MAX_STEP_PX = 24                 # a longer step in one frame (next to a singula
                                  # as a straight line it would cut across the curved path
 PULSE_PX = 3.0                   # width of a pulse (screen pixels)
 PULSE_STEP_PX = 2.0              # pulses: streamlines cut into pieces of about this length
-PULSE_SPACING = 4.0              # pulses: spacing at the typical speed, in streamline spacings
-STYLES = ("Particles", "Pulses along streamlines")
 STATIC_CACHE = QGraphicsItem.DeviceCoordinateCache
 
 
@@ -65,8 +63,14 @@ def trail_seconds(slider: int) -> float:
 
 
 def pulse_length(slider: int) -> float:
-    """Trail length slider 0 … 10 -> lit part of a pulse period (0: short dashes … 10: long comets)."""
+    """Pulse length slider 0 … 10 -> lit part of a pulse period (0: short dashes … 10: long comets)."""
     return 0.06 + 0.064 * min(max(slider, 0), 10)
+
+
+def pulse_spacing(slider: int) -> float:
+    """Spacing slider 1 … 10 -> distance between pulses at the typical speed, in streamline spacings
+    (4 -> 4)."""
+    return 1.0 + 0.75 * min(max(slider, 1), 10)
 
 
 class TrailItem(pg.GraphicsObject):
@@ -347,6 +351,11 @@ class PulseLayer(AnimatedLayer):
         self._piece_step = None               # piece length they were cut with
         self._px = None                       # the pieces near the view, in picture pixels
         self._px_key = None
+        self.spacing_slider = 4
+
+    def set_spacing(self, slider: int):
+        self.spacing_slider = int(slider)
+        self._pieces = None                   # a new period
 
     # ------------------------------------------------------------------ the lines
     def set_lines(self, result):
@@ -381,7 +390,7 @@ class PulseLayer(AnimatedLayer):
             self._piece_step = step
             self._pieces = travel_times(res.lines, self.canvas.shown_elements(), step, 1e-3 * self.v_typ)
             sep = res.separation if res.separation > 0 else 0.05 * (x1 - x0)
-            self.period = PULSE_SPACING * sep / self.v_typ
+            self.period = pulse_spacing(self.spacing_slider) * sep / self.v_typ
             self._px_key = None
         if self._px_key == self._view_key:
             return
