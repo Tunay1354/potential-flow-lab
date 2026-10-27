@@ -84,3 +84,58 @@ def test_kernel_releases_the_interpreter_lock():
     """nogil: the window thread keeps running while streamlines are computed."""
     assert kernel.trace_batch.targetoptions.get("nogil") is True
     assert kernel.velocity_many.targetoptions.get("nogil") is True
+
+
+# ---------------------------------------------------------------- R2: compiled Jobard–Lefer bookkeeping
+def _numpy_path(monkeypatch):
+    """The same functions without Numba (the fallback of an installation without it)."""
+    monkeypatch.setattr(kernel, "HAVE_NUMBA", False)
+
+
+def test_compiled_rasters_equal_the_numpy_ones(monkeypatch):
+    from physics.streamlines import _OwnerRaster, _Raster
+    rng = np.random.default_rng(3)
+    pts = rng.uniform(-1, 5, 400) + 1j * rng.uniform(-1, 4, 400)
+    rasters = []
+    for compiled in (True, False):
+        monkeypatch.setattr(kernel, "HAVE_NUMBA", compiled)
+        b, o = _Raster(0.0, 0.0, 4.0, 3.0, 0.07), _OwnerRaster(0.0, 0.0, 4.0, 3.0, 0.07)
+        for k in range(0, 400, 40):                            # several lines, some overlapping
+            b.stamp(pts[k:k + 40], 0.2)
+            o.stamp(pts[k:k + 40], 0.12, k % 3)
+        rasters.append((b.a.copy(), o.a.copy(), b.test(pts), o.test(pts, 1), o.test(pts)))
+    for a, b in zip(*rasters):
+        assert np.array_equal(a, b)
+
+
+def test_compiled_neighbour_seeds_and_arrows_equal_the_numpy_ones(monkeypatch):
+    from physics.streamlines import _neighbour_seeds, _place_arrows
+    els, view = SCENES["lifting cylinder"]
+    s = trace_streamlines(els, *view)
+    seg = s.lines[3][:, 0] + 1j * s.lines[3][:, 1]
+    a = _neighbour_seeds(seg, s.separation)
+    arrows = _place_arrows(s.lines, s.tapers, s.separation, 1.0, (-3.5, -2.5, 7.0, 5.0))
+    _numpy_path(monkeypatch)
+    b = _neighbour_seeds(seg, s.separation)
+    assert len(a) == len(b) > 10 and np.allclose(a, b, rtol=0, atol=1e-12)
+    assert arrows == pytest.approx(_place_arrows(s.lines, s.tapers, s.separation, 1.0, (-3.5, -2.5, 7.0, 5.0)))
+
+
+def test_compiled_newton_finds_the_same_stagnation_points(monkeypatch):
+    from physics.stagnation import find_stagnation_points
+    els = [Uniform(), Doublet(mu=1.0), Vortex(Gamma=-2.0)]
+    a = find_stagnation_points(els, (-4, 4, -3, 3))
+    _numpy_path(monkeypatch)
+    b = find_stagnation_points(els, (-4, 4, -3, 3))
+    assert [p.kind for p in a] == [p.kind for p in b] and len(a) == 2
+    assert all(abs(p.z - q.z) < 1e-9 for p, q in zip(a, b))
+
+
+def test_compiled_and_numpy_streamlines_have_the_same_quality(monkeypatch):
+    """Last-bit differences (e.g. how |z| is rounded) may tip a near tie, so the pictures need not be
+    identical bit for bit; the number of lines and their spacing are the same."""
+    els, view = SCENES["Rankine oval"]
+    a = trace_streamlines(els, *view)
+    _numpy_path(monkeypatch)
+    b = trace_streamlines(els, *view)
+    assert abs(len(a.lines) - len(b.lines)) <= 2 and a.separation == b.separation

@@ -88,6 +88,10 @@ class _Line:
 
 
 # ---------------------------------------------------------------------- rasters
+def _c128(z) -> np.ndarray:
+    return np.ascontiguousarray(np.atleast_1d(z), dtype=np.complex128)
+
+
 class _Raster:
     """Boolean raster over a region: 'is there a line within radius r?'"""
 
@@ -112,10 +116,15 @@ class _Raster:
         return yy, xx
 
     def test(self, z):
+        if kernel.HAVE_NUMBA:
+            return kernel.raster_test(self.a, _c128(z), self.x0, self.y0, self.c)
         iy, ix = self.index(z)
         return self.a[iy, ix]
 
     def stamp(self, z, radius):
+        if kernel.HAVE_NUMBA:
+            kernel.raster_stamp(self.a, _c128(z), float(radius), self.x0, self.y0, self.c)
+            return
         yy, xx = self._disk(z, radius)
         self.a[yy, xx] = True
 
@@ -130,11 +139,16 @@ class _OwnerRaster(_Raster):
         self.a = np.full((2, self.ny, self.nx), -1, dtype=np.int32)
 
     def test(self, z, self_id=-1):
+        if kernel.HAVE_NUMBA and np.ndim(self_id) == 0:
+            return kernel.owner_test(self.a, _c128(z), int(self_id), self.x0, self.y0, self.c)
         iy, ix = self.index(z)
         r0, r1 = self.a[0, iy, ix], self.a[1, iy, ix]
         return ((r0 >= 0) & (r0 != self_id)) | ((r1 >= 0) & (r1 != self_id))
 
     def stamp(self, z, radius, owner=0):
+        if kernel.HAVE_NUMBA:
+            kernel.owner_stamp(self.a, _c128(z), float(radius), int(owner), self.x0, self.y0, self.c)
+            return
         yy, xx = self._disk(z, radius)
         lin = np.unique(yy.ravel() * self.nx + xx.ravel())
         l0, l1 = self.a[0].reshape(-1), self.a[1].reshape(-1)        # views
@@ -338,12 +352,17 @@ class StreamlineField:
         if self.compiled is not None:
             F, R, W = self.compiled
             ns = self.near_stop
-            traj, closed, near_end, left_box = kernel.trace_batch(
+            pts, offsets, closed, near_end, left_box = kernel.trace_batch(
                 seeds, float(sign), F, R, W, self.sing, self.r_sing, self.h, self.n_max, self.v_min,
                 MAX_TURN_COS, self.d, ns.a, self_ids, close_to, bx0, bx1, by0, by1, ns.x0, ns.y0, ns.c)
+            lines = [pts[offsets[j]:offsets[j + 1]] for j in range(B)]
         else:
             traj, closed, near_end, left_box = self._integrate_numpy(seeds, sign, self_ids, close_to)
-        return _columns(traj, close_to, closed), closed, near_end, left_box
+            lines = _columns(traj)
+        # closed loops end exactly at the point they came back to (their seed, or the other end of a
+        # continued line)
+        lines = [np.append(ln, close_to[j]) if closed[j] else ln for j, ln in enumerate(lines)]
+        return lines, closed, near_end, left_box
 
     def _direction(self, z):
         vel = np.conj(complex_velocity(self.flows, z))        # u + i v
@@ -505,17 +524,24 @@ class StreamlineField:
             with np.errstate(all="ignore"):
                 psi = complex_potential(self.flows, cand).imag
                 speed = np.abs(complex_velocity(self.flows, cand))
-            for z, p, v in zip(cand, psi, speed):
-                if len(batch) >= limit:
-                    deferred.append(z)
-                    continue
-                if any(abs(z - b) < 2.0 * d for b in batch) or (
-                        np.isfinite(p) and any(abs(p - bp) < bt for bp, bt in zip(b_psi, b_tol))):
-                    deferred.append(z)
-                    continue
-                batch.append(z)
-                b_psi.append(p if np.isfinite(p) else np.inf)
-                b_tol.append(0.3 * d * v if np.isfinite(v) else 0.0)
+            if kernel.HAVE_NUMBA:
+                status, zb, pb, tb = kernel.pick_seeds(cand, np.asarray(psi, float), np.asarray(speed, float),
+                                                       np.array(batch, complex), np.array(b_psi, float),
+                                                       np.array(b_tol, float), limit, d)
+                batch, b_psi, b_tol = zb.tolist(), pb.tolist(), tb.tolist()
+                deferred += cand[status == 1].tolist()
+            else:
+                for z, p, v in zip(cand, psi, speed):
+                    if len(batch) >= limit:
+                        deferred.append(z)
+                        continue
+                    if any(abs(z - b) < 2.0 * d for b in batch) or (
+                            np.isfinite(p) and any(abs(p - bp) < bt for bp, bt in zip(b_psi, b_tol))):
+                        deferred.append(z)
+                        continue
+                    batch.append(z)
+                    b_psi.append(p if np.isfinite(p) else np.inf)
+                    b_tol.append(0.3 * d * v if np.isfinite(v) else 0.0)
             if batch and deferred:
                 break
         source.extendleft(reversed(deferred))
@@ -796,24 +822,21 @@ class StreamlineCache:
             self.v_min = f.v_min
 
 
-def _columns(traj, close_to, closed) -> list[np.ndarray]:
-    """Trajectory columns (NaN after the end) -> list of point arrays; closed loops end exactly at
-    the point they came back to (their seed, or the other end of a continued line)."""
+def _columns(traj) -> list[np.ndarray]:
+    """Trajectory columns of the NumPy tracer (NaN after the end) -> list of point arrays."""
     lines = []
-    for j in range(close_to.size):
+    for j in range(traj.shape[1]):
         col = traj[:, j]
         finite = np.isfinite(col)
-        n = col.size if finite.all() else int(np.argmax(~finite))
-        pts = col[:n]
-        if closed[j]:
-            pts = np.append(pts, close_to[j])        # close the loop exactly
-        lines.append(pts)
+        lines.append(col[:col.size if finite.all() else int(np.argmax(~finite))])
     return lines
 
 
 # ---------------------------------------------------------------------- seeds
 def _neighbour_seeds(seg: np.ndarray, d: float) -> list[complex]:
     """Points at distance d on both sides of a line, every d along it (alternating sides)."""
+    if kernel.HAVE_NUMBA:
+        return kernel.neighbour_seeds(_c128(seg), float(d)).tolist()
     ds = np.abs(np.diff(seg))
     s = np.concatenate([[0.0], np.cumsum(ds)])
     if s[-1] <= 0:
@@ -999,6 +1022,9 @@ def _place_arrows(lines: list[np.ndarray], tapers: list[tuple[bool, bool]], d: f
     skey = key[order]
     lx = np.floor((L.real - bx) / d).astype(np.int64) + 2
     ly = np.floor((L.imag - by) / d).astype(np.int64) + 2
+    if kernel.HAVE_NUMBA:
+        hit = kernel.nearest_line_points(P, L, skey, order, lx, ly, ny_cells, 0.75 * d)
+        return [(float(P[j].real), float(P[j].imag), float(np.angle(T[j]))) for j in hit if j >= 0]
     ranges = []
     for ox in (-1, 0, 1):
         for oy in (-1, 0, 1):

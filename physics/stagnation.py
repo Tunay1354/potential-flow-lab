@@ -87,7 +87,7 @@ def find_stagnation_points(elements, region, classify: bool = True, scale: float
     z = z[_in_fluid(els, z, 2 * m)]                                    # no starts deep in the solid
     for s in sing:
         z = np.concatenate([z, s + 0.05 * L * np.exp(2j * np.pi * (np.arange(12) + 0.5) / 12)])
-    z = _newton(_velocity_function(els, flows), z, L, (x0 - L, x1 + L, y0 - L, y1 + L))
+    z = _newton(els, flows, z, L, (x0 - L, x1 + L, y0 - L, y1 + L))
 
     with np.errstate(invalid="ignore"):
         w = np.abs(complex_velocity(flows, z))
@@ -125,20 +125,15 @@ def _typical_speed(els, flows, region):
     return float(np.median(sp))
 
 
-def _velocity_function(els, flows):
-    """w(z) for many points: the compiled kernel when available (much faster with image rows)."""
+def _newton(els, flows, z, L, box, iterations: int = 80):
+    """Newton's method for w(z) = 0 on many starting points. w' from a central difference (w is
+    analytic, so the derivative is the same in every direction); steps limited to L/10. A point
+    stops once its step is negligible; points that leave `box` become NaN. Compiled when possible."""
     from . import kernel
     compiled = kernel.compile_scene(els, flows)
     if compiled is not None:
-        F = compiled[0]
-        return lambda z: kernel.velocity_many(np.ascontiguousarray(z, dtype=complex), F)
-    return lambda z: complex_velocity(flows, z)
-
-
-def _newton(w_of, z, L, box, iterations: int = 80):
-    """Newton's method for w(z) = 0 on many starting points at once. w' from a central difference
-    (w is analytic, so the derivative is the same in every direction); steps limited to L/10.
-    Points stop iterating once their step is negligible."""
+        return kernel.newton_zeros(np.ascontiguousarray(z, dtype=complex), compiled[0], float(L),
+                                   *map(float, box), iterations)
     hc = 1e-7 * L
     z = z.astype(complex)
     active = np.ones(z.size, bool)
@@ -148,8 +143,8 @@ def _newton(w_of, z, L, box, iterations: int = 80):
             if idx.size == 0:
                 break
             za = z[idx]
-            w = w_of(za)
-            dw = (w_of(za + hc) - w_of(za - hc)) / (2.0 * hc)
+            w = complex_velocity(flows, za)
+            dw = (complex_velocity(flows, za + hc) - complex_velocity(flows, za - hc)) / (2.0 * hc)
             step = w / dw
             big = np.abs(step) > 0.1 * L
             step[big] *= 0.1 * L / np.abs(step[big])
@@ -163,11 +158,12 @@ def _newton(w_of, z, L, box, iterations: int = 80):
 
 
 def _unique(z, tol):
-    out = []
+    """The points without repeats (a point within `tol` of an earlier one is dropped)."""
+    out = np.zeros(0, complex)
     for p in z:
-        if all(abs(p - q) > tol for q in out):
-            out.append(p)
-    return np.array(out, dtype=complex)
+        if not out.size or np.min(np.abs(out - p)) > tol:
+            out = np.append(out, p)
+    return out
 
 
 def _in_fluid(els, z, tol) -> np.ndarray:

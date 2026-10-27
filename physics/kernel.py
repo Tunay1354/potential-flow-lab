@@ -44,71 +44,67 @@ except ImportError:                                   # pragma: no cover
 ANGLE_TOL = 1e-9          # same as sector.py: points this close to a wedge side count as inside
 JIT = dict(cache=True, nogil=True, error_model="numpy")   # numpy error model: 1/0 -> inf (no exception)
 
-_C = np.complex128
-_EMPTY_C = np.zeros(0, _C)
-_EMPTY_F = np.zeros(0, np.float64)
-
-
 # ---------------------------------------------------------------------- scene -> arrays
+# The scene is ONE table per purpose (a tuple of many small arrays would cost a reference-count update
+# per array on every velocity evaluation — several times the arithmetic itself):
+#   F  velocity terms (n, 6) complex, rows sorted by kind (the sum keeps the same order):
+#        CONST  [kind, c]                     uniform flows (summed)
+#        POLE1  [kind, z, c]                  c / (z − z_k)            source, vortex
+#        POLE2  [kind, z, c]                  −c / (z − z_k)²          doublet
+#        ROW1   [kind, z, c, P]               infinite image rows of poles in a channel (period P, complex)
+#        ROW2   [kind, z, c, P]               ... of doublets
+#        SECTOR [kind, z, rot, half, n, V]    wedge flow
+#   R  fluid region (m, 6) complex: HALFPLANE [kind, p, normal], WEDGE [kind, z, rot, half, beta]
+#   W  the wedges of R (a step must not cross their cut)
+CONST, POLE1, POLE2, ROW1, ROW2, SECTOR = range(6)
+HALFPLANE, WEDGE = 0, 1
+_TERM_KINDS = {"const": CONST, "pole1": POLE1, "pole2": POLE2, "row1": ROW1, "row2": ROW2, "sector": SECTOR}
+
+
+def _table(rows) -> np.ndarray:
+    out = np.zeros((len(rows), 6), np.complex128)
+    for i, r in enumerate(rows):
+        out[i, :len(r)] = r
+    return out
+
+
 def compile_scene(elements, flows):
-    """Arrays describing the velocity (flows = resolve(elements)) and the fluid region (elements).
-    Returns (F, R, W) or None if Numba is missing or some element has no kernel form.
-      F = (c0, p1z, p1c, p2z, p2c, r1z, r1c, r1P, r2z, r2c, r2P, sz, srot, shalf, sn, sV)
-      R = (hp_p, hp_n, wz, wrot, whalf, wbeta)          fluid region (walls, wedges)
-      W = (wz, wrot, whalf)                              wedges whose cut a step must not cross"""
+    """Tables of the velocity (flows = resolve(elements)) and of the fluid region (elements).
+    Returns (F, R, W) (see above) or None if Numba is missing or some element has no kernel form."""
     if not HAVE_NUMBA:
         return None
     c0 = 0j
-    p1, p2, r1, r2, sec = [], [], [], [], []
+    rows = {k: [] for k in _TERM_KINDS.values() if k != CONST}
     for e in flows:
         terms = e.kernel_terms()
         if terms is None:
             return None
         for t in terms:
-            kind = t[0]
-            if kind == "const":
-                c0 += t[1]
-            elif kind == "pole1":
-                p1.append(t[1:])
-            elif kind == "pole2":
-                p2.append(t[1:])
-            elif kind == "row1":
-                r1.append(t[1:])
-            elif kind == "row2":
-                r2.append(t[1:])
-            elif kind == "sector":
-                sec.append(t[1:])
-            else:
+            kind = _TERM_KINDS.get(t[0])
+            if kind is None:
                 return None
-    hp, wd = [], []
+            if kind == CONST:
+                c0 += t[1]
+            else:
+                rows[kind].append((kind,) + tuple(t[1:]))
+    F = _table([(CONST, c0)] + [r for k in (POLE1, POLE2, ROW1, ROW2, SECTOR) for r in rows[k]])
+    region = []
     for e in elements:
         if not e.enabled:
             continue
         reg = e.kernel_region()
-        overrides = type(e).fluid_region is not _base_fluid_region()
         if reg is None:
-            if overrides:
+            if type(e).fluid_region is not _base_fluid_region():
                 return None                            # restricts the fluid but has no kernel form
             continue
         if reg[0] == "halfplane":
-            hp.append(reg[1:])
+            region.append((HALFPLANE,) + tuple(reg[1:]))
         elif reg[0] == "wedge":
-            wd.append(reg[1:])
+            region.append((WEDGE,) + tuple(reg[1:]))
         else:
             return None
-
-    def col(rows, k, dtype=_C):
-        return np.array([r[k] for r in rows], dtype=dtype) if rows else np.zeros(0, dtype)
-
-    F = (complex(c0),
-         col(p1, 0), col(p1, 1),
-         col(p2, 0), col(p2, 1),
-         col(r1, 0), col(r1, 1), col(r1, 2),
-         col(r2, 0), col(r2, 1), col(r2, 2),
-         col(sec, 0), col(sec, 1), col(sec, 2, np.float64), col(sec, 3, np.float64), col(sec, 4, np.float64))
-    R = (col(hp, 0), col(hp, 1),
-         col(wd, 0), col(wd, 1), col(wd, 2, np.float64), col(wd, 3, np.float64))
-    W = (R[2], R[3], R[4])
+    R = _table(region)
+    W = R[R[:, 0].real == WEDGE].copy()
     return F, R, W
 
 
@@ -131,27 +127,31 @@ def _cot(u):
 @njit(**JIT)
 def _w(z, F):
     """Complex velocity w = u − i v at one point."""
-    c0, p1z, p1c, p2z, p2c, r1z, r1c, r1P, r2z, r2c, r2P, sz, srot, shalf, sn, sV = F
-    w = c0
-    for k in range(p1z.size):
-        w += p1c[k] / (z - p1z[k])
-    for k in range(p2z.size):
-        dz = z - p2z[k]
-        w += -p2c[k] / (dz * dz)
-    for k in range(r1z.size):
-        P = r1P[k]
-        w += r1c[k] * (math.pi / P) * _cot(math.pi * (z - r1z[k]) / P)
-    for k in range(r2z.size):
-        P = r2P[k]
-        ct = _cot(math.pi * (z - r2z[k]) / P)
-        w += -r2c[k] * (math.pi / P) ** 2 * (1.0 + ct * ct)
-    for k in range(sz.size):
-        zeta = (z - sz[k]) * srot[k]
-        r = abs(zeta)
-        half = shalf[k]
-        th = cmath.phase(zeta * complex(math.cos(half), -math.sin(half))) + half
-        n = sn[k]
-        w += n * sV[k] * srot[k] * r ** (n - 1.0) * cmath.exp(1j * (n - 1.0) * th)
+    w = 0j
+    for k in range(F.shape[0]):
+        kind = int(F[k, 0].real)
+        if kind == CONST:
+            w = F[k, 1]                                      # first row; the others add to it
+        elif kind == POLE1:
+            w += F[k, 2] / (z - F[k, 1])
+        elif kind == POLE2:
+            dz = z - F[k, 1]
+            w += -F[k, 2] / (dz * dz)
+        elif kind == ROW1:
+            P = F[k, 3]                                      # complex: the period may point along y
+            w += F[k, 2] * (math.pi / P) * _cot(math.pi * (z - F[k, 1]) / P)
+        elif kind == ROW2:
+            P = F[k, 3]
+            ct = _cot(math.pi * (z - F[k, 1]) / P)
+            w += -F[k, 2] * (math.pi / P) ** 2 * (1.0 + ct * ct)
+        else:                                                # SECTOR
+            rot = F[k, 2]
+            zeta = (z - F[k, 1]) * rot
+            r = abs(zeta)
+            half = F[k, 3].real
+            th = cmath.phase(zeta * complex(math.cos(half), -math.sin(half))) + half
+            n = F[k, 4].real
+            w += n * F[k, 5].real * rot * r ** (n - 1.0) * cmath.exp(1j * (n - 1.0) * th)
     return w
 
 
@@ -163,22 +163,22 @@ def _local_angle(z, z0, rot, half):
 
 @njit(**JIT)
 def _fluid(z, R):
-    hp_p, hp_n, wz, wrot, whalf, wbeta = R
-    for k in range(hp_p.size):
-        if ((z - hp_p[k]) * hp_n[k].conjugate()).real < 0.0:
-            return False
-    for k in range(wz.size):
-        th = _local_angle(z, wz[k], wrot[k], whalf[k])
-        if not (th >= -ANGLE_TOL and th <= wbeta[k] + ANGLE_TOL):
-            return False
+    for k in range(R.shape[0]):
+        if int(R[k, 0].real) == HALFPLANE:
+            if ((z - R[k, 1]) * R[k, 2].conjugate()).real < 0.0:
+                return False
+        else:
+            th = _local_angle(z, R[k, 1], R[k, 2], R[k, 3].real)
+            if not (th >= -ANGLE_TOL and th <= R[k, 4].real + ANGLE_TOL):
+                return False
     return True
 
 
 @njit(**JIT)
 def _crossed(za, zb, W):
-    wz, wrot, whalf = W
-    for k in range(wz.size):
-        if abs(_local_angle(zb, wz[k], wrot[k], whalf[k]) - _local_angle(za, wz[k], wrot[k], whalf[k])) > math.pi:
+    for k in range(W.shape[0]):
+        z0, rot, half = W[k, 1], W[k, 2], W[k, 3].real
+        if abs(_local_angle(zb, z0, rot, half) - _local_angle(za, z0, rot, half)) > math.pi:
             return True
     return False
 
@@ -199,6 +199,37 @@ def _direction(z, F):
     vel = _w(z, F).conjugate()
     sp = abs(vel)
     return vel / sp, sp
+
+
+@njit(**JIT)
+def newton_zeros(z, F, L, x0, x1, y0, y1, iterations):
+    """Newton's method for w(z) = 0 from every starting point (see stagnation._newton): w' from a
+    central difference, steps limited to L/10; NaN when a point leaves the box or w' = 0."""
+    hc = 1e-7 * L
+    out = z.copy()
+    for i in range(z.size):
+        zi = out[i]
+        for _ in range(iterations):
+            w = _w(zi, F)
+            dw = (_w(zi + hc, F) - _w(zi - hc, F)) / (2.0 * hc)
+            if dw.real == 0.0 and dw.imag == 0.0:
+                zi = complex(np.nan, zi.imag)
+                break
+            step = w / dw
+            a = abs(step)
+            if a > 0.1 * L:
+                step *= 0.1 * L / a
+            if not _isfinite_c(step):
+                zi = complex(np.nan, zi.imag)
+                break
+            zi = zi - step
+            if zi.real < x0 or zi.real > x1 or zi.imag < y0 or zi.imag > y1:
+                zi = complex(np.nan, np.nan)                     # ran away from the region
+                break
+            if not abs(step) > 1e-13 * L:
+                break                                            # converged
+        out[i] = zi
+    return out
 
 
 @njit(**JIT)
@@ -232,7 +263,8 @@ def trace_batch(seeds, sign, F, R, W, sing, r_sing, h, n_max, v_min, max_turn_co
     self_ids    (B,) id of the line being continued (its own cells do not stop it), −1 for new lines
     close_to    (B,) the line is closed when it comes back to this point (NaN = never)
 
-    Returns traj (n_max + 1, B) complex (NaN after the end), closed, near_end, left_box (B,).
+    Returns pts (all points of all lines, one after the other), offsets (B + 1: line j is
+    pts[offsets[j]:offsets[j + 1]], starting with its seed), closed, near_end, left_box (B,).
     Stop rules (identical to the NumPy tracer in streamlines.py):
       the step is NOT taken when the new point is not finite / not in the fluid / closer than
       r_sing to a singular point / slower than v_min / turns more than allowed / makes no progress /
@@ -240,15 +272,21 @@ def trace_batch(seeds, sign, F, R, W, sing, r_sing, h, n_max, v_min, max_turn_co
       the line ends AFTER the step when it leaves the box (left_box) or comes back (closed)."""
     B = seeds.size
     ny, nx = raster.shape[1], raster.shape[2]
-    traj = np.full((n_max + 1, B), np.nan + 0j)
+    pts = np.empty(max(64 * B, 16), np.complex128)
+    n = 0
+    offsets = np.zeros(B + 1, np.int64)
     closed = np.zeros(B, np.bool_)
     near_end = np.zeros(B, np.bool_)
     left_box = np.zeros(B, np.bool_)
     for j in range(B):
+        offsets[j] = n
         z = seeds[j]
         me = self_ids[j]
         target = close_to[j]
-        traj[0, j] = z
+        if n == pts.size:
+            pts = _grown(pts, n)
+        pts[n] = z
+        n += 1
         k0, _ = _direction(z, F)
         if not _isfinite_c(k0):
             continue
@@ -285,7 +323,10 @@ def trace_batch(seeds, sign, F, R, W, sing, r_sing, h, n_max, v_min, max_turn_co
             if (r0 >= 0 and r0 != me) or (r1 >= 0 and r1 != me):
                 near_end[j] = True
                 break
-            traj[step + 1, j] = z_new
+            if n == pts.size:
+                pts = _grown(pts, n)
+            pts[n] = z_new
+            n += 1
             z = z_new
             length += hz
             if z_new.real < bx0 or z_new.real > bx1 or z_new.imag < by0 or z_new.imag > by1:
@@ -294,4 +335,178 @@ def trace_batch(seeds, sign, F, R, W, sing, r_sing, h, n_max, v_min, max_turn_co
             if length > 3.0 * d and abs(z_new - target) < 0.75 * hz:
                 closed[j] = True
                 break
-    return traj, closed, near_end, left_box
+    offsets[B] = n
+    return pts[:n], offsets, closed, near_end, left_box
+
+
+@njit(**JIT)
+def _grown(a, n):
+    out = np.empty(2 * a.size, a.dtype)
+    out[:n] = a[:n]
+    return out
+
+
+# ---------------------------------------------------------------------- Jobard–Lefer bookkeeping
+# Rasters over the computed region (cell size d/4): "is there a line within radius r?". A bool raster
+# for the seed test; an owner raster (2, ny, nx) of line ids for the stop test (see _OwnerRaster in
+# streamlines.py, which falls back to the same operations in NumPy when Numba is missing).
+@njit(**JIT)
+def _cell_index(v, origin, c, n):
+    """Cell of coordinate v, clipped to 0 … n − 1 (like int() + clip in NumPy; not finite -> 0)."""
+    if not math.isfinite(v):
+        return 0
+    q = (v - origin) / c
+    if not math.isfinite(q) or q < 0.0:
+        return 0
+    i = int(q)
+    return i if i < n - 1 else n - 1
+
+
+@njit(**JIT)
+def raster_test(a, z, x0, y0, c):
+    """Bool raster a (ny, nx): value at every point."""
+    ny, nx = a.shape
+    out = np.empty(z.size, np.bool_)
+    for k in range(z.size):
+        out[k] = a[_cell_index(z[k].imag, y0, c, ny), _cell_index(z[k].real, x0, c, nx)]
+    return out
+
+
+@njit(**JIT)
+def raster_stamp(a, z, radius, x0, y0, c):
+    """Bool raster: set every cell within `radius` of every point."""
+    ny, nx = a.shape
+    r = int(math.ceil(radius / c))
+    lim = radius ** 2
+    cc = c ** 2
+    for k in range(z.size):
+        iy = _cell_index(z[k].imag, y0, c, ny)
+        ix = _cell_index(z[k].real, x0, c, nx)
+        for oy in range(-r, r + 1):
+            for ox in range(-r, r + 1):
+                if (ox * ox + oy * oy) * cc <= lim:
+                    a[min(max(iy + oy, 0), ny - 1), min(max(ix + ox, 0), nx - 1)] = True
+
+
+@njit(**JIT)
+def owner_test(a, z, self_id, x0, y0, c):
+    """Owner raster a (2, ny, nx): is a line OTHER than self_id near every point?"""
+    ny, nx = a.shape[1], a.shape[2]
+    out = np.empty(z.size, np.bool_)
+    for k in range(z.size):
+        iy = _cell_index(z[k].imag, y0, c, ny)
+        ix = _cell_index(z[k].real, x0, c, nx)
+        r0, r1 = a[0, iy, ix], a[1, iy, ix]
+        out[k] = (r0 >= 0 and r0 != self_id) or (r1 >= 0 and r1 != self_id)
+    return out
+
+
+@njit(**JIT)
+def owner_stamp(a, z, radius, owner, x0, y0, c):
+    """Owner raster: note `owner` in every cell within `radius` of every point (first slot if free,
+    else the second slot, unless the first already is `owner`)."""
+    ny, nx = a.shape[1], a.shape[2]
+    r = int(math.ceil(radius / c))
+    lim = radius ** 2
+    cc = c ** 2
+    for k in range(z.size):
+        iy = _cell_index(z[k].imag, y0, c, ny)
+        ix = _cell_index(z[k].real, x0, c, nx)
+        for oy in range(-r, r + 1):
+            for ox in range(-r, r + 1):
+                if (ox * ox + oy * oy) * cc <= lim:
+                    yy = min(max(iy + oy, 0), ny - 1)
+                    xx = min(max(ix + ox, 0), nx - 1)
+                    cur = a[0, yy, xx]
+                    if cur == -1:
+                        a[0, yy, xx] = owner
+                    elif cur != owner:
+                        a[1, yy, xx] = owner
+
+
+@njit(**JIT)
+def neighbour_seeds(seg, d):
+    """Points at distance d on both sides of a line, every d along it (see streamlines.py)."""
+    m = seg.size
+    s = np.empty(m, np.float64)
+    s[0] = 0.0
+    for i in range(1, m):
+        s[i] = s[i - 1] + abs(seg[i] - seg[i - 1])
+    total = s[m - 1] if m else 0.0
+    if not total > 0.0:
+        return np.zeros(0, np.complex128)
+    start = 0.5 * d
+    count = int(math.ceil((total - start) / d)) if total > start else 0
+    delta = (start + d) - start                      # as np.arange(start, total, d)
+    out = np.empty(2 * count, np.complex128)
+    n = 0
+    for i in range(count):
+        target = start + d if i == 1 else start + i * delta
+        k = np.searchsorted(s, target)
+        k = min(max(k, 1), m - 1)
+        t = seg[k] - seg[k - 1]
+        if abs(t) == 0:
+            continue
+        nrm = 1j * t / abs(t)
+        out[n] = seg[k] + d * nrm
+        out[n + 1] = seg[k] - d * nrm
+        n += 2
+    return out[:n]
+
+
+@njit(**JIT)
+def pick_seeds(cand, psi, speed, batch, b_psi, b_tol, limit, d):
+    """Which candidates join the batch (status 0) or wait for a later one (status 1): at most
+    `limit` seeds, at least 2d apart and on different streamlines (ψ farther apart than 0.3·d·|V|).
+    Returns status and the batch (seeds, ψ, ψ tolerance) after these candidates."""
+    status = np.ones(cand.size, np.int8)
+    nb = batch.size
+    zb = np.empty(nb + cand.size, np.complex128)
+    pb = np.empty(nb + cand.size, np.float64)
+    tb = np.empty(nb + cand.size, np.float64)
+    zb[:nb], pb[:nb], tb[:nb] = batch, b_psi, b_tol
+    for i in range(cand.size):
+        if nb >= limit:
+            continue
+        z, p = cand[i], psi[i]
+        clash = False
+        for k in range(nb):
+            if abs(z - zb[k]) < 2.0 * d:
+                clash = True
+                break
+        if not clash and math.isfinite(p):
+            for k in range(nb):
+                if abs(p - pb[k]) < tb[k]:
+                    clash = True
+                    break
+        if clash:
+            continue
+        status[i] = 0
+        zb[nb] = z
+        pb[nb] = p if math.isfinite(p) else np.inf
+        v = speed[i]
+        tb[nb] = 0.3 * d * v if math.isfinite(v) else 0.0
+        nb += 1
+    return status, zb[:nb], pb[:nb], tb[:nb]
+
+
+@njit(**JIT)
+def nearest_line_points(P, L, skey, order, lx, ly, ny_cells, max_dist):
+    """For every lattice point L[i]: index (in P) of the nearest line point within max_dist, looking
+    only in the 3 × 3 cells around it (cell keys of the points sorted in skey / order); −1 = none."""
+    out = np.full(L.size, -1, np.int64)
+    for i in range(L.size):
+        best, best_j = np.inf, -1
+        for ox in range(-1, 2):
+            for oy in range(-1, 2):
+                k = (lx[i] + ox) * ny_cells + (ly[i] + oy)
+                lo = np.searchsorted(skey, k)
+                hi = np.searchsorted(skey, k, side="right")
+                for q in range(lo, hi):
+                    j = order[q]
+                    dist = abs(P[j] - L[i])
+                    if dist < best:
+                        best, best_j = dist, j
+        if best < max_dist:
+            out[i] = best_j
+    return out
