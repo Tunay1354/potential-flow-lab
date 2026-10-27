@@ -365,7 +365,7 @@ def test_click_elsewhere_clears_but_delete_button_keeps(shown, qapp):
     from PySide6.QtCore import Qt
     from PySide6.QtTest import QTest
     shown.select_element(1)
-    QTest.mouseClick(shown.settings_panel.s_density, Qt.LeftButton)       # any other widget
+    QTest.mouseClick(shown.settings_panel.sliders["density"], Qt.LeftButton)       # any other widget
     qapp.processEvents()
     assert shown.elements_panel.current_row() == -1
     shown.select_element(1)

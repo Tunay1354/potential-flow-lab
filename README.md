@@ -79,7 +79,7 @@ açılışlarda hazır gelir.
 | `presets/` | Hazır sahneler (`.pflow` dosyaları, klasör = menüdeki grup) |
 | `app/main_window.py` | Ana pencere: parçaları birleştirir, sinyalleri bağlar, element komutları (ekle / düzenle / taşı / sil, undo / redo) |
 | `app/window/` | Ana pencerenin parçaları: `layout.py` (yan paneller, palette sağ/sol, düzeni hatırlama), `menus.py` (palette, menüler, kısayollar), `files.py` (New / Open / Save, preset'ler), `exporting.py` (figür ve CSV export), `status.py` (durum çubuğu, probe, sahne kontrolü, başlıklar) |
-| `app/canvas/` | Plot kartı. `canvas.py` ortak durumu tutar (elementler, ayarlar, katman anahtarları, seçim) ve her olayı katmanlara iletir. Katmanlar: `streamline_layer.py` (arka planda hesap), `stagnation_layer.py`, `field_layer.py` (φ, \|V\|, Cp; `contours.py`, `legend.py`), `element_layer.py` (semboller, duvarlar, seçme), `animation_layer.py` (animasyon stilleri: particle'lar, streamline üstünde darbeler), `body_layer.py` (cisimlerin içi dolu: Solid bodies). `interaction.py`: fare modları, sürükleme, palette'ten bırakma. `settings.py`: sahneyle kaydedilen plot ayarları |
+| `app/canvas/` | Plot kartı. `canvas.py` ortak durumu tutar (elementler, ayarlar, katman anahtarları, seçim) ve her olayı katmanlara iletir. Katmanlar: `streamline_layer.py` (arka planda hesap), `stagnation_layer.py`, `field_layer.py` (φ, \|V\|, Cp; `contours.py`, `legend.py`), `element_layer.py` (semboller, duvarlar, seçme), `animation_layer.py` (animasyon stilleri: particle'lar, streamline üstünde darbeler), `body_layer.py` (cisimlerin içi dolu: Solid bodies). `interaction.py`: fare modları, sürükleme, palette'ten bırakma. `settings.py`: Plot settings slider'larının tablosu |
 | `app/export/` | `figure.py` (PNG / SVG / PDF), `data.py` (CSV, Qt'siz), `dialogs.py` |
 | `app/chrome/` | Pencerenin "çizim kağıdı" görünümü: `style.py` (font, renk), `header.py` (logo, tahta şerit, cetvel + menüler), `cards.py` (panel kartları, title block), `palette.py` (element paleti) |
 | `app/panels.py`, `app/dialogs.py` | Elements / Plot settings panelleri; parametre penceresi (alanlar `app/element_specs.py`'den otomatik) |
@@ -88,6 +88,7 @@ açılışlarda hazır gelir.
 | `app/scene.py`, `app/recent_files.py`, `app/shortcuts.py` | Başlangıç sahnesi ve preset listesi; son açılanlar; değiştirilebilir kısayollar |
 | `model/` | Sahne modeli: element listesi, komutlar, undo/redo, değişiklik önizlemesi (Qt'siz) |
 | `model/scene_file.py` | Dosya formatı (.pflow, sürüm numaralı JSON), okuma / yazma, anlaşılır hata mesajları |
+| `model/plot_settings.py` | Sahneyle kaydedilen plot ayarları (`PlotSettings`) |
 | `physics/` | Fizik motoru — GUI'den bağımsız, sadece NumPy |
 | `physics/base.py` | Tüm elementlerin ortak temel sınıfı (`FlowElement`) |
 | `physics/elements/` | Her element ayrı dosya: `uniform.py`, `source.py`, `vortex.py`, `doublet.py`, `sector.py`, `wall.py` |
@@ -106,8 +107,9 @@ açılışlarda hazır gelir.
 **Yeni bir plot katmanı eklemek** (ör. animasyon): `app/canvas/layer.py`'deki `PlotLayer`'dan bir sınıf
 (sadece gereken olaylar: tema, sahne, görünüm, sürükleme…), `PlotCanvas.__init__`'te bir `add_layer(...)`
 satırı ve gerekiyorsa `LAYERS` listesine bir anahtar (Plot settings ve View menüsünde kendiliğinden çıkar).
-**Yeni bir plot ayarı**: `app/canvas/settings.py`'de bir alan (+ `model/scene_file.py` → `SETTINGS`);
-sahne dosyasına kaydedilir ve açılır.
+**Yeni bir plot ayarı** (3 yer): `model/plot_settings.py`'de bir alan (sahne dosyasına kaydedilir ve açılır,
+kontrolü kendiliğinden), slider'ı varsa `app/canvas/settings.py` → `SLIDERS`'a bir satır (bölüm, etiket, aralık;
+panel kendiliğinden kurulur) ve `PlotCanvas.set_<ad>(değer)` (ayarı plota uygular).
 
 ## Notasyon (ders notlarıyla aynı)
 

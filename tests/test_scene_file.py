@@ -188,3 +188,22 @@ def test_overwrite_replaces_the_whole_file(tmp_path):
     save_scene(str(path), SceneDocument([Uniform()], "short"))
     back = load_scene(str(path))
     assert back.elements == [Uniform()] and back.title == "short"
+
+
+def test_plot_settings_come_from_one_table():
+    """Every slider of Plot settings is a PlotSettings field with a canvas setter, its default fits
+    the slider, and the scene file accepts exactly the PlotSettings fields."""
+    from dataclasses import fields
+    from app.canvas import PlotCanvas
+    from app.canvas.settings import SLIDERS
+    from model.plot_settings import PlotSettings
+    from model.scene_file import SETTINGS, ZERO_ALLOWED
+    names = {f.name for f in fields(PlotSettings)}
+    assert set(SETTINGS) == names and ZERO_ALLOWED == {"trail", "pulse_length"}
+    for spec in SLIDERS:
+        assert spec.key in names and callable(getattr(PlotCanvas, f"set_{spec.key}", None))
+        default = getattr(PlotSettings(), spec.key)
+        assert spec.lo <= spec.position(default) <= spec.hi
+        assert spec.value(spec.position(default)) == pytest.approx(default)
+        for pos in range(spec.lo, spec.hi + 1, max(1, (spec.hi - spec.lo) // 7)):
+            assert spec.position(spec.value(pos)) == pos

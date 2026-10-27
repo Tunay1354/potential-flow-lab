@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout
                                QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from .canvas import LAYERS
+from .canvas.settings import SLIDERS, PlotSettings, slider
 from .chrome import button_font, themed_combo
 from .icons import make_element_icon
 
@@ -159,42 +160,18 @@ class ElementsPanel(QWidget):
             self._later(self.delete_requested, self.current_row())
 
 
-# plot layers: key, label, visible at start, implemented yet
-# sliders whose position stands for a setting: value = offset + step × position
-SLIDER_SCALES = {"density": (0.0, 0.2),          # 1…10 -> 0.2…2   (1 = default number of streamlines)
-                 "line_width": (0.6, 0.4),       # 1…5  -> 1.0…2.6 px
-                 "arrow_density": (0.5, 0.5)}    # 1…5  -> 1…3     (1 = default spacing between arrows)
-
-
-def slider_value(key: str, position: int) -> float:
-    offset, step = SLIDER_SCALES[key]
-    return round(offset + step * position, 9)          # 1.4, not 1.4000000000000001 (saved in the scene)
-
-
-def slider_position(key: str, value: float) -> int:
-    offset, step = SLIDER_SCALES[key]
-    return round((value - offset) / step)
-
-
 class SettingsPanel(QScrollArea):
     """Plot limits, streamline density, layers, animation, computation quality."""
     message = Signal(str)
     view_edited = Signal(tuple, tuple)       # (xmin, xmax), (ymin, ymax) typed by the user
     fit_requested = Signal()
-    density_changed = Signal(float)
-    line_width_changed = Signal(float)
-    arrows_changed = Signal(bool, float)     # show arrows?, arrow density (1 = default)
+    setting_changed = Signal(str, object)    # a slider of settings.SLIDERS: key, value
+    arrows_changed = Signal(bool)            # show direction arrows?
     layer_changed = Signal(str, bool)        # layer key (see LAYERS), visible?
     sections_changed = Signal()              # a section was hidden or shown again
     field_quality_changed = Signal(int)      # grid of the field layers: 1 low, 2 medium, 3 high
     cp_reference_changed = Signal(object)    # None = V∞ of the uniform flow, else the user's V_ref
     live_drag_changed = Signal(bool)         # streamlines follow a dragged element (program setting)
-    particles_changed = Signal(int)          # Particles view: number of particles
-    animation_speed_changed = Signal(int)    # Particles view: speed slider 1 … 10
-    trail_changed = Signal(int)              # Particles view: trail length slider 0 … 10
-    pulse_speed_changed = Signal(int)        # Pulses view: speed slider 1 … 10
-    pulse_length_changed = Signal(int)       # Pulses view: length slider 0 … 10
-    pulse_spacing_changed = Signal(int)      # Pulses view: spacing slider 1 … 10
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -208,6 +185,7 @@ class SettingsPanel(QScrollArea):
         lay.setContentsMargins(10, 0, 10, 10)
         lay.setSpacing(2)
         self.sections = {}                     # key -> (title, group box), in panel order
+        self.sliders = {}                      # setting key -> QSlider (settings.SLIDERS)
 
         # --- View range ---------------------------------------------------
         g = QGroupBox("VIEW RANGE")
@@ -233,20 +211,14 @@ class SettingsPanel(QScrollArea):
         # --- Streamlines ----------------------------------------------------
         g = QGroupBox("STREAMLINES")
         f = QFormLayout(g)
-        self.s_density = self._slider(1, 10, 5, "Number of streamlines")
-        self.s_width = self._slider(1, 5, 2)
+        self._add_slider(f, "density")
+        self._add_slider(f, "line_width")
         self.c_arrows = QCheckBox("Direction arrows")
         self.c_arrows.setChecked(True)
-        self.s_arrows = self._slider(1, 5, 1)
-        f.addRow("Density", self.s_density)
-        f.addRow("Line width", self.s_width)
+        self.c_arrows.toggled.connect(self.arrows_changed)
         f.addRow(self.c_arrows)
-        f.addRow("Arrow density", self.s_arrows)
+        self._add_slider(f, "arrow_density")
         self._add_section("streamlines", "Streamlines", g, lay)
-        self.s_density.valueChanged.connect(lambda v: self.density_changed.emit(slider_value("density", v)))
-        self.s_width.valueChanged.connect(lambda v: self.line_width_changed.emit(slider_value("line_width", v)))
-        self.c_arrows.toggled.connect(self._arrows_edited)
-        self.s_arrows.valueChanged.connect(self._arrows_edited)
 
         # --- Layers ---------------------------------------------------------
         g = QGroupBox("LAYERS")
@@ -260,36 +232,16 @@ class SettingsPanel(QScrollArea):
             self.layer_boxes[key] = c
         self._add_section("layers", "Layers", g, lay)
 
-        # --- Particles (animation) -------------------------------------------
-        g = QGroupBox("PARTICLES")
-        g.setToolTip("Settings of the Particles view (button above the plot)")
-        f = QFormLayout(g)
-        self.s_particles = self._slider(200, 5000, 1500, "Number of tracer particles")
-        self.s_anim_speed = self._slider(1, 10, 5, "How fast the particles move (5: a typical one crosses the view in 6 s)")
-        self.s_trail = self._slider(0, 10, 4, "How long the particles' trails are (0: dots only)")
-        f.addRow("Count", self.s_particles)
-        f.addRow("Speed", self.s_anim_speed)
-        f.addRow("Trail length", self.s_trail)
-        self.s_particles.valueChanged.connect(self.particles_changed)
-        self.s_anim_speed.valueChanged.connect(self.animation_speed_changed)
-        self.s_trail.valueChanged.connect(self.trail_changed)
-        self._add_section("particles", "Particles", g, lay)
-
-        # --- Pulses (animation) ----------------------------------------------
-        g = QGroupBox("PULSES")
-        g.setToolTip("Settings of the Pulses view (button above the plot)")
-        f = QFormLayout(g)
-        self.s_pulse_speed = self._slider(1, 10, 5, "How fast the pulses run (5: at the typical speed they cross the view in 6 s)")
-        self.s_pulse_length = self._slider(0, 10, 4, "How long each pulse is (0: short dashes, 10: long comets)")
-        self.s_pulse_spacing = self._slider(1, 10, 4, "How far apart the pulses are (4: four streamline spacings at the "
-                                                      "typical speed)")
-        f.addRow("Speed", self.s_pulse_speed)
-        f.addRow("Pulse length", self.s_pulse_length)
-        f.addRow("Spacing", self.s_pulse_spacing)
-        self.s_pulse_speed.valueChanged.connect(self.pulse_speed_changed)
-        self.s_pulse_length.valueChanged.connect(self.pulse_length_changed)
-        self.s_pulse_spacing.valueChanged.connect(self.pulse_spacing_changed)
-        self._add_section("pulses", "Pulses", g, lay)
+        # --- the animations: Particles, Pulses ---------------------------------
+        for key, title, tip in (("particles", "Particles", "Settings of the Particles view (button above the plot)"),
+                                ("pulses", "Pulses", "Settings of the Pulses view (button above the plot)")):
+            g = QGroupBox(title.upper())
+            g.setToolTip(tip)
+            f = QFormLayout(g)
+            for spec in SLIDERS:
+                if spec.section == key:
+                    self._add_slider(f, spec.key)
+            self._add_section(key, title, g, lay)
 
         # --- Computation ----------------------------------------------------
         g = QGroupBox("COMPUTATION")
@@ -376,18 +328,12 @@ class SettingsPanel(QScrollArea):
     def show_settings(self, settings):
         """Show the plot settings of an opened scene without emitting signals (File → Open sets the
         canvas itself, with the exact values from the file)."""
-        widgets = (self.s_density, self.s_width, self.s_arrows, self.c_arrows, self.c_quality, self.c_cp_ref,
-                   self.s_vref, self.s_particles, self.s_anim_speed, self.s_trail,
-                   self.s_pulse_speed, self.s_pulse_length, self.s_pulse_spacing)
+        widgets = list(self.sliders.values()) + [self.c_arrows, self.c_quality, self.c_cp_ref, self.s_vref]
         for w in widgets:
             w.blockSignals(True)
-        for w, key in ((self.s_density, "density"), (self.s_width, "line_width"), (self.s_arrows, "arrow_density")):
-            w.setValue(min(max(slider_position(key, getattr(settings, key)), w.minimum()), w.maximum()))
+        for key, w in self.sliders.items():
+            w.setValue(slider(key).position(getattr(settings, key)))
         self.c_arrows.setChecked(settings.show_arrows)
-        for w, val in ((self.s_particles, settings.particles), (self.s_anim_speed, settings.anim_speed),
-                       (self.s_trail, settings.trail), (self.s_pulse_speed, settings.pulse_speed),
-                       (self.s_pulse_length, settings.pulse_length), (self.s_pulse_spacing, settings.pulse_spacing)):
-            w.setValue(min(max(int(val), w.minimum()), w.maximum()))
         self.c_quality.setCurrentIndex(min(max(int(settings.field_quality), 1), 3) - 1)
         custom = settings.cp_reference
         self.c_cp_ref.setCurrentIndex(1 if custom else 0)
@@ -425,13 +371,15 @@ class SettingsPanel(QScrollArea):
         self.s_vref.setEnabled(custom)
         self.cp_reference_changed.emit(self.s_vref.value() if custom else None)
 
-    def _arrows_edited(self, *_):
-        self.arrows_changed.emit(self.c_arrows.isChecked(), slider_value("arrow_density", self.s_arrows.value()))
-
-    @staticmethod
-    def _slider(lo, hi, val, tip=""):
+    def _add_slider(self, form, key):
+        """The slider of a setting (settings.SLIDERS), at the default value; moving it emits
+        setting_changed(key, value)."""
+        spec = slider(key)
         s = QSlider(Qt.Horizontal)
-        s.setRange(lo, hi)
-        s.setValue(val)
-        s.setToolTip(tip)
+        s.setRange(spec.lo, spec.hi)
+        s.setValue(spec.position(getattr(PlotSettings(), key)))
+        s.setToolTip(spec.tip)
+        s.valueChanged.connect(lambda pos, k=key: self.setting_changed.emit(k, slider(k).value(pos)))
+        form.addRow(spec.label, s)
+        self.sliders[key] = s
         return s

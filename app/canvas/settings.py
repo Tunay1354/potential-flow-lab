@@ -1,47 +1,55 @@
 """
-settings.py — the plot settings of one scene (Plot settings panel; saved in the scene file).
+settings.py — the plot settings (model/plot_settings.py) and the sliders that show them.
 
-A new setting is one field here: the canvas layers read it from `canvas.settings`, and it is saved
-and opened with the scene (add its type to model.scene_file.SETTINGS as well).
+SLIDERS lists every setting with a slider in Plot settings: its section, label, range, tooltip and how
+the slider position maps to the value (value = offset + step × position). The panel builds the
+sliders from it, a moved slider calls PlotCanvas.set_<key>(value), and an opened scene puts the
+sliders back with position(). A new setting: see model/plot_settings.py.
 """
-from dataclasses import asdict, dataclass, fields
+from dataclasses import dataclass
 
-from ..theme import LAYOUT
+from model.plot_settings import INT_FIELDS, PlotSettings
 
-INT_FIELDS = ("particles", "anim_speed", "trail", "pulse_speed", "pulse_length", "pulse_spacing")
+__all__ = ["PlotSettings", "INT_FIELDS", "Slider", "SLIDERS", "slider"]
 
 
-@dataclass
-class PlotSettings:
-    density: float = 1.0                        # streamlines: 1 = default spacing, 2 = twice as many
-    arrow_density: float = 1.0                  # direction arrows along the lines
-    show_arrows: bool = True
-    line_width: float = LAYOUT["streamline_width"]
-    field_quality: int = 2                      # grid of the field layers: 1 low, 2 medium, 3 high
-    cp_reference: float | None = None           # Cp reference speed; None = V∞ of the uniform flow(s)
-    particles: int = 1500                       # particles: number of tracer particles
-    anim_speed: int = 5                         # particles: speed slider (5: a typical one crosses the view in 6 s)
-    trail: int = 4                              # particles: trail length slider (0 = no trails)
-    pulse_speed: int = 5                        # pulses: speed slider (as anim_speed)
-    pulse_length: int = 4                       # pulses: length slider (0 = short dashes)
-    pulse_spacing: int = 4                      # pulses: spacing slider (4: 4 streamline spacings apart)
+@dataclass(frozen=True)
+class Slider:
+    key: str                     # PlotSettings field
+    section: str                 # Plot settings section
+    label: str
+    lo: int                      # slider positions
+    hi: int
+    tip: str = ""
+    offset: float = 0.0          # value = offset + step × position
+    step: float = 1.0
 
-    def to_document(self) -> dict:
-        """The settings as stored in a scene file (no Cp reference = the uniform flow's V∞)."""
-        out = asdict(self)
-        for key in ("field_quality",) + INT_FIELDS:
-            out[key] = float(getattr(self, key))
-        if not self.cp_reference:
-            del out["cp_reference"]
-        return out
+    def value(self, position: int):
+        if self.key in INT_FIELDS:
+            return int(position)
+        return round(self.offset + self.step * position, 9)    # 1.4, not 1.4000000000000001 (saved)
 
-    def updated(self, saved: dict) -> "PlotSettings":
-        """These settings with the values of a scene file. Missing values stay as they are, except the
-        Cp reference (missing = V∞) and the grid quality (files older than the field layers)."""
-        values = asdict(self)
-        values.update({f.name: saved[f.name] for f in fields(self) if f.name in saved})
-        values["field_quality"] = int(saved.get("field_quality", 2))
-        for key in INT_FIELDS:
-            values[key] = int(values[key])
-        values["cp_reference"] = saved.get("cp_reference") or None
-        return PlotSettings(**values)
+    def position(self, value) -> int:
+        return min(max(int(round((value - self.offset) / self.step)), self.lo), self.hi)
+
+
+SLIDERS = (
+    Slider("density", "streamlines", "Density", 1, 10, "Number of streamlines", 0.0, 0.2),     # 0.2 … 2
+    Slider("line_width", "streamlines", "Line width", 1, 5, "", 0.6, 0.4),                     # 1.0 … 2.6 px
+    Slider("arrow_density", "streamlines", "Arrow density", 1, 5, "", 0.5, 0.5),               # 1 … 3
+    Slider("particles", "particles", "Count", 200, 5000, "Number of tracer particles"),
+    Slider("anim_speed", "particles", "Speed", 1, 10,
+           "How fast the particles move (5: a typical one crosses the view in 6 s)"),
+    Slider("trail", "particles", "Trail length", 0, 10, "How long the particles' trails are (0: dots only)"),
+    Slider("pulse_speed", "pulses", "Speed", 1, 10,
+           "How fast the pulses run (5: at the typical speed they cross the view in 6 s)"),
+    Slider("pulse_length", "pulses", "Pulse length", 0, 10,
+           "How long each pulse is (0: short dashes, 10: long comets)"),
+    Slider("pulse_spacing", "pulses", "Spacing", 1, 10,
+           "How far apart the pulses are (4: four streamline spacings at the typical speed)"),
+)
+_BY_KEY = {s.key: s for s in SLIDERS}
+
+
+def slider(key: str) -> Slider:
+    return _BY_KEY[key]

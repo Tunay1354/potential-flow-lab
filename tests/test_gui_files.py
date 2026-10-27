@@ -45,8 +45,8 @@ def test_verification_case_5_save_and_reopen_reproduces_list_and_plot(win, qapp,
     w = win
     w.load_preset(preset("Lifting (rotating) cylinder"))
     w.model.add(Source(m=0.75, x0=-2.25, y0=1.125))
-    w.settings_panel.s_density.setValue(7)              # density 1.4
-    w.settings_panel.s_arrows.setValue(3)               # arrow density 2
+    w.settings_panel.sliders["density"].setValue(7)              # density 1.4
+    w.settings_panel.sliders["arrow_density"].setValue(3)               # arrow density 2
     settle(qapp, w)
     assert w.save_scene()
     saved_elements = list(w.elements)
@@ -54,7 +54,7 @@ def test_verification_case_5_save_and_reopen_reproduces_list_and_plot(win, qapp,
 
     # change everything, then reopen
     w.new_scene()
-    w.settings_panel.s_density.setValue(3)
+    w.settings_panel.sliders["density"].setValue(3)
     w.canvas.set_view((-10, 10), (-8, 8))
     assert w.elements == []
     assert w.open_scene(w.save_path)
@@ -64,7 +64,7 @@ def test_verification_case_5_save_and_reopen_reproduces_list_and_plot(win, qapp,
     assert [w.elements_panel.tree.topLevelItem(i).text(1) for i in range(len(w.elements))] == \
         [e.summary() for e in saved_elements]
     assert w.canvas.settings.density == 1.4 and w.canvas.settings.arrow_density == 2.0
-    assert w.settings_panel.s_density.value() == 7 and w.settings_panel.s_arrows.value() == 3
+    assert w.settings_panel.sliders["density"].value() == 7 and w.settings_panel.sliders["arrow_density"].value() == 3
     np.testing.assert_allclose(w.canvas.vb.viewRange(), saved_view, rtol=1e-6, atol=1e-9)
     # same streamlines: what the canvas computes now equals the computation for the saved scene
     (x0, x1), (y0, y1) = w.canvas.vb.viewRange()

@@ -141,7 +141,7 @@ def test_plot_settings_never_hide_under_their_scrollbar(qapp):
     try:
         assert sp.verticalScrollBar().isVisible()
         assert sp.widget().width() <= sp.viewport().width()
-        s = sp.s_density
+        s = sp.sliders["density"]
         right = s.mapTo(sp.viewport(), s.rect().topRight()).x()
         assert right < sp.viewport().width()
     finally:

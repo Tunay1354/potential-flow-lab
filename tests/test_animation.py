@@ -186,18 +186,18 @@ def test_color_map_layer_takes_the_legend_place(win, qapp):
 
 def test_animation_settings_are_saved_with_the_scene(win, qapp, tmp_path):
     sp, cv = win.settings_panel, win.canvas
-    sp.s_particles.setValue(800)
-    sp.s_anim_speed.setValue(8)
-    sp.s_trail.setValue(0)
+    sp.sliders["particles"].setValue(800)
+    sp.sliders["anim_speed"].setValue(8)
+    sp.sliders["trail"].setValue(0)
     assert (cv.settings.particles, cv.settings.anim_speed, cv.settings.trail) == (800, 8, 0)
     path = str(tmp_path / "anim.pflow")
     win._ask_save_path = lambda suggested: path
     assert win.save_scene_as()
-    sp.s_particles.setValue(1500)
-    sp.s_trail.setValue(4)
+    sp.sliders["particles"].setValue(1500)
+    sp.sliders["trail"].setValue(4)
     assert win.open_scene(path)
     assert (cv.settings.particles, cv.settings.anim_speed, cv.settings.trail) == (800, 8, 0)
-    assert sp.s_particles.value() == 800 and sp.s_trail.value() == 0
+    assert sp.sliders["particles"].value() == 800 and sp.sliders["trail"].value() == 0
     cv.set_animated(True)
     assert cv.particles.particles.pos.size == 800
 
@@ -274,12 +274,12 @@ def test_pulse_view_button(win, qapp):
 def test_pulse_settings_are_their_own(win, qapp):
     sp, cv = win.settings_panel, win.canvas
     assert set(sp.sections) >= {"particles", "pulses"}
-    sp.s_pulse_speed.setValue(8)
-    sp.s_pulse_length.setValue(0)
-    sp.s_pulse_spacing.setValue(7)
+    sp.sliders["pulse_speed"].setValue(8)
+    sp.sliders["pulse_length"].setValue(0)
+    sp.sliders["pulse_spacing"].setValue(7)
     assert (cv.pulses.speed_slider, cv.pulses.trail_slider, cv.pulses.spacing_slider) == (8, 0, 7)
     assert (cv.particles.speed_slider, cv.particles.trail_slider) == (5, 4)          # particles unchanged
-    sp.s_anim_speed.setValue(2)
+    sp.sliders["anim_speed"].setValue(2)
     assert cv.pulses.speed_slider == 8
     cv.set_view_mode("pulses")
     _frames(qapp, 4)
@@ -327,17 +327,17 @@ def test_pulses_without_numba(win, qapp, monkeypatch):
 
 def test_pulse_settings_are_saved_with_the_scene_but_not_the_view_mode(win, qapp, tmp_path):
     sp, cv = win.settings_panel, win.canvas
-    sp.s_pulse_length.setValue(9)
-    sp.s_pulse_spacing.setValue(2)
+    sp.sliders["pulse_length"].setValue(9)
+    sp.sliders["pulse_spacing"].setValue(2)
     path = str(tmp_path / "pulses.pflow")
     win._ask_save_path = lambda suggested: path
     assert win.save_scene_as()
-    sp.s_pulse_length.setValue(4)
-    sp.s_pulse_spacing.setValue(4)
+    sp.sliders["pulse_length"].setValue(4)
+    sp.sliders["pulse_spacing"].setValue(4)
     cv.set_view_mode("pulses")
     assert win.open_scene(path)
     assert (cv.settings.pulse_length, cv.settings.pulse_spacing) == (9, 2)
-    assert (sp.s_pulse_length.value(), sp.s_pulse_spacing.value()) == (9, 2)
+    assert (sp.sliders["pulse_length"].value(), sp.sliders["pulse_spacing"].value()) == (9, 2)
     assert (cv.pulses.trail_slider, cv.pulses.spacing_slider) == (9, 2)
     assert cv.view_mode == "pulses" and cv.pulses.animated                 # the view stays as it was
 

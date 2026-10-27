@@ -168,7 +168,6 @@ LAYOUT = {
     "right_panel_width": 340,
     "elements_panel_min_height": 210,
     "plot_initial_range": {"x": (-4.0, 4.0), "y": (-2.6, 2.6)},
-    "streamline_width": 1.4,
     "dividing_streamline_width": 2.4,
     "arrow_size_px": 6.5,           # width of the streamline arrow heads (length = 1.35 × width)
     "wall_width": 3.0,              # px

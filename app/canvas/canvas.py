@@ -246,11 +246,15 @@ class PlotCanvas(QWidget):
             if item not in own:
                 item.setCacheMode(mode)
 
+    def set_setting(self, key: str, value):
+        """A setting of the Plot settings panel (settings.SLIDERS): PlotCanvas.set_<key>(value)."""
+        getattr(self, f"set_{key}")(value)
+
     def set_particles(self, count: int):
         self.settings.particles = int(count)
         self.particles.set_count(count)
 
-    def set_animation_speed(self, slider: int):
+    def set_anim_speed(self, slider: int):
         """Particles: speed slider 1 … 10."""
         self.settings.anim_speed = self.particles.speed_slider = int(slider)
 
@@ -287,10 +291,12 @@ class PlotCanvas(QWidget):
         self.streamlines.restart()
         self.fields.schedule(force=True)            # φ line spacing follows the streamline spacing
 
-    def set_arrows(self, show: bool, density: float | None = None):
-        self.settings.show_arrows = show
-        if density is not None:
-            self.settings.arrow_density = density
+    def set_arrows(self, show: bool):
+        self.settings.show_arrows = bool(show)
+        self.streamlines.redraw()
+
+    def set_arrow_density(self, density: float):
+        self.settings.arrow_density = density
         self.streamlines.redraw()
 
     def set_live_drag(self, on: bool):

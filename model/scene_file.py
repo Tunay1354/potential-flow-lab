@@ -40,15 +40,14 @@ from typing import Callable
 from app_info import APP_NAME, APP_VERSION
 from physics import ELEMENT_TYPES, FlowElement
 
+from .plot_settings import SETTING_TYPES, ZERO_ALLOWED
+
 FORMAT = "potential-flow-lab-scene"
 VERSION = 1
 EXTENSION = ".pflow"
 
-# plot settings stored with a scene: name -> type
-SETTINGS = {"density": float, "line_width": float, "show_arrows": bool, "arrow_density": float,
-            "field_quality": float, "cp_reference": float, "particles": float, "anim_speed": float, "trail": float,
-            "pulse_speed": float, "pulse_length": float, "pulse_spacing": float}
-ZERO_ALLOWED = {"trail", "pulse_length"}            # settings that may be 0 (the others must be > 0)
+# plot settings stored with a scene: name -> type, and those that may be 0 (the others must be > 0)
+SETTINGS, ZERO_ALLOWED = SETTING_TYPES, ZERO_ALLOWED
 IGNORED = {"anim_style"}            # older settings, now not saved (no warning when a file has them)
 
 # MIGRATIONS[n] converts the dict of a version-n file into version n + 1
