@@ -1,5 +1,6 @@
 """
-particles.py — tracer particles carried by the flow (the animated view).
+particles.py — the animated view: tracer particles carried by the flow (style "Particles"), and travel
+times along streamlines for pulses that run along them (style "Pulses").
 
 Every particle moves with the local velocity (midpoint RK2; where the flow is fast a step is split so
 that no sub-step is longer than about 1/300 of the view). A particle starts again at a random point of
@@ -10,6 +11,10 @@ density stays even (also around sources and sinks).
 Time runs so that a particle at the TYPICAL speed of the view (median |V|) crosses the view in about
 CROSSING_S seconds, whatever the zoom; `speed` multiplies this (the Speed slider).
 The compiled kernel (kernel.py) is used when available, else the same rules in NumPy.
+
+Pulses: along every streamline the travel time τ(s) = ∫ ds / |V| is computed once; a pulse is where
+(t − τ) is close to a multiple of the pulse period, so pulses run at the local speed and, being evenly
+spaced in TIME, spread out where the flow is fast and crowd where it is slow (like puffs of dye).
 """
 from __future__ import annotations
 
@@ -84,9 +89,7 @@ class Particles:
     # ------------------------------------------------------------------ time
     def time_scale(self, speed: float = 1.0) -> float:
         """Animation time per real second."""
-        if not self.box or not self.v_typ > 0:
-            return 0.0
-        return speed * (self.box[1] - self.box[0]) / (CROSSING_S * self.v_typ)
+        return time_scale(self.box, self.v_typ, speed)
 
     def step(self, dt_real: float, speed: float = 1.0):
         """Advance by dt_real seconds of real time (scaled by time_scale)."""
@@ -108,18 +111,7 @@ class Particles:
 
     # ------------------------------------------------------------------ helpers
     def _typical_speed(self) -> float:
-        x0, x1, y0, y1 = self.box
-        if not self.flows:
-            return 0.0
-        gx, gy = np.meshgrid(np.linspace(x0, x1, 24), np.linspace(y0, y1, 24))
-        z = (gx + 1j * gy).ravel()
-        ok = fluid_mask(self.els, z)
-        if self.sing.size:
-            ok &= np.min(np.abs(z[:, None] - self.sing[None, :]), axis=1) > 0.02 * max(x1 - x0, y1 - y0)
-        with np.errstate(all="ignore"):
-            sp = np.abs(complex_velocity(self.flows, z[ok]))
-        sp = sp[np.isfinite(sp)]
-        return float(np.median(sp)) if sp.size else 0.0
+        return typical_speed(self.els, self.flows, self.box, self.sing)
 
     def _usable(self, z):
         ok = fluid_mask(self.els, z)
@@ -179,6 +171,72 @@ class Particles:
             self.pos[bad] = self._spawn(int(bad.sum()))
             self.age[bad] = 0.0
             self.speed[bad] = np.abs(self._velocity(self.pos[bad]))
+
+
+def typical_speed(els, flows, box, sing=None) -> float:
+    """Median |V| in the fluid part of the box (x0, x1, y0, y1), away from singular points."""
+    x0, x1, y0, y1 = box
+    if not flows:
+        return 0.0
+    gx, gy = np.meshgrid(np.linspace(x0, x1, 24), np.linspace(y0, y1, 24))
+    z = (gx + 1j * gy).ravel()
+    ok = fluid_mask(els, z)
+    sing = np.array(singular_points(els), dtype=complex) if sing is None else sing
+    if sing.size:
+        ok &= np.min(np.abs(z[:, None] - sing[None, :]), axis=1) > 0.02 * max(x1 - x0, y1 - y0)
+    with np.errstate(all="ignore"):
+        sp = np.abs(complex_velocity(flows, z[ok]))
+    sp = sp[np.isfinite(sp)]
+    return float(np.median(sp)) if sp.size else 0.0
+
+
+def time_scale(box, v_typ: float, speed: float = 1.0) -> float:
+    """Animation time per real second: a particle at the typical speed v_typ crosses the box in
+    CROSSING_S / speed seconds."""
+    if not box or not v_typ > 0:
+        return 0.0
+    return speed * (box[1] - box[0]) / (CROSSING_S * v_typ)
+
+
+def travel_times(lines, elements, step: float, v_floor: float):
+    """Streamlines cut into short pieces (about `step` long) with the travel time τ to the middle of
+    every piece from the start of its line (lines are ordered along the flow) and the speed there.
+    Returns (a, b, tau, speed): piece start / end points (complex) and τ, |V| per piece. Speeds below
+    v_floor count as v_floor (near a stagnation point τ would grow without limit)."""
+    els = active(elements)
+    flows = resolve(els)
+    starts, ends = [], []
+    for xy in lines:
+        if len(xy) < 2:
+            continue
+        z = xy[:, 0] + 1j * xy[:, 1]
+        s = np.concatenate([[0.0], np.cumsum(np.abs(np.diff(z)))])
+        if not s[-1] > 0:
+            continue
+        n = max(2, int(math.ceil(s[-1] / step)) + 1)
+        t = np.linspace(0.0, s[-1], n)
+        zz = np.interp(t, s, z.real) + 1j * np.interp(t, s, z.imag)
+        starts.append(zz[:-1])
+        ends.append(zz[1:])
+    if not starts:
+        empty = np.zeros(0, complex)
+        return empty, empty, np.zeros(0), np.zeros(0)
+    a, b = np.concatenate(starts), np.concatenate(ends)
+    mid = np.ascontiguousarray(0.5 * (a + b))
+    compiled = kernel.compile_scene(els, flows) if flows else None
+    with np.errstate(all="ignore"):
+        if compiled is not None:
+            v = np.abs(kernel.velocity_many(mid, compiled[0]))
+        else:
+            v = np.abs(complex_velocity(flows, mid)) if flows else np.zeros(a.size)
+    v = np.where(np.isfinite(v), v, np.inf)
+    dt = np.abs(b - a) / np.maximum(v, v_floor)
+    # cumulative time per line: restart the sum at every line's first piece
+    first = np.cumsum([0] + [len(p) for p in starts[:-1]])
+    total = np.cumsum(dt)
+    base = np.repeat(total[first] - dt[first], [len(p) for p in starts])
+    tau = total - base - 0.5 * dt
+    return a, b, tau, np.where(np.isfinite(v), v, 0.0)
 
 
 def nice_top(value: float) -> float:

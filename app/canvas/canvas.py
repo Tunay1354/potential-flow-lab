@@ -22,7 +22,7 @@ from .element_layer import ElementLayer
 from .field_layer import KEYS as FIELD_KEYS
 from .field_layer import FieldLayer
 from .interaction import DRAG_OPACITY, MOUSE_MODES, PlotInteraction, PlotViewBox
-from .particle_layer import STATIC_CACHE, ParticleLayer
+from .animation_layer import STATIC_CACHE, ParticleLayer, PulseLayer
 from .settings import PlotSettings
 from .stagnation_layer import StagnationLayer
 from .streamline_layer import StreamlineLayer
@@ -67,7 +67,7 @@ class PlotCanvas(QWidget):
         self.layers = {key: on for key, _label, on in LAYERS}
         self.selected = -1                       # index of the selected element (highlighted)
         self.live_drag = LIVE_DRAG_DEFAULT       # streamlines follow a dragged element (program setting)
-        self.animated = False                    # Animated: particles over faint streamlines
+        self.animated = False                    # Animated: particles / pulses over faint streamlines
         self.static_cache = False                # plot items cached as pictures (while animating)
         self.last_result = None                  # the drawn StreamlineSet (File → Export data)
 
@@ -104,7 +104,8 @@ class PlotCanvas(QWidget):
         self.fields = self.add_layer(FieldLayer(self.plot, self.vb))
         self.fields.legend.clicked = self.cp_reference_requested.emit
         self.element_layer = self.add_layer(ElementLayer(self.plot, self.vb))
-        self.particles = self.add_layer(ParticleLayer(self.plot, self.vb))
+        self.particles = self.add_layer(ParticleLayer(self.plot, self.vb))      # animation styles
+        self.pulses = self.add_layer(PulseLayer(self.plot, self.vb))
         self.interaction = PlotInteraction(self)
 
         self.bar.message.connect(self.message)
@@ -168,38 +169,66 @@ class PlotCanvas(QWidget):
             layer.visibility_changed()
 
     # ------------------------------------------------------------------ animation
+    @property
+    def animation(self):
+        """The layer of the chosen animation style (settings.anim_style: 0 particles, 1 pulses)."""
+        return self.pulses if self.settings.anim_style == 1 else self.particles
+
+    def _animation_layers(self):
+        return (self.particles, self.pulses)
+
     def set_animated(self, on: bool):
-        """Animated: tracer particles over faint streamlines (no arrows); Static: streamlines + arrows."""
+        """Animated: particles / pulses over faint streamlines (no arrows); Static: streamlines + arrows."""
         on = bool(on)
         if on == self.animated:
             return
         self.animated = on
         self.bar.set_animated(on)
-        self.particles.set_animated(on)
-        self.streamlines.set_line_pens()
-        self.apply_visibility()
-        if not on and self.particles.paused:
+        self.set_static_cache(on)
+        self._start_style()
+        if not on and self.paused:
             self.set_paused(False)
         self.animated_changed.emit(on)
 
+    def set_animation_style(self, style: int):
+        """0: particles, 1: pulses along streamlines (the running animation changes at once)."""
+        self.settings.anim_style = 1 if int(style) == 1 else 0
+        if self.animated:
+            self._start_style()
+
+    def _start_style(self):
+        chosen = self.animation
+        for layer in self._animation_layers():
+            if layer is not chosen:
+                layer.set_animated(False)
+        chosen.set_animated(self.animated)
+        self.streamlines.set_line_pens()
+        self.apply_visibility()
+
+    @property
+    def paused(self) -> bool:
+        return self.animation.paused
+
     def set_paused(self, on: bool):
-        self.particles.set_paused(on)
+        for layer in self._animation_layers():
+            layer.set_paused(on)
         self.paused_changed.emit(bool(on))
 
     def toggle_pause(self) -> bool:
         """Space: pause / continue the animation (nothing in Static mode). Returns the new state."""
         if not self.animated:
             return False
-        self.set_paused(not self.particles.paused)
-        return self.particles.paused
+        self.set_paused(not self.paused)
+        return self.paused
 
     def set_static_cache(self, on: bool):
-        """Keep every plot item (except the particle trails) as a picture: a frame of the animation
-        then only repaints the trails."""
+        """Keep every plot item (except the animation pictures) as a picture: a frame of the animation
+        then only repaints the animation picture."""
         self.static_cache = bool(on)
         mode = STATIC_CACHE if on else QGraphicsItem.NoCache
+        own = {layer.trail for layer in self._animation_layers()}
         for item in self.vb.addedItems:
-            if item is not self.particles.trail:
+            if item not in own:
                 item.setCacheMode(mode)
 
     def set_particles(self, count: int):
@@ -208,11 +237,17 @@ class PlotCanvas(QWidget):
 
     def set_animation_speed(self, slider: int):
         self.settings.anim_speed = int(slider)
-        self.particles.speed_slider = int(slider)
+        for layer in self._animation_layers():
+            layer.speed_slider = int(slider)
 
     def set_trail(self, slider: int):
         self.settings.trail = int(slider)
-        self.particles.trail_slider = int(slider)
+        for layer in self._animation_layers():
+            layer.trail_slider = int(slider)
+
+    def lines_shown(self, result):
+        """StreamlineLayer drew new lines (also a preview of a dragged element): pulses run along them."""
+        self.pulses.set_lines(result)
 
     # ------------------------------------------------------------------ plot settings
     def apply_settings(self, settings: PlotSettings):
@@ -220,7 +255,10 @@ class PlotCanvas(QWidget):
         self.settings = settings
         self.streamlines.set_line_pens()
         self.particles.set_count(settings.particles)
-        self.particles.speed_slider, self.particles.trail_slider = settings.anim_speed, settings.trail
+        for layer in self._animation_layers():
+            layer.speed_slider, layer.trail_slider = settings.anim_speed, settings.trail
+        if self.animated:
+            self._start_style()
 
     def set_density(self, density: float):
         self.settings.density = density

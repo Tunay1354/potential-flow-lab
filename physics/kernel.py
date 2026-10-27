@@ -660,10 +660,12 @@ def fade_bytes(buf, keep):
 
 
 @njit(**QUICK)
-def draw_segments(img, ax, ay, bx, by, color_index, palette, radius):
+def draw_segments(img, ax, ay, bx, by, color_index, palette, radius, alpha, keep_max):
     """Antialiased lines of half-width `radius` with round ends into a premultiplied BGRA picture
     img (rows, columns, 4) uint8. Line k goes from (ax, ay) to (bx, by) in pixels (row = y) and has
-    the color palette[color_index[k]] = (r, g, b, alpha 0…1); index < 0: not drawn."""
+    the color palette[color_index[k]] = (r, g, b, alpha 0…1) with its alpha × alpha[k];
+    index < 0: not drawn. keep_max: a pixel keeps the more opaque color instead of blending (pieces of
+    one line that overlap at their round ends then do not show darker beads)."""
     rows, cols = img.shape[0], img.shape[1]
     for k in range(ax.size):
         ci = color_index[k]
@@ -672,7 +674,9 @@ def draw_segments(img, ax, ay, bx, by, color_index, palette, radius):
         x0, y0, x1, y1 = ax[k], ay[k], bx[k], by[k]
         if not (math.isfinite(x0) and math.isfinite(y0) and math.isfinite(x1) and math.isfinite(y1)):
             continue
-        cr, cg, cb, ca = palette[ci, 0], palette[ci, 1], palette[ci, 2], palette[ci, 3]
+        cr, cg, cb, ca = palette[ci, 0], palette[ci, 1], palette[ci, 2], palette[ci, 3] * alpha[k]
+        if ca <= 0.0:
+            continue
         dx, dy = x1 - x0, y1 - y0
         L2 = dx * dx + dy * dy
         i0 = max(int(math.floor(min(x0, x1) - radius - 1.0)), 0)
@@ -692,6 +696,13 @@ def draw_segments(img, ax, ay, bx, by, color_index, palette, radius):
                 if cov <= 0.0:
                     continue
                 a = ca * min(cov, 1.0)
+                if keep_max:
+                    if 255.0 * a > img[j, i, 3]:
+                        img[j, i, 0] = int(cb * a + 0.5)
+                        img[j, i, 1] = int(cg * a + 0.5)
+                        img[j, i, 2] = int(cr * a + 0.5)
+                        img[j, i, 3] = int(255.0 * a + 0.5)
+                    continue
                 inv = 1.0 - a
                 img[j, i, 0] = int(cb * a + img[j, i, 0] * inv + 0.5)
                 img[j, i, 1] = int(cg * a + img[j, i, 1] * inv + 0.5)

@@ -19,12 +19,13 @@ class PlotSettings:
     cp_reference: float | None = None           # Cp reference speed; None = V∞ of the uniform flow(s)
     particles: int = 1500                       # animation: number of tracer particles
     anim_speed: int = 5                         # animation speed slider (5: a typical particle crosses the view in 6 s)
-    trail: int = 4                              # trail length slider (0 = no trails)
+    trail: int = 4                              # trail length slider (0 = no trails / short pulses)
+    anim_style: int = 0                         # animation: 0 particles, 1 pulses along streamlines
 
     def to_document(self) -> dict:
         """The settings as stored in a scene file (no Cp reference = the uniform flow's V∞)."""
         out = asdict(self)
-        for key in ("field_quality", "particles", "anim_speed", "trail"):
+        for key in ("field_quality", "particles", "anim_speed", "trail", "anim_style"):
             out[key] = float(getattr(self, key))
         if not self.cp_reference:
             del out["cp_reference"]
@@ -36,7 +37,7 @@ class PlotSettings:
         values = asdict(self)
         values.update({f.name: saved[f.name] for f in fields(self) if f.name in saved})
         values["field_quality"] = int(saved.get("field_quality", 2))
-        for key in ("particles", "anim_speed", "trail"):
+        for key in ("particles", "anim_speed", "trail", "anim_style"):
             values[key] = int(values[key])
         values["cp_reference"] = saved.get("cp_reference") or None
         return PlotSettings(**values)

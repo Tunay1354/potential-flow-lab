@@ -130,6 +130,7 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         sp.particles_changed.connect(cv.set_particles)
         sp.animation_speed_changed.connect(cv.set_animation_speed)
         sp.trail_changed.connect(cv.set_trail)
+        sp.animation_style_changed.connect(cv.set_animation_style)
         live = QSettings().value("plot/live_drag", LIVE_DRAG_DEFAULT, type=bool)      # a program setting
         cv.set_live_drag(live)
         sp.set_live_drag(live)

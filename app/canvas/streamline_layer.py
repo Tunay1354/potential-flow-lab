@@ -49,7 +49,7 @@ class _Job(QRunnable):
         self.fn()
 
 
-ANIMATED_ALPHA = 0.35                         # streamline opacity under the animated particles
+ANIMATED_ALPHA = (0.35, 0.45)                 # streamline opacity under the animation (particles, pulses)
 
 
 class StreamlineLayer(PlotLayer):
@@ -138,7 +138,7 @@ class StreamlineLayer(PlotLayer):
     def set_line_pens(self):
         """Pens of the opacity levels; faint while animating (the particles are the main thing then)."""
         n = len(self.line_items)
-        faint = ANIMATED_ALPHA if self.canvas.animated else 1.0
+        faint = ANIMATED_ALPHA[self.canvas.settings.anim_style == 1] if self.canvas.animated else 1.0
         for k, item in enumerate(self.line_items):
             color = QColor(self.theme["streamline"])
             color.setAlphaF(color.alphaF() * faint * (n - k) / n)
@@ -298,6 +298,7 @@ class StreamlineLayer(PlotLayer):
         self._arrows = np.asarray(result.arrows, dtype=float).reshape(-1, 3)
         self._cull()
         self.arrow_item.setColor(self.theme["streamline"])
+        self.canvas.lines_shown(result)
 
     def _cull(self):
         """Hand to the plot only the line pieces and arrows near the view (the computed region is

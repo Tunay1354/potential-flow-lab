@@ -1,11 +1,12 @@
-"""Phase 4b: the animated view — tracer particles carried by the flow (physics/particles.py) and the
-particle layer of the plot (trails, colors by speed, legend, Static / Animated, pause, settings)."""
+"""Phase 4b: the animated view — tracer particles carried by the flow and travel times along
+streamlines (physics/particles.py), and the two animation styles of the plot (particles with trails,
+pulses along streamlines; colors by speed, legend, Static / Animated, pause, settings)."""
 import numpy as np
 import pytest
 
 from physics import Doublet, SectorFlow, Source, SymmetryWall, Uniform, Vortex, kernel
 from physics.field import fluid_mask
-from physics.particles import CROSSING_S, Particles
+from physics.particles import CROSSING_S, Particles, travel_times
 
 
 # ---------------------------------------------------------------- physics
@@ -69,6 +70,47 @@ def test_particles_restart_staggered_not_all_at_once():
         p.step(1 / 60)
         restarts.append(p.fresh.mean())
     assert max(restarts) < 0.1 and np.mean(restarts) > 0                # a few every frame
+
+
+def test_travel_times_along_streamlines():
+    """Uniform flow: τ = distance / V from the start of each line, pieces about `step` long."""
+    lines = [np.column_stack([np.linspace(0, 4, 9), np.zeros(9)]),
+             np.column_stack([np.linspace(-1, 1, 5), np.ones(5)])]
+    a, b, tau, v = travel_times(lines, [Uniform(V=2.0)], 0.1, 1e-3)
+    assert a.size == 40 + 20
+    np.testing.assert_allclose(np.abs(b - a), 0.1)
+    mid = 0.5 * (a + b)
+    np.testing.assert_allclose(tau[:40], mid.real[:40] / 2.0)
+    np.testing.assert_allclose(tau[40:], (mid.real[40:] + 1.0) / 2.0)          # a new line starts at 0
+    np.testing.assert_allclose(v, 2.0)
+
+
+def test_travel_time_grows_towards_a_stagnation_point_but_stays_finite():
+    """Towards the stagnation point of a source in a uniform flow the flow slows down: τ grows faster
+    and faster, limited by the speed floor."""
+    scene = [Uniform(V=1.0), Source(m=2 * np.pi)]                  # stagnation point at x = −1
+    x = np.linspace(-4.0, -1.0, 301)
+    a, b, tau, v = travel_times([np.column_stack([x, np.zeros_like(x)])], scene, 0.01, 1e-2)
+    assert np.isfinite(tau).all() and (np.diff(tau) > 0).all()
+    assert v[-1] < 0.02 and v[0] > 0.6
+    assert tau[-1] - tau[-30] > 10 * (tau[29] - tau[0])               # the last 0.3 take much longer
+
+
+@pytest.mark.skipif(not kernel.HAVE_NUMBA, reason="Numba not installed")
+def test_draw_segments_keep_max_does_not_darken_where_pieces_overlap():
+    img = np.zeros((20, 40, 4), np.uint8)
+    pal = np.array([[200.0, 100.0, 50.0, 0.8]])
+    x = np.linspace(5, 35, 16)                                          # 2 px pieces with round ends
+    ax, bx = x[:-1].copy(), x[1:].copy()
+    ay = by = np.full(ax.size, 10.0)
+    kernel.draw_segments(img, ax, ay, bx, by, np.zeros(ax.size, np.int64), pal, 1.5, np.ones(ax.size), True)
+    assert img[10, 20, 3] == round(255 * 0.8)                           # the line's own opacity
+    img2 = np.zeros_like(img)
+    kernel.draw_segments(img2, ax, ay, bx, by, np.zeros(ax.size, np.int64), pal, 1.5, np.ones(ax.size), False)
+    assert img2[10, 20, 3] > img[10, 20, 3]                             # blending: darker where they overlap
+    half = np.zeros_like(img)
+    kernel.draw_segments(half, ax, ay, bx, by, np.zeros(ax.size, np.int64), pal, 1.5, np.full(ax.size, 0.5), True)
+    assert half[10, 20, 3] == round(255 * 0.4)
 
 
 # ---------------------------------------------------------------- the plot
@@ -185,3 +227,83 @@ def test_particles_follow_a_dragged_element(win, qapp):
     assert cv.particles.particles.flows != flows_before                  # moved element used at once
     cv.interaction.cancel_drag()
     assert cv.particles.particles.flows == flows_before
+
+
+# ---------------------------------------------------------------- style "Pulses along streamlines"
+def test_pulse_style_runs_instead_of_the_particles(win, qapp):
+    sp, cv = win.settings_panel, win.canvas
+    assert sp.c_anim_style.currentText() == "Particles" and sp.s_particles.isEnabled()
+    alpha_static = cv.streamlines.line_items[0].opts["pen"].color().alphaF()
+    sp.c_anim_style.setCurrentIndex(1)
+    assert cv.settings.anim_style == 1 and cv.animation is cv.pulses and not sp.s_particles.isEnabled()
+    cv.bar.btn_anim.click()
+    assert cv.pulses._timer.isActive() and not cv.particles._timer.isActive()
+    _frames(qapp)
+    img = cv.pulses.trail.image
+    assert img is not None and cv.pulses.trail.isVisible() and not cv.particles.trail.isVisible()
+    a = np.frombuffer(img.bits(), np.uint8).reshape(img.height(), img.bytesPerLine() // 4, 4)[..., 3]
+    assert a.max() > 150 and 0.002 < (a > 0).mean() < 0.2                 # bright dashes, not everywhere
+    assert cv.streamlines.line_items[0].opts["pen"].color().alphaF() < 0.6 * alpha_static
+    assert not cv.streamlines.arrow_item.isVisible()
+    assert cv.pulses.legend.isVisible() and not cv.particles.legend.isVisible()
+    t = cv.pulses.t
+    _frames(qapp, 6)
+    assert cv.pulses.t > t                                                 # running
+    sp.c_anim_style.setCurrentIndex(0)                                     # switched while animating
+    assert cv.particles._timer.isActive() and not cv.pulses._timer.isActive()
+    assert not cv.pulses.trail.isVisible() and cv.particles.legend.isVisible()
+    _frames(qapp)
+    assert _trail_alpha(cv) > 100
+
+
+def test_pulses_pause_and_follow_new_streamlines(win, qapp):
+    cv = win.canvas
+    cv.set_animation_style(1)
+    cv.set_animated(True)
+    _frames(qapp, 4)
+    win.act_pause.trigger()
+    assert cv.paused and cv.pulses.paused
+    t = cv.pulses.t
+    cv.set_view((-3.0, 3.0), (-2.0, 2.0))                                  # zoom while paused: drawn again
+    _frames(qapp, 6)
+    assert cv.pulses.t == t and cv.pulses.trail.image is not None
+    win.act_pause.trigger()
+    assert not cv.paused
+    old = cv.pulses.result
+    win.load_scene([Uniform(alpha=20.0)], ((-4, 4), (-3, 3)))
+    from PySide6.QtTest import QTest
+    for _ in range(200):
+        if cv.pulses.result is not old and not cv.streamlines.busy:
+            break
+        cv.wait_idle()
+        QTest.qWait(20)
+    assert cv.pulses.result is not old
+    _frames(qapp, 4)
+    ax, ay, bx, by, phase, band = cv.pulses._px
+    ang = np.degrees(np.arctan2(by - ay, bx - ax))
+    np.testing.assert_allclose(np.median(ang), 20.0, atol=1.0)               # pieces along the new flow
+
+
+def test_pulses_without_numba(win, qapp, monkeypatch):
+    cv = win.canvas
+    monkeypatch.setattr(kernel, "HAVE_NUMBA", False)
+    cv.set_animation_style(1)
+    cv.set_animated(True)
+    _frames(qapp, 6)
+    img = cv.pulses.trail.image
+    a = np.frombuffer(img.bits(), np.uint8).reshape(img.height(), img.bytesPerLine() // 4, 4)[..., 3]
+    assert a.max() > 100
+
+
+def test_animation_style_is_saved_with_the_scene(win, qapp, tmp_path):
+    sp, cv = win.settings_panel, win.canvas
+    sp.c_anim_style.setCurrentIndex(1)
+    path = str(tmp_path / "pulses.pflow")
+    win._ask_save_path = lambda suggested: path
+    assert win.save_scene_as()
+    sp.c_anim_style.setCurrentIndex(0)
+    assert cv.settings.anim_style == 0
+    cv.set_animated(True)
+    assert win.open_scene(path)
+    assert cv.settings.anim_style == 1 and sp.c_anim_style.currentIndex() == 1
+    assert cv.pulses.animated and not cv.particles.animated                # the opened style runs

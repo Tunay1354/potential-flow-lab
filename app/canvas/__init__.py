@@ -7,6 +7,7 @@ canvas — the plot card of the main window.
     stagnation_layer.py  stagnation points and dividing streamlines
     field_layer.py       equipotential lines, |V| and Cp color bands (contours.py, legend.py)
     element_layer.py     element symbols, walls, selection glow, picking
+    animation_layer.py   the animated view: particles with trails, or pulses along the streamlines
     interaction.py       mouse modes, dragging elements, dropping palette elements
     settings.py          PlotSettings (saved with the scene)
     bar.py               the bar above the plot

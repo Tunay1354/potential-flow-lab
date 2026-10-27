@@ -192,6 +192,7 @@ class SettingsPanel(QScrollArea):
     particles_changed = Signal(int)          # animation: number of particles
     animation_speed_changed = Signal(int)    # animation: speed slider 1 … 10
     trail_changed = Signal(int)              # animation: trail length slider 0 … 10
+    animation_style_changed = Signal(int)    # animation: 0 particles, 1 pulses along streamlines
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -260,15 +261,23 @@ class SettingsPanel(QScrollArea):
         # --- Animation ------------------------------------------------------
         g = QGroupBox("ANIMATION")
         f = QFormLayout(g)
+        st = self.c_anim_style = themed_combo(QComboBox())
+        st.addItems(["Particles", "Pulses along streamlines"])
+        st.setToolTip("Particles: tracer particles carried by the flow, with fading trails.\n"
+                      "Pulses: bright dashes running along the streamlines at the local speed\n"
+                      "(released at the same moments: they stretch where the flow is fast).")
+        f.addRow("Style", st)
         self.s_particles = self._slider(200, 5000, 1500, "Number of tracer particles")
-        self.s_anim_speed = self._slider(1, 10, 5, "How fast the particles move (5: a typical one crosses the view in 6 s)")
-        self.s_trail = self._slider(0, 10, 4, "How long the particles' trails are (0: dots only)")
+        self.s_anim_speed = self._slider(1, 10, 5, "How fast the animation runs (5: a typical particle crosses the view in 6 s)")
+        self.s_trail = self._slider(0, 10, 4, "Particles: how long the trails are (0: dots only).\n"
+                                                "Pulses: how long each pulse is (0: short dashes).")
         f.addRow("Particles", self.s_particles)
         f.addRow("Speed", self.s_anim_speed)
         f.addRow("Trail length", self.s_trail)
         self.s_particles.valueChanged.connect(self.particles_changed)
         self.s_anim_speed.valueChanged.connect(self.animation_speed_changed)
         self.s_trail.valueChanged.connect(self.trail_changed)
+        st.currentIndexChanged.connect(self._animation_style_edited)
         self._add_section("animation", "Animation", g, lay)
 
         # --- Computation ----------------------------------------------------
@@ -353,11 +362,15 @@ class SettingsPanel(QScrollArea):
         s.setValue(val)
         return s
 
+    def _animation_style_edited(self, index: int):
+        self.s_particles.setEnabled(index != 1)                 # (the pulses follow the streamlines)
+        self.animation_style_changed.emit(index)
+
     def show_settings(self, settings):
         """Show the plot settings of an opened scene without emitting signals (File → Open sets the
         canvas itself, with the exact values from the file)."""
         widgets = (self.s_density, self.s_width, self.s_arrows, self.c_arrows, self.c_quality, self.c_cp_ref,
-                   self.s_vref, self.s_particles, self.s_anim_speed, self.s_trail)
+                   self.s_vref, self.s_particles, self.s_anim_speed, self.s_trail, self.c_anim_style)
         for w in widgets:
             w.blockSignals(True)
         for w, key in ((self.s_density, "density"), (self.s_width, "line_width"), (self.s_arrows, "arrow_density")):
@@ -366,6 +379,8 @@ class SettingsPanel(QScrollArea):
         for w, val in ((self.s_particles, settings.particles), (self.s_anim_speed, settings.anim_speed),
                        (self.s_trail, settings.trail)):
             w.setValue(min(max(int(val), w.minimum()), w.maximum()))
+        self.c_anim_style.setCurrentIndex(1 if settings.anim_style == 1 else 0)
+        self.s_particles.setEnabled(settings.anim_style != 1)
         self.c_quality.setCurrentIndex(min(max(int(settings.field_quality), 1), 3) - 1)
         custom = settings.cp_reference
         self.c_cp_ref.setCurrentIndex(1 if custom else 0)

@@ -140,7 +140,7 @@ sadece genel teknikler öğrenildi: döngünün tamamını derlemek, trail buffe
       saniyede ~27–33 çizgi güncellemesi, pencere ~26–32 fps (canlı kapalıyken ~39 fps)
 13. ⏸ **Ara kontrol — deneme exe'si**: 27 Ekim'de Faz 5'e bırakıldı (sadece erken risk kontrolüydü; Numba
     exe'de çalışmazsa program NumPy yoluyla yine çalışır)
-14. ✅ **Faz 4b — Animasyon** [5] (stil A: particle'lar)
+14. ✅ **Faz 4b — Animasyon** [5] (stil A: particle'lar, stil B: streamline üstünde darbeler)
     - Static / Animated (üst bar ve View menüsü); Animated'da streamline'lar soluk, oklar gizli
     - Particle'lar Numba'da (RK2 + ara adımlar, ~0.2–0.7 ms / kare); görünümden / akışkandan çıkan, tekil noktaya
       yaklaşan, plakayı geçecek olan veya ömrü dolan yeniden doğar (ömürler kaydırılmış: hepsi birden değil)
@@ -152,7 +152,12 @@ sadece genel teknikler öğrenildi: döngünün tamamını derlemek, trail buffe
       ~2–3 ms, ~60 fps (test makinesinde); export sırasında önbellek kapanır (keskin çıktı)
     - Ayarlar: Particles / Speed / Trail length (sahneyle kaydedilir); Space = Pause (kısayol değiştirilebilir)
     - Sürüklerken particle'lar yeni akışta akmaya devam eder
-    - Sonraya: stil B (streamline üstünde kayan darbeler), GIF / MP4 kaydı
+    - ✅ Stil B (27 Ekim, seçenek: Animation → Style): her streamline ~2 piksellik parçalara bölünür, her parçaya
+      çizginin başından yolculuk süresi τ = ∫ds/|V| hesaplanır; frac((t − τ)/T) küçükken parça yanar (parlak baş,
+      sönen kuyruk). Darbeler eşit ZAMAN aralıklı: hızlı yerde uzar, yavaş yerde (durma noktası) sıkışır.
+      Trail length = darbe uzunluğu, Particles ayarı bu stilde kapalı; stil sahneyle kaydedilir; sürüklerken
+      önizleme çizgilerini takip eder; Pause'dayken zoom / pan yeniden çizer. Kare ~3–4 ms
+    - Sonraya: GIF / MP4 kaydı
 15. ☐ **Paket S — Surface pressure paneli**: cisimlerin yüzeyi Cp'ye göre renkli, dock panelde Cp – θ grafiği
     (silindirde analitik eğri), yüzey integraliyle lift / drag ↔ Kutta–Joukowski / d'Alembert, surface Cp CSV
 16. ☐ **Paket V — Komut satırı + otomatik doğrulama**: pencere açmadan figür / CSV export, `--verify`: verification
