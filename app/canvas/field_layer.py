@@ -10,8 +10,10 @@ Everything is computed on a grid over the view (+ a margin, so a short pan shows
 the view has settled for a moment. Points in the solid (behind walls, outside a wedge) are left out;
 φ lines keep out of a circle round every singular point (inside it they would crowd into a blot: φ → ∞
 there) and out of solid bodies; the color bands are filled right up to the singular points. φ of a vortex
-(and of a sector flow) is multi-valued: it jumps across a branch cut. Grid cells where φ jumps much
-more than the local velocity allows are left out, so no false lines bunch along the cut.
+is multi-valued: it jumps by Γ across a branch cut. The spacing is chosen so that Γ is an even multiple
+of it and the lines are the zeros of sin(πφ/Δφ), which does not see that jump: the lines run straight
+through the cut and close round the vortex (vortex_step). Other jumps (a vortex whose Γ does not fit,
+a sector flow's cut) are left out: grid cells where φ jumps much more than the local velocity allows.
 
 `update(...)` works without a canvas (tests); in the plot, `refresh()` calls it with the canvas state.
 """
@@ -40,6 +42,38 @@ MAX_LEVELS = 400
 PHI_DASH = (3.0, 3.0)            # φ lines: dash, gap (× the line width)
 EXTREME_SPEED = 3.0              # φ lines are also left out where |V| > this × CROWD_SPEED × typical
 SETTLE_MS = 90                   # computed this long after the last zoom / pan step
+
+
+def _snap(elements, xy, step):
+    """Contour points moved exactly onto φ = n·step (two Newton steps along ∇φ = (u, v)): the
+    contour of sin(πφ/step), interpolated linearly between grid points, is off by ~0.3% of a spacing."""
+    ok = np.isfinite(xy[:, 0])
+    if not ok.any():
+        return xy
+    z = xy[ok, 0] + 1j * xy[ok, 1]
+    flows = resolve(active(elements))
+    with np.errstate(all="ignore"):
+        for _ in range(2):
+            phi = complex_potential(elements, z).real
+            vel = np.conj(complex_velocity(flows, z))
+            dz = (step * np.round(phi / step) - phi) * vel / np.abs(vel) ** 2
+            good = np.isfinite(dz) & (np.abs(dz) < 0.5 * step / np.maximum(np.abs(vel), 1e-300))
+            z = np.where(good, z + np.where(good, dz, 0), z)
+    out = xy.copy()
+    out[ok, 0], out[ok, 1] = z.real, z.imag
+    return out
+
+
+def vortex_step(elements, step: float) -> float:
+    """The φ line spacing near `step` that makes the strongest vortex's Γ an EVEN multiple of it (so
+    the lines close round the vortex: as many on both sides of its branch cut, see
+    _draw_equipotentials). A vortex weaker than 2 spacings keeps `step` (its cut is left out)."""
+    gammas = [abs(e.Gamma) for e in active(elements) if e.TYPE == "vortex" and e.Gamma != 0]
+    if not gammas or not (step > 0):
+        return step
+    g = max(gammas)
+    n = 2 * int(round(g / (2.0 * step)))
+    return g / n if n >= 2 else step
 
 
 def crowd_circles(elements, limit: float, r_min: float, r_max: float, n_ring: int = 48, n_radii: int = 40):
@@ -186,26 +220,32 @@ class FieldLayer(PlotLayer):
         x, y, speed = f.grid.x, f.grid.y, f.speed
         phi = complex_potential(elements, f.grid.Z).real
         phi[f.mask | singularity_mask(elements, f.grid.Z, 1.5 * f.grid.spacing) | ~fluid] = np.nan
-        phi[cut_mask(phi, speed, x[1] - x[0], y[1] - y[0])] = np.nan
         typical = np.nanmedian(speed[inview]) if np.any(np.isfinite(speed[inview])) else np.nan
-        if np.isfinite(typical):                        # lines would crowd into a dark blot:
-            (x0, x1), (y0, y1) = view
-            h = max(x[1] - x[0], y[1] - y[0])
-            for s, r in crowd_circles(elements, CROWD_SPEED * typical, 1.5 * h, 0.5 * max(x1 - x0, y1 - y0)):
-                phi[np.abs(f.grid.Z - s) < r] = np.nan      # a clean circle round a singular point
-            phi[speed > EXTREME_SPEED * CROWD_SPEED * typical] = np.nan
-        bodies = getattr(self.canvas, "bodies", None)
-        if bodies is not None and bodies.map is not None:
-            phi[bodies.contains(f.grid.Z)] = np.nan          # not inside solid bodies
         step = typical * view_spacing(elements, *view, density) if np.isfinite(typical) and typical > 0 else np.nan
         vals = phi[np.isfinite(phi)]
-        xy = np.zeros((0, 2))
         if vals.size and np.isfinite(step):
             lo, hi = np.percentile(vals, 0.5), np.percentile(vals, 99.5)
             if (hi - lo) / step > MAX_LEVELS:
                 step = (hi - lo) / MAX_LEVELS
-            levels = np.arange(math.floor(lo / step), math.ceil(hi / step) + 1) * step
-            xy = contour_xy(x, y, phi, levels)
+            step = vortex_step(elements, step)
+        # across the branch cut of a vortex φ jumps by Γ: with Γ a multiple of 2·step that jump is
+        # invisible to sin(πφ/step), whose zeros are exactly the lines φ = n·step — so the lines run
+        # straight through the cut and meet (they used to stop on both sides: a gap). Other jumps
+        # (a vortex whose Γ does not fit, a sector flow's cut) are still left out.
+        period = 2.0 * step if np.isfinite(step) else None
+        phi[cut_mask(phi, speed, x[1] - x[0], y[1] - y[0], period=period)] = np.nan
+        if np.isfinite(typical):                        # lines would crowd into a dark blot:
+            (x0, x1), (y0, y1) = view
+            h = max(x[1] - x[0], y[1] - y[0])
+            for s_, r in crowd_circles(elements, CROWD_SPEED * typical, 1.5 * h, 0.5 * max(x1 - x0, y1 - y0)):
+                phi[np.abs(f.grid.Z - s_) < r] = np.nan     # a clean circle round a singular point
+            phi[speed > EXTREME_SPEED * CROWD_SPEED * typical] = np.nan
+        bodies = getattr(self.canvas, "bodies", None)
+        if bodies is not None and bodies.map is not None:
+            phi[bodies.contains(f.grid.Z)] = np.nan          # not inside solid bodies
+        xy = np.zeros((0, 2))
+        if np.isfinite(phi).any() and np.isfinite(step):
+            xy = _snap(elements, contour_xy(x, y, np.sin(np.pi * phi / step), [0.0]), step)
         self.phi.setData(xy[:, 0], xy[:, 1])
 
     def _draw_map(self, kind, elements, f, fluid, inview, view, v_ref):

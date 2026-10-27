@@ -358,3 +358,24 @@ def test_no_phi_lines_inside_solid_bodies(qapp):
     r = np.hypot(x, y)[np.isfinite(x)]
     assert r.size > 100 and r.min() > 0.97                         # nothing inside the cylinder r = 1
     w.close()
+
+
+def test_phi_lines_of_a_vortex_close_round_it_across_the_branch_cut(fl):
+    """φ = Γθ/2π jumps by Γ across the cut (left of the vortex). The spacing makes Γ an even multiple
+    of it, so the rays are evenly spaced all round and one runs along the cut (there used to be a gap:
+    lines stopped on both sides of it and the spacing there was uneven)."""
+    from app.canvas.field_layer import vortex_step
+    from physics import Vortex
+    assert vortex_step([Vortex(Gamma=1.0)], 0.12) == pytest.approx(1.0 / 8)
+    assert vortex_step([Vortex(Gamma=-1.0)], 0.3) == pytest.approx(1.0 / 4)
+    assert vortex_step([Vortex(Gamma=0.1)], 0.3) == 0.3                     # weak: unchanged
+    fl.update([Vortex(Gamma=1.0)], ((-4.0, 2.0), (-2.0, 2.0)), {"equipotential": True}, 3)
+    x, y = fl.phi.getData()
+    ok = np.isfinite(x) & (np.hypot(x, y) > 1.0)
+    ang = np.degrees(np.angle(x[ok] + 1j * y[ok]))
+    rays = np.unique(np.round(ang / 0.5) * 0.5)
+    left = rays[np.abs(np.abs(rays) - 180.0) < 1.0]
+    assert left.size                                                        # a ray along the cut
+    gaps = np.diff(np.sort(np.mod(rays, 360.0)))
+    gaps = gaps[gaps > 1.0]
+    assert gaps.max() < 1.3 * np.median(gaps)                               # evenly spaced all round

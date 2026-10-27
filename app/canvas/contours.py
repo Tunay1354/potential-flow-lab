@@ -35,12 +35,17 @@ def nice_step(span: float, count: int) -> float:
     return 10.0 * k
 
 
-def cut_mask(f: np.ndarray, speed: np.ndarray, hx: float, hy: float, factor: float = 4.0) -> np.ndarray:
+def cut_mask(f: np.ndarray, speed: np.ndarray, hx: float, hy: float, factor: float = 4.0,
+             period: float | None = None) -> np.ndarray:
     """True at grid points next to a jump of f (a branch cut): |Δf| between neighbors much larger
-    than |V| · h, the most a smooth potential can change over one grid step."""
+    than |V| · h, the most a smooth potential can change over one grid step. With `period`, jumps by a
+    whole multiple of it do not count (they do not change sin(πf/(period/2)), see field_layer)."""
     bad = np.zeros(f.shape, bool)
     for axis, h in ((1, hx), (0, hy)):
-        df = np.abs(np.diff(f, axis=axis))
+        df = np.diff(f, axis=axis)
+        if period:
+            df = df - period * np.round(df / period)
+        df = np.abs(df)
         sp = np.diff(speed, axis=axis) * 0.5 + np.take(speed, range(speed.shape[axis] - 1), axis=axis)
         jump = df > factor * np.nan_to_num(sp, nan=0.0) * h + 1e-12
         jump &= np.isfinite(df)
