@@ -149,7 +149,7 @@ def _drop(qapp, win, key, x, y, shift=False):
     mod = Qt.ShiftModifier if shift else Qt.NoModifier
     QApplication.sendEvent(vp, QDragEnterEvent(QPointF(pos), Qt.CopyAction, mime, Qt.LeftButton, mod))
     QApplication.sendEvent(vp, QDragMoveEvent(QPointF(pos), Qt.CopyAction, mime, Qt.LeftButton, mod))
-    ghost = win.canvas._ghost.isVisible()
+    ghost = win.canvas.interaction.ghost.isVisible()
     QApplication.sendEvent(vp, QDropEvent(QPointF(pos), Qt.CopyAction, mime, Qt.LeftButton, mod, QEvent.Drop))
     for _ in range(3):
         qapp.processEvents()
@@ -166,7 +166,7 @@ def test_drop_from_palette_opens_the_dialog_at_that_place(win, qapp):
     calls.clear()
     _drop(qapp, win, "uniform", 0.0, 0.0)                  # no position: just the dialog
     assert calls == [("uniform", None)]
-    assert not win.canvas._ghost.isVisible()
+    assert not win.canvas.interaction.ghost.isVisible()
 
 
 def test_dropped_position_fills_the_dialog(win, qapp, monkeypatch):
@@ -261,10 +261,10 @@ def test_dividing_lines_come_back_after_a_drag(win, qapp):
     cv.set_mode("select")
     win.select_stagnation(0)
     qapp.processEvents()
-    x, _ = cv._dividing_item.getData()
-    assert cv._dividing_item.isVisible() and x is not None and len(x) > 0
+    x, _ = cv.stagnation.dividing_item.getData()
+    assert cv.stagnation.dividing_item.isVisible() and x is not None and len(x) > 0
     _drag(qapp, win, (0.4, 0.3), (0.4, 0.3), before_release=cv.cancel_drag)     # an Esc'd drag too
-    assert cv._dividing_item.isVisible()
+    assert cv.stagnation.dividing_item.isVisible()
 
 
 def test_sector_vertex_is_not_marked(win, qapp):
@@ -278,4 +278,4 @@ def test_sector_vertex_is_not_marked(win, qapp):
     qapp.processEvents()
     pts = win.canvas.stagnation_points
     assert pts and all(p.kind != "vertex" for p in pts)
-    assert set(win.canvas._dividing_owner) <= set(range(len(pts)))
+    assert set(win.canvas.stagnation.dividing_owner) <= set(range(len(pts)))

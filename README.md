@@ -77,9 +77,15 @@ açılışlarda hazır gelir.
 | `main.py` | Programı başlatır (`python main.py sahne.pflow` dosyayı da açar) |
 | `app_info.py` | Program adı ve sürümü |
 | `presets/` | Hazır sahneler (`.pflow` dosyaları, klasör = menüdeki grup) |
-| `app/` | Arayüz. Oklar tek bir çizim öğesi: `app/arrows_item.py`. Renkler/boyutlar/marker'lar: `app/theme.py`, başlangıç sahnesi ve preset listesi: `app/scene.py`, son açılanlar: `app/recent_files.py` |
-| `app/dialogs.py` | Parametre penceresi (alanlar `app/element_specs.py`'den otomatik; işaretli değerler için Source/Sink, Counter-clockwise/Clockwise seçimi) |
+| `app/main_window.py` | Ana pencere: parçaları birleştirir, sinyalleri bağlar, element komutları (ekle / düzenle / taşı / sil, undo / redo) |
+| `app/window/` | Ana pencerenin parçaları: `layout.py` (yan paneller, palette sağ/sol, düzeni hatırlama), `menus.py` (palette, menüler, kısayollar), `files.py` (New / Open / Save, preset'ler), `exporting.py` (figür ve CSV export), `status.py` (durum çubuğu, probe, sahne kontrolü, başlıklar) |
+| `app/canvas/` | Plot kartı. `canvas.py` ortak durumu tutar (elementler, ayarlar, katman anahtarları, seçim) ve her olayı katmanlara iletir. Katmanlar: `streamline_layer.py` (arka planda hesap), `stagnation_layer.py`, `field_layer.py` (φ, \|V\|, Cp; `contours.py`, `legend.py`), `element_layer.py` (semboller, duvarlar, seçme). `interaction.py`: fare modları, sürükleme, palette'ten bırakma. `settings.py`: sahneyle kaydedilen plot ayarları |
+| `app/export/` | `figure.py` (PNG / SVG / PDF), `data.py` (CSV, Qt'siz), `dialogs.py` |
+| `app/chrome/` | Pencerenin "çizim kağıdı" görünümü: `style.py` (font, renk), `header.py` (logo, tahta şerit, cetvel + menüler), `cards.py` (panel kartları, title block), `palette.py` (element paleti) |
+| `app/panels.py`, `app/dialogs.py` | Elements / Plot settings panelleri; parametre penceresi (alanlar `app/element_specs.py`'den otomatik) |
+| `app/theme.py` | Renkler (açık / koyu), fontlar, boyutlar, marker'lar |
 | `app/geometry.py` | Duvarların çizim geometrisi (köşelerde sadece akışkana bakan kısım çizilir) |
+| `app/scene.py`, `app/recent_files.py`, `app/shortcuts.py` | Başlangıç sahnesi ve preset listesi; son açılanlar; değiştirilebilir kısayollar |
 | `model/` | Sahne modeli: element listesi, komutlar, undo/redo, değişiklik önizlemesi (Qt'siz) |
 | `model/scene_file.py` | Dosya formatı (.pflow, sürüm numaralı JSON), okuma / yazma, anlaşılır hata mesajları |
 | `physics/` | Fizik motoru — GUI'den bağımsız, sadece NumPy |
@@ -96,6 +102,12 @@ açılışlarda hazır gelir.
 | `tests/` | Otomatik doğrulama testleri (`pytest`) |
 | `scripts/verify_physics.py` | Rapor için doğrulama tablosu |
 | `scripts/streamline_quality.py` | Streamline resminin kalite ölçümü (aralık düzgünlüğü, kesik uçlar, süre) |
+
+**Yeni bir plot katmanı eklemek** (ör. animasyon): `app/canvas/layer.py`'deki `PlotLayer`'dan bir sınıf
+(sadece gereken olaylar: tema, sahne, görünüm, sürükleme…), `PlotCanvas.__init__`'te bir `add_layer(...)`
+satırı ve gerekiyorsa `LAYERS` listesine bir anahtar (Plot settings ve View menüsünde kendiliğinden çıkar).
+**Yeni bir plot ayarı**: `app/canvas/settings.py`'de bir alan (+ `model/scene_file.py` → `SETTINGS`);
+sahne dosyasına kaydedilir ve açılır.
 
 ## Notasyon (ders notlarıyla aynı)
 

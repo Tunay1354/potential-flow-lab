@@ -91,6 +91,7 @@ class ShortcutsDialog(QDialog):
 
     def __init__(self, shortcuts: Shortcuts, parent=None):
         super().__init__(parent)
+        self.setAttribute(Qt.WA_DeleteOnClose)        # freed when closed (read the values first)
         self.setWindowTitle("Keyboard shortcuts")
         self.shortcuts = shortcuts
         self.edits = {}

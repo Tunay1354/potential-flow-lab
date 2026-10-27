@@ -111,8 +111,9 @@ def _read(path, sep=","):
 
 def test_csv_tables(win, tmp_path):
     from app.export import export_data
+    cv = win.canvas
     written = export_data(str(tmp_path / "scene.csv"), ["elements", "stagnation", "streamlines", "field"],
-                          win.elements, win.canvas, grid_nx=21)
+                          win.elements, cv.view(), cv.stagnation_points, cv.last_result.lines, grid_nx=21)
     names = sorted(os.path.basename(p) for p in written)
     assert names == ["scene_elements.csv", "scene_field.csv", "scene_stagnation.csv", "scene_streamlines.csv"]
     el = _read(str(tmp_path / "scene_elements.csv"))
@@ -135,7 +136,8 @@ def test_csv_tables(win, tmp_path):
 
 def test_csv_semicolon_uses_decimal_comma(win, tmp_path):
     from app.export import export_data
-    (path,) = export_data(str(tmp_path / "st.csv"), ["stagnation"], win.elements, win.canvas, separator=";")
+    (path,) = export_data(str(tmp_path / "st.csv"), ["stagnation"], win.elements, win.canvas.view(),
+                          win.canvas.stagnation_points, separator=";")
     rows = _read(path, ";")
     assert path.endswith("st.csv") and "," in rows[1][1] and "." not in rows[1][1]
 

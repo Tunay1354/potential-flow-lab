@@ -163,14 +163,12 @@ LAYOUT = {
     "toolbar_icon_px": 26,
     "palette_width": 84,            # element palette left of the plot
     "palette_button": (68, 58),     # size of one palette button (icon + name)
-    "toolbar_show_text": True,      # element names under the toolbar icons
     "right_panel_width": 340,
     "elements_panel_min_height": 210,
     "plot_initial_range": {"x": (-4.0, 4.0), "y": (-2.6, 2.6)},
     "streamline_width": 1.4,
     "dividing_streamline_width": 2.4,
     "arrow_size_px": 6.5,           # width of the streamline arrow heads (length = 1.35 × width)
-    "corner_radius_px": 0,          # drafting look: square corners
     "wall_width": 3.0,              # px
     "wall_hatch_count": 70,         # hatch marks per view diagonal
     # selected element glows in its own color: (extra size in px, opacity 0–255), outermost first

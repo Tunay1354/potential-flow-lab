@@ -114,8 +114,16 @@ Teslim: yaklaşık 26 Kasım 2026 (rapor + user guide + canlı demo).
 Sıra 27 Ekim'de yeniden belirlendi (arkadaşın C++ / OpenGL projesiyle karşılaştırmadan sonra; kod kopyalanmadı,
 sadece genel teknikler öğrenildi: döngünün tamamını derlemek, trail buffer, yüzey basıncı paneli, komut satırı doğrulama):
 
-11. ☐ **Paket R1 — Yapı düzeni**: canvas.py ve main_window.py modüllere bölünür, katmanlar için ortak arayüz,
-    gereksiz / tekrar eden kod temizlenir; davranış aynı kalır (testler + önce / sonra ekran görüntüleri)
+11. ✅ **Paket R1 — Yapı düzeni** (davranış aynı: 20 farklı durumun ekran görüntüsü önce / sonra piksel piksel aynı)
+    - `app/canvas/` paketi: `PlotCanvas` ortak durumu tutar, her olayı katmanlara iletir; katmanlar ortak
+      `PlotLayer` arayüzüyle ayrı dosyalarda (streamline, stagnation, field, element), fare işleri `interaction.py`'de,
+      plot ayarları tek yerde (`PlotSettings`, sahne dosyasına kaydedilen her şey) → yeni katman = bir sınıf + bir satır
+    - `app/window/`: ana pencerenin parçaları (layout, menus, files, exporting, status); `main_window.py` sadece birleştirir
+    - `app/export/` (figure / data / dialogs; CSV kısmı Qt'siz → Paket V'deki komut satırı için hazır),
+      `app/chrome/` (style / header / cards / palette; kunduz header'a gelecek)
+    - Katman anahtarları ve slider ölçekleri tek listede (önceden iki yerde tanımlıydı)
+    - Kullanılmayan kod silindi; kapanan pencere ve diyaloglar artık bellekten siliniyor (önceden kalıyordu:
+      testlerde her pencere bir sonrakini yavaşlatıyordu)
 12. ☐ **Paket R2 — Hız**: Jobard–Lefer döngüsünün tamamı Numba'da (hedef: ~52 ms → < 10 ms); ayarlarda
     "Live update while dragging" seçeneği
 13. ☐ **Ara kontrol — deneme exe'si**: PyInstaller + Numba + contourpy temiz Windows'ta açılıyor mu (erken görmek için)

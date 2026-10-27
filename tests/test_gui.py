@@ -423,12 +423,12 @@ def _wait_for(qapp, canvas, cond, timeout_s=20.0):
 
 def test_scene_change_computes_streamlines_in_the_background(shown, qapp):
     cv = shown.canvas
-    assert cv.background
+    assert cv.streamlines.background
     done = []
     cv.computed.connect(lambda n, ms: done.append(n))
     shown.load_scene([Uniform(), Doublet(mu=1.0)], title="cylinder")
     assert _wait_for(qapp, cv, lambda: bool(done))
-    assert done[-1] > 10 and cv._lines.getData()[0].size > 0
+    assert done[-1] > 10 and cv.streamlines.line_items[0].getData()[0].size > 0
 
 
 def test_only_the_newest_request_is_drawn(shown, qapp):
@@ -445,51 +445,51 @@ def test_only_the_newest_request_is_drawn(shown, qapp):
         cv.wait_idle(100)
         qapp.processEvents()
     assert len(done) == 1
-    assert cv._cache.density == 1.6
-    assert cv._drawn_level == StreamlineCache(tuple(cv.elements), 1.6).level_for(cv._view())
-    assert cv.covers_view()
+    assert cv.streamlines.cache.density == 1.6
+    assert cv.streamlines.drawn_level == StreamlineCache(tuple(cv.elements), 1.6).level_for(cv.view())
+    assert cv.streamlines.covers_view()
 
 
 def test_panning_inside_the_margin_needs_no_new_computation(shown, qapp):
     cv = shown.canvas
-    assert _wait_for(qapp, cv, cv.covers_view)
+    assert _wait_for(qapp, cv, cv.streamlines.covers_view)
     done = []
     cv.computed.connect(lambda n, ms: done.append(n))
-    (x0, x1), (y0, y1) = cv._view()
-    lines_before = cv._lines.getData()[0].copy()
+    (x0, x1), (y0, y1) = cv.view()
+    lines_before = cv.streamlines.line_items[0].getData()[0].copy()
     cv.set_view((x0 + 0.5, x1 + 0.5), (y0 + 0.3, y1 + 0.3))
     for _ in range(10):
         cv.wait_idle(50)
         qapp.processEvents()
-    assert done == [] and cv.covers_view()                          # lines were already there
-    np.testing.assert_array_equal(cv._lines.getData()[0], lines_before)
+    assert done == [] and cv.streamlines.covers_view()                          # lines were already there
+    np.testing.assert_array_equal(cv.streamlines.line_items[0].getData()[0], lines_before)
     cv.set_view((x0 + 12, x1 + 12), (y0, y1))                         # far: new area is computed
-    assert _wait_for(qapp, cv, lambda: bool(done) and cv.covers_view())
+    assert _wait_for(qapp, cv, lambda: bool(done) and cv.streamlines.covers_view())
 
 
 def test_quick_view_changes_are_collected_into_one_computation(shown, qapp):
     cv = shown.canvas
-    assert _wait_for(qapp, cv, cv.covers_view)
+    assert _wait_for(qapp, cv, cv.streamlines.covers_view)
     started = []
-    original = cv._start_job
-    cv._start_job = lambda: (started.append(1), original())[1]
-    (x0, x1), (y0, y1) = cv._view()
+    original = cv.streamlines._start_job
+    cv.streamlines._start_job = lambda: (started.append(1), original())[1]
+    (x0, x1), (y0, y1) = cv.view()
     for k in range(1, 9):                            # 8 jumps to areas that are not computed yet
         cv.set_view((x0 + 20 * k, x1 + 20 * k), (y0, y1))
-    assert _wait_for(qapp, cv, lambda: cv.covers_view() and not cv._busy)
+    assert _wait_for(qapp, cv, lambda: cv.streamlines.covers_view() and not cv.streamlines.busy)
     assert len(started) <= 3                         # first jump + one for the newest view (+ margin)
-    cv._start_job = original
+    cv.streamlines._start_job = original
 
 
 def test_panning_updates_the_drawn_part_without_a_computation(shown, qapp):
     cv = shown.canvas
-    assert _wait_for(qapp, cv, lambda: cv.covers_view() and not cv._busy)
-    (x0, x1), (y0, y1) = cv._view()
+    assert _wait_for(qapp, cv, lambda: cv.streamlines.covers_view() and not cv.streamlines.busy)
+    (x0, x1), (y0, y1) = cv.view()
     W = x1 - x0
     cv.set_view((x0 + 0.33 * W, x1 + 0.33 * W), (y0, y1))     # inside the computed margin
     qapp.processEvents()
-    a0, a1, b0, b1, _ = cv._cull_rect
-    (v0, v1), (w0, w1) = cv._view()
+    a0, a1, b0, b1, _ = cv.streamlines.cull_rect
+    (v0, v1), (w0, w1) = cv.view()
     assert a0 <= v0 and v1 <= a1 and b0 <= w0 and w1 <= b1      # lines / arrows handed for the new view
 
 
@@ -497,8 +497,7 @@ def test_closing_during_a_computation_waits_and_does_not_hang(window, qapp):
     import time
     window.show()
     window.load_scene([Uniform(), Doublet(mu=1.0), Vortex(Gamma=-2.0)], title="lifting")
-    window.canvas.density = 2.0
-    window.canvas.request()
+    window.canvas.set_density(2.0)
     t0 = time.time()
     window.close()
     assert window.canvas.wait_idle(0)                # nothing running any more
@@ -509,20 +508,20 @@ def test_closing_during_a_computation_waits_and_does_not_hang(window, qapp):
 def test_stagnation_points_are_drawn_and_their_lines_appear_only_when_selected(shown, qapp):
     cv = shown.canvas
     shown.load_preset(preset("Single vortex, clockwise (Γ = −2)"))       # no stagnation points
-    assert _wait_for(qapp, cv, lambda: not cv.stagnation_points and not cv._busy)
+    assert _wait_for(qapp, cv, lambda: not cv.stagnation_points and not cv.streamlines.busy)
     shown.load_preset(preset("Lifting (rotating) cylinder"))
     assert _wait_for(qapp, cv, lambda: len(cv.stagnation_points) == 2)
     th = np.arcsin(-2.0 / (4 * np.pi))
     xs = sorted(p.x for p in cv.stagnation_points)
     np.testing.assert_allclose(xs, [-np.cos(th), np.cos(th)], atol=1e-8)
-    x, y = cv._stag_item.getData()
+    x, y = cv.stagnation.symbol_item.getData()
     assert len(x) == 2                                               # ⊗ symbols always shown
-    assert cv._dividing_item.getData()[0].size == 0                  # no black lines by default
-    assert not cv._stag_label.isVisible()
+    assert cv.stagnation.dividing_item.getData()[0].size == 0                  # no black lines by default
+    assert not cv.stagnation.label.isVisible()
 
 
 def _dividing_points(cv):
-    x, y = cv._dividing_item.getData()
+    x, y = cv.stagnation.dividing_item.getData()
     ok = np.isfinite(x)
     return x[ok] + 1j * y[ok]
 
@@ -537,9 +536,9 @@ def test_clicking_a_stagnation_point_shows_its_lines_and_coordinates(shown, qapp
     k = cv.selected_stagnation
     assert k is not None and cv.stagnation_points[k].x == pytest.approx(-1.0)
     assert shown.elements_panel.current_row() == -1 and cv.selected == -1   # element selection gone
-    assert len(cv._stag_glow) == len(LAYOUT_GLOW())                   # it glows
-    assert cv._stag_label.isVisible()
-    html = cv._stag_label.textItem.toHtml()
+    assert len(cv.stagnation.glow) == len(LAYOUT_GLOW())                   # it glows
+    assert cv.stagnation.label.isVisible()
+    html = cv.stagnation.label.textItem.toHtml()
     assert "x = -1.0000" in html and "y = 0.0000" in html and "on the body surface" in html
     pts = _dividing_points(cv)
     assert pts.size > 50
@@ -553,9 +552,9 @@ def test_clicking_a_stagnation_point_shows_its_lines_and_coordinates(shown, qapp
     assert (_dividing_points(cv).real > 3.0).any()
 
     _click(qapp, shown, -3.0, 2.0)                                   # empty place: everything goes
-    assert cv.selected_stagnation is None and not cv._stag_glow
-    assert not cv._stag_label.isVisible() and _dividing_points(cv).size == 0
-    assert len(cv._stag_item.getData()[0]) == 2                      # the symbols stay
+    assert cv.selected_stagnation is None and not cv.stagnation.glow
+    assert not cv.stagnation.label.isVisible() and _dividing_points(cv).size == 0
+    assert len(cv.stagnation.symbol_item.getData()[0]) == 2                      # the symbols stay
 
 
 def test_stagnation_selection_clears_with_escape_and_element_selection(shown, qapp):
@@ -615,13 +614,13 @@ def test_layer_switches_in_panel_and_view_menu_agree(shown, qapp):
     p = cv.stagnation_points[0]
     assert cv.stagnation_near(p.x, p.y) is p
     box.setChecked(False)
-    assert not cv._stag_item.isVisible() and not act.isChecked()
+    assert not cv.stagnation.symbol_item.isVisible() and not act.isChecked()
     assert cv.stagnation_near(p.x, p.y) is None                       # hidden points are not reported
     act.setChecked(True)
-    assert box.isChecked() and cv._stag_item.isVisible()
+    assert box.isChecked() and cv.stagnation.symbol_item.isVisible()
     shown.settings_panel.layer_boxes["streamlines"].setChecked(False)
-    assert not any(i.isVisible() for i in cv._line_items) and not cv._arrow_item.isVisible()
+    assert not any(i.isVisible() for i in cv.streamlines.line_items) and not cv.streamlines.arrow_item.isVisible()
     shown.settings_panel.layer_boxes["walls"].setChecked(False)
     shown.load_preset(preset("Symmetry wall: source near a wall"))
-    assert cv._walls and not any(w.isVisible() for w in cv._walls)  # newly drawn walls stay hidden
+    assert cv.element_layer.walls and not any(w.isVisible() for w in cv.element_layer.walls)  # newly drawn walls stay hidden
     assert shown.layer_actions["cp"].isEnabled()                      # Phase 4 layers are available

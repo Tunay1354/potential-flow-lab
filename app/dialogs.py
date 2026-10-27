@@ -54,6 +54,7 @@ class ElementDialog(QDialog):
     def __init__(self, spec: ElementSpec, theme: dict, editing=False, parent=None, values: dict | None = None,
                  validator=None):
         super().__init__(parent)
+        self.setAttribute(Qt.WA_DeleteOnClose)        # freed when closed (read the values first)
         self.spec = spec
         self.theme = theme
         self.validator = validator

@@ -7,10 +7,10 @@ import pytest
 @pytest.fixture
 def fl(qapp):
     import pyqtgraph as pg
-    from app.field_layers import FieldLayers
+    from app.canvas.field_layer import FieldLayer
     from app.theme import LIGHT
     pw = pg.PlotWidget()
-    layers = FieldLayers(pw, pw.getPlotItem().getViewBox())
+    layers = FieldLayer(pw, pw.getPlotItem().getViewBox())
     layers.apply_theme(LIGHT)
     yield layers
     pw.close()
@@ -34,7 +34,7 @@ def _lines(item):
 
 
 def test_nice_step():
-    from app.field_layers import nice_step
+    from app.canvas.contours import nice_step
     assert nice_step(2.2, 12) == pytest.approx(0.2)
     assert nice_step(4.5, 12) == pytest.approx(0.5)
     assert nice_step(30, 12) == pytest.approx(2.5)
@@ -208,12 +208,12 @@ def test_clicking_the_cp_note_opens_the_reference_setting(win, qapp):
     win.load_scene([Source(m=-2.0)], VIEW, title="sink")
     sp.set_section_visible("computation", False)
     sp.layer_boxes["cp"].setChecked(True)
-    cv.update_fields()
+    cv.fields.refresh()
     assert cv.fields.legend.note is not None
     cv.fields.legend.clicked()
     assert sp.section_visible("computation") and sp.c_cp_ref.currentIndex() == 1
-    assert cv.v_ref_override == sp.s_vref.value()
-    cv.update_fields()
+    assert cv.settings.cp_reference == sp.s_vref.value()
+    cv.fields.refresh()
     assert cv.fields.legend.note is None and cv.fields.bands
 
 
@@ -231,15 +231,15 @@ def test_custom_cp_reference_and_grid_quality_are_saved(win, qapp, tmp_path):
     sp.s_vref.setValue(2.0)
     sp.s_vref.editingFinished.emit()
     sp.c_quality.setCurrentIndex(2)
-    assert cv.v_ref_override == 2.0 and cv.field_quality == 3 and cv.cp_reference() == 2.0
+    assert cv.settings.cp_reference == 2.0 and cv.settings.field_quality == 3 and cv.cp_reference() == 2.0
     path = str(tmp_path / "s.pflow")
     win._ask_save_path = lambda suggested: path
     assert win.save_scene_as()
     sp.c_cp_ref.setCurrentIndex(0)
     sp.c_quality.setCurrentIndex(0)
-    assert cv.v_ref_override is None and cv.field_quality == 1
+    assert cv.settings.cp_reference is None and cv.settings.field_quality == 1
     assert win.open_scene(path)
-    assert cv.v_ref_override == 2.0 and cv.field_quality == 3
+    assert cv.settings.cp_reference == 2.0 and cv.settings.field_quality == 3
     assert sp.c_cp_ref.currentIndex() == 1 and sp.s_vref.value() == 2.0 and sp.c_quality.currentIndex() == 2
 
 
@@ -259,16 +259,16 @@ def test_field_layers_follow_the_scene_and_the_view(win, qapp):
     win.settings_panel.layer_boxes["equipotential"].setChecked(True)
     assert cv.fields.phi.isVisible() and cv.fields.covered is not None
     win.load_scene([Uniform(alpha=90.0)], VIEW, title="up")
-    cv.update_fields()
+    cv.fields.refresh()
     lines = _lines(cv.fields.phi)
     assert lines and all(np.ptp(ln[:, 1]) < 1e-6 for ln in lines)   # flow upwards: φ = V y -> horizontal
     cv.set_view((40.0, 48.0), (-3.0, 3.0))
-    assert cv.fields.needs_update(cv._view())
+    assert cv.fields.needs_update(cv.view())
 
 
 def test_legend_is_in_exported_figures(win, tmp_path):
     from app.export import render_figure
-    from app.field_layers import ColorLegend
+    from app.canvas.legend import ColorLegend
     win.settings_panel.layer_boxes["speed"].setChecked(True)
     scene_items = win.canvas.plot.scene().items()
     assert any(isinstance(i, ColorLegend) and i.isVisible() for i in scene_items)
@@ -279,7 +279,7 @@ def test_legend_is_in_exported_figures(win, tmp_path):
 def test_works_without_contourpy(fl, monkeypatch):
     """Without the optional contourpy package: φ lines from a NumPy marching-squares fallback and the
     bands as one pixel image — nothing fails."""
-    import app.field_layers as mod
+    import app.canvas.contours as mod
     from physics import Doublet, Uniform
     xs = np.linspace(-2, 2, 41)
     X, Y = np.meshgrid(xs, xs)

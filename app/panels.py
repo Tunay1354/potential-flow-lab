@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout
                                QHBoxLayout, QLabel, QPushButton, QScrollArea, QSlider, QTreeWidget,
                                QTreeWidgetItem, QVBoxLayout, QWidget)
 
+from .canvas import LAYERS
 from .chrome import button_font, themed_combo
 from .icons import make_element_icon
 
@@ -136,9 +137,10 @@ class ElementsPanel(QWidget):
             b.setEnabled(row >= 0)
         self.selection_changed.emit(row)
 
-    @staticmethod
-    def _later(signal, *args):
-        QTimer.singleShot(0, lambda: signal.emit(*args))
+    def _later(self, signal, *args):
+        """Emit after the current event (not inside the item view's own handler); dropped if the panel
+        is gone by then."""
+        QTimer.singleShot(0, self, lambda: signal.emit(*args))
 
     def _item_changed(self, item, column):
         if column == 0:
@@ -158,16 +160,20 @@ class ElementsPanel(QWidget):
 
 
 # plot layers: key, label, visible at start, implemented yet
-LAYERS = (
-    ("streamlines", "Streamlines", True, True),
-    ("dividing", "All dividing streamlines", False, True),
-    ("stagnation", "Stagnation points", True, True),
-    ("equipotential", "Equipotential lines (φ)", False, True),
-    ("speed", "Speed |V| (color bands)", False, True),
-    ("cp", "Pressure coefficient Cp (color bands)", False, True),
-    ("markers", "Element markers", True, True),
-    ("walls", "Walls", True, True),
-)
+# sliders whose position stands for a setting: value = offset + step × position
+SLIDER_SCALES = {"density": (0.0, 0.2),          # 1…10 -> 0.2…2   (1 = default number of streamlines)
+                 "line_width": (0.6, 0.4),       # 1…5  -> 1.0…2.6 px
+                 "arrow_density": (0.5, 0.5)}    # 1…5  -> 1…3     (1 = default spacing between arrows)
+
+
+def slider_value(key: str, position: int) -> float:
+    offset, step = SLIDER_SCALES[key]
+    return offset + step * position
+
+
+def slider_position(key: str, value: float) -> int:
+    offset, step = SLIDER_SCALES[key]
+    return round((value - offset) / step)
 
 
 class SettingsPanel(QScrollArea):
@@ -194,6 +200,7 @@ class SettingsPanel(QScrollArea):
         lay = QVBoxLayout(body)
         lay.setContentsMargins(10, 0, 10, 10)
         lay.setSpacing(2)
+        self.sections = {}                     # key -> (title, group box), in panel order
 
         # --- View range ---------------------------------------------------
         g = QGroupBox("VIEW RANGE")
@@ -229,22 +236,18 @@ class SettingsPanel(QScrollArea):
         f.addRow(self.c_arrows)
         f.addRow("Arrow density", self.s_arrows)
         self._add_section("streamlines", "Streamlines", g, lay)
-        self.s_density.valueChanged.connect(lambda v: self.density_changed.emit(v / 5.0))
-        self.s_width.valueChanged.connect(lambda v: self.line_width_changed.emit(0.6 + 0.4 * v))
-        self.c_arrows.toggled.connect(lambda on: self.arrows_changed.emit(on, self.arrow_density()))
-        self.s_arrows.valueChanged.connect(lambda v: self.arrows_changed.emit(self.c_arrows.isChecked(),
-                                                                             self.arrow_density()))
+        self.s_density.valueChanged.connect(lambda v: self.density_changed.emit(slider_value("density", v)))
+        self.s_width.valueChanged.connect(lambda v: self.line_width_changed.emit(slider_value("line_width", v)))
+        self.c_arrows.toggled.connect(self._arrows_edited)
+        self.s_arrows.valueChanged.connect(self._arrows_edited)
 
         # --- Layers ---------------------------------------------------------
         g = QGroupBox("LAYERS")
         v = QVBoxLayout(g)
         self.layer_boxes = {}
-        for key, text, on, ready in LAYERS:
+        for key, text, on in LAYERS:
             c = QCheckBox(text)
             c.setChecked(on)
-            c.setEnabled(ready)
-            if not ready:
-                c.setToolTip("Comes with Phase 4")
             c.toggled.connect(lambda checked, k=key: self.layer_changed.emit(k, checked))
             v.addWidget(c)
             self.layer_boxes[key] = c
@@ -288,8 +291,6 @@ class SettingsPanel(QScrollArea):
     def _add_section(self, key, title, group, layout):
         """Each group (View range, Streamlines, ...) is a section the user can hide (right-click on the
         panel title, or View → Panels) and show again."""
-        if not hasattr(self, "sections"):
-            self.sections = {}
         self.sections[key] = (title, group)
         layout.addWidget(group)
 
@@ -329,23 +330,29 @@ class SettingsPanel(QScrollArea):
         s.setValue(val)
         return s
 
-    def set_streamline_settings(self, density: float, line_width: float, show_arrows: bool,
-                                arrow_density: float):
-        """Move the sliders to the given values without emitting signals (File → Open sets the
+    def show_settings(self, settings):
+        """Show the plot settings of an opened scene without emitting signals (File → Open sets the
         canvas itself, with the exact values from the file)."""
-        for w, val in ((self.s_density, round(density * 5.0)), (self.s_width, round((line_width - 0.6) / 0.4)),
-                       (self.s_arrows, round((arrow_density - 0.5) / 0.5)), (self.c_arrows, show_arrows)):
+        widgets = (self.s_density, self.s_width, self.s_arrows, self.c_arrows, self.c_quality, self.c_cp_ref,
+                   self.s_vref)
+        for w in widgets:
             w.blockSignals(True)
-            if isinstance(val, bool):
-                w.setChecked(val)
-            else:
-                w.setValue(int(min(max(val, w.minimum()), w.maximum())))
+        for w, key in ((self.s_density, "density"), (self.s_width, "line_width"), (self.s_arrows, "arrow_density")):
+            w.setValue(min(max(slider_position(key, getattr(settings, key)), w.minimum()), w.maximum()))
+        self.c_arrows.setChecked(settings.show_arrows)
+        self.c_quality.setCurrentIndex(min(max(int(settings.field_quality), 1), 3) - 1)
+        custom = settings.cp_reference
+        self.c_cp_ref.setCurrentIndex(1 if custom else 0)
+        if custom:
+            self.s_vref.setValue(float(custom))
+        self.s_vref.setEnabled(bool(custom))
+        for w in widgets:
             w.blockSignals(False)
 
     def set_cp_available(self, available: bool):
         """The Cp layer needs a reference speed (V∞ of a uniform flow, or a custom V_ref)."""
         box = self.layer_boxes["cp"]
-        base = dict((k, t) for k, t, _on, _r in LAYERS)["cp"]
+        base = dict((k, t) for k, t, _on in LAYERS)["cp"]
         box.setText(base if available else base + "  — needs V_ref")
         box.setToolTip("" if available else "This scene has no uniform flow (V∞): set a custom V_ref in "
                        "Computation → Cp reference")
@@ -364,24 +371,8 @@ class SettingsPanel(QScrollArea):
         self.s_vref.setEnabled(custom)
         self.cp_reference_changed.emit(self.s_vref.value() if custom else None)
 
-    def cp_reference(self):
-        return self.s_vref.value() if self.c_cp_ref.currentIndex() == 1 else None
-
-    def set_computation_settings(self, quality: int, cp_reference):
-        """Show saved values without emitting signals (File → Open sets the canvas itself)."""
-        for w in (self.c_quality, self.c_cp_ref, self.s_vref):
-            w.blockSignals(True)
-        self.c_quality.setCurrentIndex(min(max(int(quality), 1), 3) - 1)
-        self.c_cp_ref.setCurrentIndex(1 if cp_reference else 0)
-        if cp_reference:
-            self.s_vref.setValue(float(cp_reference))
-        self.s_vref.setEnabled(bool(cp_reference))
-        for w in (self.c_quality, self.c_cp_ref, self.s_vref):
-            w.blockSignals(False)
-
-    def arrow_density(self) -> float:
-        """Slider 1…5 -> arrow density 1…3 (1 = default spacing between arrows)."""
-        return 0.5 + 0.5 * self.s_arrows.value()
+    def _arrows_edited(self, *_):
+        self.arrows_changed.emit(self.c_arrows.isChecked(), slider_value("arrow_density", self.s_arrows.value()))
 
     @staticmethod
     def _slider(lo, hi, val, tip=""):

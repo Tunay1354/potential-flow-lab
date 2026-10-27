@@ -63,7 +63,7 @@ def run(win, app, elements):
         cx, cy = 0.5 * (x0 + x1) + dx, 0.5 * (y0 + y1) + dy
         hw, hh = 0.5 * w * s, 0.5 * (y1 - y0) * s
         cv.set_view((cx - hw, cx + hw), (cy - hh, cy + hh))
-        stale.append(not cv.covers_view() if hasattr(cv, "covers_view") else None)
+        stale.append(not cv.streamlines.covers_view())
         if now - t_start > DURATION_S:
             timer.stop()
             app.quit()

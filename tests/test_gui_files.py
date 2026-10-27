@@ -63,14 +63,14 @@ def test_verification_case_5_save_and_reopen_reproduces_list_and_plot(win, qapp,
     assert w.elements == saved_elements                                  # same element list, exactly
     assert [w.elements_panel.tree.topLevelItem(i).text(1) for i in range(len(w.elements))] == \
         [e.summary() for e in saved_elements]
-    assert w.canvas.density == 1.4 and w.canvas.arrow_density == 2.0
+    assert w.canvas.settings.density == 1.4 and w.canvas.settings.arrow_density == 2.0
     assert w.settings_panel.s_density.value() == 7 and w.settings_panel.s_arrows.value() == 3
     np.testing.assert_allclose(w.canvas.vb.viewRange(), saved_view, rtol=1e-6, atol=1e-9)
     # same streamlines: what the canvas computes now equals the computation for the saved scene
     (x0, x1), (y0, y1) = w.canvas.vb.viewRange()
     a = trace_streamlines(saved_elements, (x0, x1), (y0, y1), density=1.4, arrow_density=2.0)
-    b = trace_streamlines(tuple(w.elements), (x0, x1), (y0, y1), density=w.canvas.density,
-                          arrow_density=w.canvas.arrow_density)
+    b = trace_streamlines(tuple(w.elements), (x0, x1), (y0, y1), density=w.canvas.settings.density,
+                          arrow_density=w.canvas.settings.arrow_density)
     assert len(a.lines) == len(b.lines) and all(np.array_equal(p, q) for p, q in zip(a.lines, b.lines))
     assert not w.model.can_undo and not w.model.is_modified           # a fresh document
 

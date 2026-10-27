@@ -180,11 +180,6 @@ class SceneModel:
     def redo_text(self) -> str:
         return self._redo[-1].text if self._redo else ""
 
-    def clear_history(self):
-        self._undo.clear()
-        self._redo.clear()
-        self.mark_clean()
-
     # ------------------------------------------------------------------ saved / modified (File menu, 2b)
     def mark_clean(self):
         self._clean_id = self._undo[-1].id if self._undo else None

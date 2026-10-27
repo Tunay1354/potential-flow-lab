@@ -25,7 +25,6 @@ region, reach a singular point or another stagnation point. Branches that run in
 """
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
 
 import numpy as np

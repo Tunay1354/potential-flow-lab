@@ -103,3 +103,26 @@ def sector_shading(sector, xr, yr):
     solid = [SymmetryWall(xw=sector.x0, yw=sector.y0, theta_w=sector.theta2, side=0),
              SymmetryWall(xw=sector.x0, yw=sector.y0, theta_w=sector.theta1, side=1)]
     return "fill", fluid_polygon(solid, xr, yr)
+
+
+def sector_sides(sector, xr, yr):
+    """The two sides of a sector flow inside xr × yr, as [(segment, fluid normal)] (the normal points
+    into the wedge). A plate (β = 360°) has one side with fluid on both sides."""
+    out = []
+    for ang, turn in ((sector.theta1, 1j), (sector.theta1 + sector.beta_deg, -1j)):
+        d = complex(np.cos(np.radians(ang)), np.sin(np.radians(ang)))
+        seg = ray_in_rect(sector.z0, d, xr, yr)
+        if seg is not None:
+            out.append((seg, turn * d))
+        if sector.beta_deg >= 360.0 - 1e-9:
+            break                                   # both sides of the plate are the same ray
+    return out
+
+
+def point_segment_distance(p: complex, a: complex, b: complex) -> float:
+    """Distance from point p to the segment a–b."""
+    ab = b - a
+    if abs(ab) == 0:
+        return abs(p - a)
+    t = max(0.0, min(1.0, ((p - a) * ab.conjugate()).real / abs(ab) ** 2))
+    return abs(p - (a + t * ab))

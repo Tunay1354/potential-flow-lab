@@ -1018,10 +1018,6 @@ def _place_arrows(lines: list[np.ndarray], tapers: list[tuple[bool, bool]], d: f
     return arrows
 
 
-def _length(xy: np.ndarray) -> float:
-    return float(np.sum(np.hypot(np.diff(xy[:, 0]), np.diff(xy[:, 1]))))
-
-
 # ---------------------------------------------------------------------- fading ends (for drawing)
 def fade_pieces(lines: list[np.ndarray], tapers: list[tuple[bool, bool]], d: float,
                 levels: int = FADE_LEVELS) -> list[np.ndarray]:

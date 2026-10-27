@@ -49,10 +49,6 @@ class Issue:
     def is_error(self) -> bool:
         return self.severity == "error"
 
-    @property
-    def is_warning(self) -> bool:
-        return self.severity == "warning"
-
 
 @dataclass(kw_only=True)
 class FlowElement:
