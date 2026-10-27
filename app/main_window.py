@@ -24,7 +24,7 @@ from physics import ELEMENT_TYPES
 
 from .canvas import LIVE_DRAG_DEFAULT, PlotCanvas
 from .chrome import HeaderBar, load_fonts, paint_paper_grid, tint_title_bar
-from .dialogs import ElementDialog
+from .dialogs import ElementDialog, dispose
 from .element_specs import spec_for
 from .icons import make_app_icon, make_palette_icon
 from .panels import ElementsPanel, SettingsPanel, element_title
@@ -251,9 +251,12 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
             values["x0"], values["y0"] = round(0.5 * (x0 + x1), 1) + 0.0, round(0.5 * (y0 + y1), 1) + 0.0
         dlg = ElementDialog(spec, self.theme, False, self, values=values,
                             validator=lambda vals: self._preview(cls(**vals), None))
-        if dlg.exec():
-            self.model.add(cls(**dlg.values()))
-            self._flash_done()
+        try:
+            if dlg.exec():
+                self.model.add(cls(**dlg.values()))
+                self._flash_done()
+        finally:
+            dispose(dlg)
 
     def edit_element(self, row):
         if not 0 <= row < len(self.elements):
@@ -263,11 +266,14 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         values = {p.key: getattr(el, p.key) for p in spec.params}
         dlg = ElementDialog(spec, self.theme, True, self, values=values,
                             validator=lambda vals: self._preview(el.copy(**vals), row))
-        if dlg.exec():
-            if self.model.replace(row, el.copy(**dlg.values()), f"Edit {element_title(el).lower()}") is None:
-                self.flash("No change.")
-            else:
-                self._flash_done()
+        try:
+            if dlg.exec():
+                if self.model.replace(row, el.copy(**dlg.values()), f"Edit {element_title(el).lower()}") is None:
+                    self.flash("No change.")
+                else:
+                    self._flash_done()
+        finally:
+            dispose(dlg)
 
     def move_element(self, row, moved):
         """Move mode: an element was dragged to a new place (one undoable step)."""

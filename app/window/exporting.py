@@ -9,6 +9,7 @@ import os
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QFileDialog
 
+from ..dialogs import dispose
 from ..export import ExportDataDialog, ExportFigureDialog, export_data, render_figure
 from .files import safe_file_name
 
@@ -18,9 +19,12 @@ class ExportMixin:
     def export_figure(self):
         """File → Export figure…: options dialog, then where to save."""
         dlg = ExportFigureDialog(self.canvas, self._export_settings("figure"), self)
-        if not self._run_dialog(dlg):
-            return False
-        opt = dlg.options()
+        try:
+            if not self._run_dialog(dlg):
+                return False
+            opt = dlg.options()
+        finally:
+            dispose(dlg)
         fmt = opt["format"]
         path = self._ask_export_path(self._export_suggestion("." + fmt), f"{fmt.upper()} files (*.{fmt})")
         if not path:
@@ -40,9 +44,12 @@ class ExportMixin:
     def export_data(self):
         """File → Export data (CSV)…: which tables, then where to save."""
         dlg = ExportDataDialog(self._export_settings("data"), self)
-        if not self._run_dialog(dlg):
-            return False
-        opt = dlg.options()
+        try:
+            if not self._run_dialog(dlg):
+                return False
+            opt = dlg.options()
+        finally:
+            dispose(dlg)
         path = self._ask_export_path(self._export_suggestion(".csv"), "CSV files (*.csv)")
         if not path:
             return False

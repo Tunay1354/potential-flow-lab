@@ -624,3 +624,44 @@ def test_layer_switches_in_panel_and_view_menu_agree(shown, qapp):
     shown.load_preset(preset("Symmetry wall: source near a wall"))
     assert cv.element_layer.walls and not any(w.isVisible() for w in cv.element_layer.walls)  # newly drawn walls stay hidden
     assert shown.layer_actions["cp"].isEnabled()                      # Phase 4 layers are available
+
+
+# ---------------------------------------------------------------- real dialogs (not replaced by fakes)
+def _accept_modal_soon(qapp, before_accept=None):
+    """Press OK / Apply in the dialog that opens next (exec() runs its own event loop)."""
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QApplication
+
+    def press():
+        dlg = QApplication.activeModalWidget()
+        if dlg is None:
+            QTimer.singleShot(20, press)
+            return
+        if before_accept:
+            before_accept(dlg)
+        dlg.accept()
+    QTimer.singleShot(50, press)
+
+
+def test_real_add_and_edit_dialogs_return_their_values(window, qapp):
+    """Regression: a dialog that deleted itself on close lost its values before they were read."""
+    window.show()
+    n = len(window.elements)
+    _accept_modal_soon(qapp)
+    window.add_element_dialog("source", at=(1.5, -0.5))
+    assert len(window.elements) == n + 1
+    src = window.elements[-1]
+    assert src.TYPE == "source" and (src.x0, src.y0) == (1.5, -0.5)
+
+    def change_strength(dlg):
+        dlg.widgets["m"].setValue(3.0)
+    _accept_modal_soon(qapp, change_strength)
+    window.edit_element(n)
+    assert window.elements[n].m == 3.0
+
+
+def test_real_export_dialog_returns_its_options(window, qapp, tmp_path):
+    window.show()
+    window._ask_export_path = lambda suggested, flt: str(tmp_path / "fig.png")
+    _accept_modal_soon(qapp)
+    assert window.export_figure() and (tmp_path / "fig.png").exists()

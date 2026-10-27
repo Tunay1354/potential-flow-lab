@@ -1,7 +1,6 @@
 """
 dialogs.py — the option dialogs of File → Export figure… and File → Export data (CSV)….
 """
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QDialog, QFormLayout, QHBoxLayout, QLabel,
                                QPushButton, QRadioButton, QSpinBox, QVBoxLayout, QWidget)
 
@@ -15,7 +14,6 @@ class ExportFigureDialog(QDialog):
 
     def __init__(self, canvas, settings: dict, parent=None):
         super().__init__(parent)
-        self.setAttribute(Qt.WA_DeleteOnClose)        # freed when closed (read the values first)
         self.setWindowTitle("Export figure")
         self.canvas = canvas
         lay = QVBoxLayout(self)
@@ -122,7 +120,6 @@ class ExportDataDialog(QDialog):
 
     def __init__(self, settings: dict, parent=None):
         super().__init__(parent)
-        self.setAttribute(Qt.WA_DeleteOnClose)        # freed when closed (read the values first)
         self.setWindowTitle("Export data")
         lay = QVBoxLayout(self)
         lay.setContentsMargins(18, 16, 18, 14)

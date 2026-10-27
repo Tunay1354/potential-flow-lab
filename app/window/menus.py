@@ -10,6 +10,7 @@ from PySide6.QtGui import QAction, QActionGroup, QDesktopServices, QKeySequence,
 from physics import ELEMENT_TYPES
 
 from ..chrome import DropIndicator, ElementPalette
+from ..dialogs import dispose
 from ..element_specs import spec_for, toolbar_types
 from ..icons import make_element_icon
 from ..canvas import LAYERS
@@ -260,7 +261,9 @@ class MenusMixin:
         self.canvas.bar.set_shortcut_hints({m: self.shortcuts.first_key(f"mode.{m}") for m in self.mode_actions})
 
     def edit_shortcuts(self):
-        ShortcutsDialog(self.shortcuts, self).exec()
+        dlg = ShortcutsDialog(self.shortcuts, self)
+        dlg.exec()
+        dispose(dlg)
 
     def _build_plot_shortcuts(self):
         """Delete / Backspace also work while the plot has focus (not inside number fields)."""

@@ -25,6 +25,14 @@ from .element_specs import ElementSpec
 from .icons import make_element_icon
 
 
+
+def dispose(dialog):
+    """Free a dialog once its values have been read (a dialog kept as a child of the window would live
+    as long as the window). Not with WA_DeleteOnClose: Qt deletes such a dialog before exec() returns."""
+    from PySide6.QtCore import QObject
+    if isinstance(dialog, QObject):
+        dialog.deleteLater()
+
 class _RadioPair(QWidget):
     """Two mutually exclusive radio buttons; one of them is always selected."""
 
@@ -54,7 +62,6 @@ class ElementDialog(QDialog):
     def __init__(self, spec: ElementSpec, theme: dict, editing=False, parent=None, values: dict | None = None,
                  validator=None):
         super().__init__(parent)
-        self.setAttribute(Qt.WA_DeleteOnClose)        # freed when closed (read the values first)
         self.spec = spec
         self.theme = theme
         self.validator = validator
