@@ -12,6 +12,7 @@ from contextlib import contextmanager, nullcontext
 import pyqtgraph as pg
 from PySide6.QtCore import QMarginsF, QRect, QRectF, QSize, QSizeF, Qt
 from PySide6.QtGui import QColor, QImage, QPageSize, QPainter, QPdfWriter, QPen
+from PySide6.QtWidgets import QGraphicsItem
 
 from ..theme import LIGHT
 
@@ -95,6 +96,21 @@ def _scale_pens(scene, k: float) -> list:
     return saved
 
 
+def _pinned_items(scene) -> list:
+    """Items drawn at a fixed screen size (the color legends): in a k× export they must grow with the
+    rest, so the flag is cleared during the export and set again afterwards (restore_pinned)."""
+    flag = QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations
+    out = [it for it in scene.items() if it.flags() & flag]
+    for it in out:
+        it.setFlag(flag, False)
+    return out
+
+
+def restore_pinned(items):
+    for it in items:
+        it.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
+
+
 def render_figure(canvas, path: str, fmt: str, scale: float = 2.0, background: str = "paper",
                   light: bool = False, mirror: bool = True, mirror_numbers: bool = True):
     """Write the plot to `path` (png / svg / pdf). Raises OSError if the file cannot be written.
@@ -127,6 +143,7 @@ def _render(canvas, path, fmt, scale, background):
     k = float(scale) if fmt == "png" else 1.0
     items = [it for it in scene.items() if hasattr(it, "setExportMode")]
     saved = _scale_pens(scene, k)
+    pinned = _pinned_items(scene)
     for it in items:
         it.setExportMode(True, {"antialias": True, "resolutionScale": k, "background": bg})
     try:
@@ -160,6 +177,7 @@ def _render(canvas, path, fmt, scale, background):
             it.setExportMode(False)
         for it, pen in saved:
             it.setPen(pen)
+        restore_pinned(pinned)
     if fmt != "png" and not os.path.exists(path):
         raise OSError(f"Could not write {path}")
 

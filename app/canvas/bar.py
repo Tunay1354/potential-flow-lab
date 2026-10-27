@@ -4,7 +4,7 @@ Fit view, Export.
 """
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QButtonGroup, QFrame, QHBoxLayout, QToolButton, QWidget
+from PySide6.QtWidgets import QButtonGroup, QFrame, QHBoxLayout, QMenu, QToolButton, QWidget
 
 from ..chrome import button_font
 from ..icons import make_tool_icon
@@ -64,9 +64,19 @@ class CanvasBar(QWidget):
         lay.addWidget(self.btn_fit)
 
         lay.addStretch(1)
-        self.btn_export = self._tool("Export", "Save the current plot as PNG / PDF / SVG", icon="export")
+        self.btn_export = self._tool("Export", "Save the plot as a figure (PNG / SVG / PDF), the animation as a "
+                                     "GIF / MP4, or the data as CSV", icon="export")
         self.btn_export.setObjectName("Export")
+        self.btn_export.setPopupMode(QToolButton.InstantPopup)
+        self.export_menu = QMenu(self.btn_export)
+        self.btn_export.setMenu(self.export_menu)
         lay.addWidget(self.btn_export)
+
+    def set_export_actions(self, actions):
+        """The menu of the Export button: [(text, callback), …]."""
+        self.export_menu.clear()
+        for text, callback in actions:
+            self.export_menu.addAction(text).triggered.connect(lambda _=False, f=callback: f())
 
     def set_view_mode(self, mode: str):
         self.view_buttons[mode].setChecked(True)

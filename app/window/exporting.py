@@ -1,16 +1,18 @@
 """
-exporting.py — part of MainWindow: File → Export figure… and File → Export data (CSV)….
+exporting.py — part of MainWindow: File → Export figure…, Export animation (GIF / MP4)… and Export data
+(CSV)….
 
 The options chosen last time and the folder are remembered (QSettings "export/*").
 """
 import json
 import os
 
-from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QFileDialog
+from PySide6.QtCore import QSettings, Qt
+from PySide6.QtWidgets import QApplication, QFileDialog, QProgressDialog
 
 from ..dialogs import dispose
-from ..export import ExportDataDialog, ExportFigureDialog, export_data, render_figure
+from ..export import (Cancelled, ExportAnimationDialog, ExportDataDialog, ExportFigureDialog, export_data,
+                      render_animation, render_figure)
 from .files import safe_file_name
 
 
@@ -40,6 +42,66 @@ class ExportMixin:
         self._save_export_settings("figure", opt, path)
         self.flash(f"Figure saved: {os.path.basename(path)}")
         return True
+
+    def export_animation(self):
+        """File → Export animation…: options dialog, where to save, then the frames (with a progress
+        dialog that can cancel). The plot switches to the chosen animation and stays there."""
+        settings = self._export_settings("animation")
+        dlg = ExportAnimationDialog(self.canvas, settings, self)
+        try:
+            if not self._run_dialog(dlg):
+                return False
+            opt = dlg.options()
+        finally:
+            dispose(dlg)
+        fmt = opt["format"]
+        path = self._ask_export_path(self._export_suggestion("." + fmt), f"{fmt.upper()} files (*.{fmt})")
+        if not path:
+            return False
+        if not os.path.splitext(path)[1]:
+            path += "." + fmt
+        cv = self.canvas
+        cv.set_view_mode(opt["view"])
+        if cv.paused:
+            cv.set_paused(False)
+        progress = self._progress_dialog("Recording the animation…")
+
+        def step(done, total):
+            if progress is None:
+                return True
+            progress.setMaximum(total)
+            progress.setValue(done)
+            QApplication.processEvents()
+            return not progress.wasCanceled()
+        try:
+            render_animation(cv, path, fmt, opt["seconds"], opt["fps"], opt["scale"], opt["background"],
+                             opt["light"], opt["mirror"], opt["mirror_numbers"], progress=step)
+        except Cancelled:
+            self.flash("Animation export cancelled.")
+            return False
+        except (OSError, ValueError, RuntimeError) as exc:
+            self._notify_user("warning", "Cannot export the animation", str(exc))
+            return False
+        finally:
+            if progress is not None:
+                progress.close()
+                progress.deleteLater()
+        per_format = dict(settings.get(fmt, {}), fps=opt["fps"], scale=opt["scale"])
+        saved = {k: v for k, v in settings.items() if k in ("gif", "mp4")}
+        saved.update(opt, **{fmt: per_format})
+        self._save_export_settings("animation", saved, path)
+        self.flash(f"Animation saved: {os.path.basename(path)}")
+        return True
+
+    def _progress_dialog(self, text):
+        """Progress with a Cancel button (None in the tests: no window to show)."""
+        dlg = QProgressDialog(text, "Cancel", 0, 1, self)
+        dlg.setWindowTitle("Export")
+        dlg.setWindowModality(Qt.WindowModal)
+        dlg.setMinimumDuration(300)
+        dlg.setAutoClose(False)
+        dlg.setAutoReset(False)
+        return dlg
 
     def export_data(self):
         """File → Export data (CSV)…: which tables, then where to save."""

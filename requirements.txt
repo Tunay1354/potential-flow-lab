@@ -3,4 +3,6 @@ pyqtgraph>=0.13.7
 numpy>=1.26
 contourpy>=1.2      # φ lines and |V| / Cp contour bands
 numba>=0.60          # compiled streamline kernel (optional: without it the slower NumPy path is used)
+pillow>=10.0         # File → Export animation: GIF (optional)
+imageio-ffmpeg>=0.5  # File → Export animation: MP4 (optional; brings its own ffmpeg)
 pytest>=8.0

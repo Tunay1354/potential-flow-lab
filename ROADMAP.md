@@ -166,7 +166,13 @@ sadece genel teknikler öğrenildi: döngünün tamamını derlemek, trail buffe
       dividing streamline'lar ekran ızgarasında sınır, bölgeler birkaç izle sınıflanır. Serbest akış yoksa
       cisim yok; serbest vortex'in etrafındaki kapalı döngüler cisim sayılmaz. Bilinen sınır: Γ > 4πV∞R'de
       silindirle birlikte dönen halka da cisim gibi dolar (aralarında dividing streamline yok)
-    - Sonraya: GIF / MP4 kaydı
+    - ✅ GIF / MP4 kaydı (27 Ekim): File → Export animation… (Ctrl+Shift+E) veya üst bardaki Export menüsü.
+      Seçenekler: Particles / Pulses, süre 1 · 2 · 3 · 5 · 10 s, kare hızı (GIF 20 / 25, MP4 24 / 30 / 60 fps),
+      çözünürlük (GIF 1–2×, MP4 1–4×), arka plan, dört kenarda eksen, açık renkler. Kareler ekran görüntüsü
+      değil: animasyon her karede tam 1/fps ilerletilip PNG export'u gibi çizilir (bilgisayar hızından bağımsız
+      akıcı); önce ~1.5 s görünmeden çalışır. GIF: Pillow (ortak palet, değişmeyen pikseller saydam), MP4:
+      imageio-ffmpeg (H.264, CRF 18). İkisi de isteğe bağlı paket; yoksa diyalog hangi paketin gerektiğini yazar.
+      Ek düzeltme: renk lejantı k× PNG'de de büyüyor (önceden ekran boyunda kalıyordu)
 15. ☐ **Paket S — Surface pressure paneli**: cisimlerin yüzeyi Cp'ye göre renkli, dock panelde Cp – θ grafiği
     (silindirde analitik eğri), yüzey integraliyle lift / drag ↔ Kutta–Joukowski / d'Alembert, surface Cp CSV
 16. ☐ **Paket V — Komut satırı + otomatik doğrulama**: pencere açmadan figür / CSV export, `--verify`: verification

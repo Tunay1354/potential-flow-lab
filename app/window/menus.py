@@ -81,6 +81,9 @@ class MenusMixin:
         self.act_export_fig = m.addAction("Export figure (PNG / SVG / PDF)…")
         self.act_export_fig.setShortcut("Ctrl+E")
         self.act_export_fig.triggered.connect(self.export_figure)
+        self.act_export_anim = m.addAction("Export animation (GIF / MP4)…")
+        self.act_export_anim.setShortcut("Ctrl+Shift+E")
+        self.act_export_anim.triggered.connect(self.export_animation)
         self.act_export_data = m.addAction("Export data (CSV)…")
         self.act_export_data.triggered.connect(self.export_data)
         m.addSeparator()
@@ -252,6 +255,7 @@ class MenusMixin:
                 ("file.save", self.act_save, "Save", "File"),
                 ("file.save_as", self.act_save_as, "Save as…", "File"),
                 ("file.export_figure", self.act_export_fig, "Export figure…", "File"),
+                ("file.export_animation", self.act_export_anim, "Export animation (GIF / MP4)…", "File"),
                 ("file.export_data", self.act_export_data, "Export data (CSV)…", "File"),
                 ("file.exit", self.act_exit, "Exit", "File"),
                 ("edit.undo", self.act_undo, "Undo", "Edit"),

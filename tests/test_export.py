@@ -1,7 +1,9 @@
-"""Export: figure as PNG (1×–4×) / SVG / PDF, data as CSV tables; File menu + plot bar Export button."""
+"""Export: figure as PNG (1×–4×) / SVG / PDF, animation as GIF / MP4, data as CSV tables; File menu + plot bar
+Export button."""
 import csv
 import os
 
+import numpy as np
 import pytest
 
 
@@ -186,3 +188,105 @@ def test_mirrored_axes_only_in_the_file(win, qapp, tmp_path):
     assert (y0, y1) == pytest.approx(view[1], abs=1e-6) or (y0 <= view[1][0] and y1 >= view[1][1])
     render_figure(win.canvas, str(tmp_path / "m.png"), "png", 1, mirror=True, mirror_numbers=False)
     assert not pi.getAxis("right").isVisible()
+
+
+# ---------------------------------------------------------------- animation (GIF / MP4)
+needs_pillow = pytest.mark.skipif(__import__("importlib").util.find_spec("PIL") is None, reason="Pillow missing")
+needs_ffmpeg = pytest.mark.skipif(__import__("importlib").util.find_spec("imageio_ffmpeg") is None,
+                                  reason="imageio-ffmpeg missing")
+
+
+@needs_pillow
+def test_gif_of_the_particles(win, qapp, tmp_path):
+    from PIL import Image, ImageSequence
+    from app.export import render_animation
+    from app.export.figure import figure_size
+    cv = win.canvas
+    cv.set_view_mode("particles")
+    path = str(tmp_path / "p.gif")
+    calls = []
+    render_animation(cv, path, "gif", 1, 20, 1, progress=lambda d, n: calls.append((d, n)))
+    im = Image.open(path)
+    frames = [f.convert("RGB") for f in ImageSequence.Iterator(im)]
+    s = figure_size(cv)
+    assert len(frames) == 20 and calls[-1] == (20, 20) and im.info["duration"] == 50
+    assert abs(im.size[0] - s.width()) <= 1 and abs(im.size[1] - s.height()) <= 1
+    a, b = np.asarray(frames[0], int), np.asarray(frames[-1], int)
+    assert (np.abs(a - b).sum(axis=2) > 30).mean() > 0.01                    # the particles moved
+    assert cv.particles._timer.isActive() and cv.static_cache and cv.particles.export_scale is None
+
+
+@needs_ffmpeg
+def test_mp4_of_the_pulses_at_2x(win, qapp, tmp_path):
+    import imageio_ffmpeg
+    from app.export import render_animation
+    cv = win.canvas
+    cv.set_view_mode("pulses")
+    path = str(tmp_path / "p.mp4")
+    render_animation(cv, path, "mp4", 1, 24, 2)
+    reader = imageio_ffmpeg.read_frames(path)
+    meta = next(reader)
+    n = sum(1 for _ in reader)
+    w, h = meta["size"]
+    assert n == 24 and w % 2 == 0 and h % 2 == 0 and w > 1.9 * cv.plot.getPlotItem().sceneBoundingRect().width()
+    assert meta["fps"] == pytest.approx(24)
+    assert cv.pulses._timer.isActive() and cv.pulses.export_scale is None
+
+
+@needs_pillow
+def test_animation_export_cancel_removes_the_file(win, qapp, tmp_path):
+    from app.export import Cancelled, render_animation
+    cv = win.canvas
+    cv.set_view_mode("particles")
+    path = str(tmp_path / "c.gif")
+    with pytest.raises(Cancelled):
+        render_animation(cv, path, "gif", 3, 20, 1, progress=lambda d, n: d < 5)
+    assert not os.path.exists(path) and cv.particles._timer.isActive()
+
+
+def test_animation_export_needs_an_animation_and_the_package(win, monkeypatch, tmp_path):
+    from app.export import animation, render_animation
+    with pytest.raises(ValueError):
+        render_animation(win.canvas, str(tmp_path / "s.gif"), "gif")              # Static view
+    monkeypatch.setitem(animation.PACKAGES, "gif", ("no_such_module_xyz", "pillow"))
+    win.canvas.set_view_mode("particles")
+    with pytest.raises(RuntimeError, match="pip install pillow"):
+        render_animation(win.canvas, str(tmp_path / "s.gif"), "gif")
+    from app.export import ExportAnimationDialog
+    dlg = ExportAnimationDialog(win.canvas, {"format": "gif"}, win)
+    assert not dlg.ok.isEnabled() and "pip install pillow" in dlg.info.text()
+
+
+@needs_pillow
+def test_animation_export_from_the_menu_remembers_the_options(win, qapp, tmp_path):
+    from app.export import ExportAnimationDialog
+
+    def answer(dlg):
+        dlg.fmt_buttons["gif"].setChecked(True)
+        dlg.view.setCurrentIndex(dlg.view.findData("pulses"))
+        dlg.duration.setCurrentIndex(dlg.duration.findData(1))
+        dlg.fps.setCurrentIndex(dlg.fps.findData(20))
+        return True
+    win._run_dialog = answer
+    target = str(tmp_path / "menu_anim")
+    win._ask_export_path = lambda suggested, filt: target
+    assert win.canvas.view_mode == "static"
+    assert win.export_animation() and os.path.exists(target + ".gif")
+    assert win.canvas.view_mode == "pulses"                                    # switched to it
+    dlg = ExportAnimationDialog(win.canvas, win._export_settings("animation"), win)
+    assert dlg.fmt() == "gif" and dlg.duration.currentData() == 1 and dlg.fps.currentData() == 20
+    dlg.fmt_buttons["mp4"].setChecked(True)
+    assert dlg.fps.currentData() == 30 and [dlg.fps.itemData(i) for i in range(dlg.fps.count())] == [24, 30, 60]
+    assert [dlg.duration.itemData(i) for i in range(dlg.duration.count())] == [1, 2, 3, 5, 10]
+    assert win.act_export_anim.shortcut().toString() == "Ctrl+Shift+E"
+    assert [a.text() for a in win.canvas.bar.export_menu.actions()][1].startswith("Animation")
+
+
+def test_legend_grows_with_a_2x_figure(win, qapp, tmp_path):
+    from app.export import render_figure
+    from PySide6.QtWidgets import QGraphicsItem
+    cv = win.canvas
+    cv.set_view_mode("particles")
+    qapp.processEvents()
+    render_figure(cv, str(tmp_path / "l.png"), "png", 2)
+    assert cv.particles.legend.flags() & QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations     # restored

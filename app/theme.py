@@ -240,6 +240,7 @@ def build_stylesheet(t: dict) -> str:
     QWidget#CanvasBar QToolButton:hover {{ background: {t['accent_soft']}; }}
     QWidget#CanvasBar QToolButton:checked {{ background: {t['toggle_on_bg']}; color: {t['toggle_on_text']};
         border-color: {t['toggle_on_bg']}; }}
+    QWidget#CanvasBar QToolButton::menu-indicator {{ image: none; width: 0px; }}
     QWidget#CanvasBar QToolButton#Export {{ color: {t['accent']}; border-color: {t['accent']}; }}
     QWidget#TitleBlock {{ background: {t['panel_bg']}; border-top: 1px solid {t['ink']}; }}
     QWidget#TitleCell {{ border-right: 1px solid {t['ink']}; }}

@@ -100,7 +100,9 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         cv, ep, sp = self.canvas, self.elements_panel, self.settings_panel
         # plot -> window
         cv.message.connect(self.flash)
-        cv.bar.btn_export.clicked.connect(self.export_figure)
+        cv.bar.set_export_actions([("Figure (PNG / SVG / PDF)…", self.export_figure),
+                                   ("Animation (GIF / MP4)…", self.export_animation),
+                                   ("Data (CSV)…", self.export_data)])
         cv.probe.connect(self._update_probe)
         cv.element_clicked.connect(self.select_element)
         cv.stagnation_clicked.connect(self.select_stagnation)

@@ -125,6 +125,7 @@ class AnimatedLayer(PlotLayer):
         self._timer.setTimerType(Qt.PreciseTimer)
         self._timer.setInterval(FRAME_MS)
         self._timer.timeout.connect(self.frame)
+        self.export_scale = None              # recording a GIF / MP4: picture pixels per screen pixel
 
     # ------------------------------------------------------------------ to implement
     def start(self):
@@ -171,6 +172,32 @@ class AnimatedLayer(PlotLayer):
         self.paused = bool(on)
         self._last = None
 
+    def pixel_scale(self) -> float:
+        """Picture pixels per screen pixel: the screen's device pixel ratio, or the resolution of a
+        GIF / MP4 being recorded (app.export.animation)."""
+        return self.export_scale or self.plot.devicePixelRatioF()
+
+    def set_export_scale(self, scale):
+        """Recording (scale = picture pixels per screen pixel) or back to the screen (None): the timer
+        stops while recording; frames are made with advance()."""
+        self.export_scale = scale
+        self._clear()
+        self._colors()
+        if scale is not None:
+            self._timer.stop()
+        elif self.animated:
+            self._last = None
+            self._timer.start()
+
+    def advance(self, dt: float):
+        """One frame of dt seconds (recording): the picture is drawn even while the window is hidden."""
+        image = self._picture()
+        if image is None:
+            return
+        self._fresh = False
+        self.render(image, dt)
+        self.trail.set_image(image, self._rect)
+
     # ------------------------------------------------------------------ one frame
     def frame(self):
         now = time.perf_counter()
@@ -190,7 +217,7 @@ class AnimatedLayer(PlotLayer):
     def _draw(self, image, ax, ay, bx, by, band, alpha, width_px, keep_max):
         """Lines (ax, ay) -> (bx, by) in picture pixels in their speed band's color (band < 0: not
         drawn) with opacity × alpha."""
-        dpr = self.plot.devicePixelRatioF()
+        dpr = self.pixel_scale()
         if kernel.HAVE_NUMBA:
             rows = np.frombuffer(image.bits(), np.uint8).reshape(image.height(), image.bytesPerLine() // 4, 4)
             kernel.draw_segments(rows, ax, ay, bx, by, band, self._palette, 0.5 * width_px * dpr,
@@ -219,7 +246,7 @@ class AnimatedLayer(PlotLayer):
 
     def _picture(self):
         """The picture for the current view and widget size (a new, empty one if they changed)."""
-        dpr = self.plot.devicePixelRatioF()
+        dpr = self.pixel_scale()
         size = self.vb.size()
         w, h = int(math.ceil(size.width() * dpr)), int(math.ceil(size.height() * dpr))
         if w < 2 or h < 2:
@@ -252,7 +279,7 @@ class AnimatedLayer(PlotLayer):
         v_typ = self.typical()
         self._top = nice_top(2.0 * v_typ) if v_typ > 0 else 1.0
         stops = self.theme["particles"]
-        dpr = self.plot.devicePixelRatioF()
+        dpr = self.pixel_scale()
         self._band_colors = [ramp(stops, (k + 0.5) / BINS) for k in range(BINS)]
         self._palette = np.array([(*c, 235 / 255) for c in self._band_colors], dtype=float)
         self._pens = []
@@ -335,7 +362,7 @@ class ParticleLayer(AnimatedLayer):
         a, b = (p.prev, p.pos) if trails else (p.pos, p.pos)
         ax, ay = self._to_pixels(image, a)
         bx, by = self._to_pixels(image, b)
-        dpr = self.plot.devicePixelRatioF()
+        dpr = self.pixel_scale()
         draw = ~p.fresh if trails else np.ones(p.pos.size, bool)
         draw &= np.hypot(bx - ax, by - ay) <= MAX_STEP_PX * dpr
         band = np.where(draw, self._band(p.speed), -1)
@@ -407,7 +434,7 @@ class PulseLayer(AnimatedLayer):
         w, h = image.width(), image.height()
         near = (np.maximum(ax, bx) > -m) & (np.minimum(ax, bx) < w + m) & \
                (np.maximum(ay, by) > -m) & (np.minimum(ay, by) < h + m)
-        near &= np.hypot(bx - ax, by - ay) <= MAX_STEP_PX * self.plot.devicePixelRatioF()
+        near &= np.hypot(bx - ax, by - ay) <= MAX_STEP_PX * self.pixel_scale()
         near[near] &= ~self.canvas.bodies.contains(0.5 * (a[near] + b[near]))
         idx = np.nonzero(near)[0]
         self._px = (ax[idx], ay[idx], bx[idx], by[idx], tau[idx] / self.period, self._band(speed[idx]))
