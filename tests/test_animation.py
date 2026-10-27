@@ -346,3 +346,39 @@ def test_older_files_with_an_animation_style_open_without_a_warning():
     from model.scene_file import FORMAT, from_data
     doc = from_data({"format": FORMAT, "version": 1, "elements": [], "settings": {"anim_style": 1.0, "trail": 2.0}})
     assert doc.warnings == [] and doc.settings == {"trail": 2.0}
+
+
+def test_animation_rests_while_the_window_is_minimized(win, qapp):
+    from app.canvas.animation_layer import FRAME_MS, HIDDEN_MS
+    cv = win.canvas
+    cv.set_animated(True)
+    _frames(qapp, 3)
+    win.showMinimized()
+    qapp.processEvents()
+    if not win.isMinimized():
+        pytest.skip("this window system cannot minimize")
+    n = len(cv.particles.frame_ms)
+    _frames(qapp, 10)
+    assert cv.particles._timer.interval() == HIDDEN_MS and len(cv.particles.frame_ms) == n
+    win.showNormal()
+    qapp.processEvents()
+    from PySide6.QtTest import QTest
+    QTest.qWait(HIDDEN_MS + 100)
+    _frames(qapp, 6)
+    assert cv.particles._timer.interval() == FRAME_MS and len(cv.particles.frame_ms) > n
+
+
+@pytest.mark.skipif(not kernel.HAVE_NUMBA, reason="Numba not installed")
+def test_warm_up_compiles_exactly_what_the_plot_uses(win, qapp):
+    """After warm_up() the particles, pulses and solid bodies need no new compiled versions (argument
+    types alike), so the first click on Particles / Pulses never waits for the compiler."""
+    from physics.warmup import warm_up
+    names = ("advect_particles", "draw_segments", "fade_bytes", "label_regions", "velocity_many", "seed_random")
+    assert warm_up()
+    before = {n: len(getattr(kernel, n).signatures) for n in names}
+    cv = win.canvas
+    win.settings_panel.layer_boxes["bodies"].setChecked(True)
+    for mode in ("particles", "pulses"):
+        cv.set_view_mode(mode)
+        _frames(qapp, 6)
+    assert {n: len(getattr(kernel, n).signatures) for n in names} == before

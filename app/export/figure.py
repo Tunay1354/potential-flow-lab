@@ -2,8 +2,9 @@
 figure.py — the plot as a figure file (PNG / SVG / PDF), as it is on the screen (view, layers,
 selection), axes included, without the program around it.
 
-PNG can be 1×–4× the screen resolution: line widths, arrows and symbols grow with it, so a 3× PNG looks
-like the screen, only sharper. SVG and PDF are vector files (lines stay sharp at any zoom, good for the
+PNG can be 1×–4× the screen resolution: line widths, arrows, symbols and the animation picture
+(particles / pulses, drawn again at that resolution) grow with it, so a 3× PNG looks like the screen,
+only sharper. SVG and PDF are vector files (lines stay sharp at any zoom, good for the
 report). Option: light colors for a figure exported from the dark theme.
 """
 import os
@@ -17,6 +18,8 @@ from PySide6.QtWidgets import QGraphicsItem
 from ..theme import LIGHT
 
 FORMATS = {"png": "PNG image", "svg": "SVG (vector)", "pdf": "PDF (vector)"}
+ANIMATION_WARMUP_FRAMES = 60          # animating: 1 s at 60 fps unseen before the figure (trails)
+VECTOR_PICTURE_SCALE = 2.0            # the particle / pulse picture inside an SVG / PDF (pixels there)
 BACKGROUNDS = {"paper": "Plot color", "white": "White", "transparent": "Transparent"}
 
 
@@ -124,12 +127,35 @@ def render_figure(canvas, path: str, fmt: str, scale: float = 2.0, background: s
         canvas.apply_theme(LIGHT)                          # print colors; the screen theme comes back
     try:
         with mirrored_axes(canvas, mirror_numbers) if mirror else nullcontext():
-            _render(canvas, path, fmt, scale, background)
+            with _sharp_animation(canvas, float(scale) if fmt == "png" else VECTOR_PICTURE_SCALE):
+                _render(canvas, path, fmt, scale, background)
     finally:
         if canvas.theme is not theme_before:
             canvas.apply_theme(theme_before)
         if cached:
             canvas.set_static_cache(True)
+
+
+@contextmanager
+def _sharp_animation(canvas, scale: float):
+    """Animating: the particle / pulse picture is drawn again at the resolution of the figure (a 3×
+    PNG gets sharp trails, not the screen picture enlarged); the animation runs ~1 s unseen for the
+    trails. Paused: the pulses are drawn as they are; the particles keep the screen picture (moving
+    them would lose the paused moment)."""
+    layer = canvas.animation if getattr(canvas, "animated", False) else None
+    if layer is None or (layer.paused and not layer.DRAW_WHILE_PAUSED):
+        yield
+        return
+    layer.set_export_scale(scale)
+    try:
+        if layer.paused:
+            layer.advance(0.0)
+        else:
+            for _ in range(ANIMATION_WARMUP_FRAMES):
+                layer.advance(1.0 / 60.0)
+        yield
+    finally:
+        layer.set_export_scale(None)
 
 
 def _render(canvas, path, fmt, scale, background):

@@ -21,6 +21,7 @@ from PySide6.QtWidgets import QAbstractButton, QApplication, QHBoxLayout, QMainW
 from app_info import APP_NAME, APP_VERSION, ORGANIZATION
 from model import SceneModel, preview_change
 from physics import ELEMENT_TYPES
+from physics.warmup import warm_up_in_background
 
 from .canvas import LIVE_DRAG_DEFAULT, PlotCanvas
 from .chrome import HeaderBar, load_fonts, paint_paper_grid, tint_title_bar
@@ -112,6 +113,7 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
             lambda row: (self.select_element(row), QTimer.singleShot(0, self, lambda: self.edit_element(row))))
         cv.cp_reference_requested.connect(self._show_cp_reference)
         cv.computed.connect(self._update_status)
+        cv.computed.connect(lambda *_: warm_up_in_background())     # the other kernels, once, unseen
         cv.view_changed.connect(self._update_title_block_view)
         cv.view_changed.connect(sp.set_view)
         # element list -> model

@@ -314,3 +314,30 @@ def test_compute_now_then_export_without_waiting(qapp, tmp_path):
     assert QImage(str(tmp_path / "cli.png")).width() > 500
     cv.shutdown()
     cv.close()
+
+
+def test_png_of_the_animation_is_sharp_at_3x(win, qapp, tmp_path):
+    """The particle picture of a 3× PNG is drawn at 3× (not the screen picture enlarged): its trail
+    lines keep their sharp edges (few half-transparent edge pixels per line pixel)."""
+    from PySide6.QtGui import QImage
+    from app.export import render_figure
+    cv = win.canvas
+    cv.set_view_mode("particles")
+    from PySide6.QtTest import QTest
+    QTest.qWait(300)
+    seen = []
+    orig = cv.particles.set_export_scale
+    cv.particles.set_export_scale = lambda k: (seen.append(k), orig(k))[1]
+    render_figure(cv, str(tmp_path / "p3.png"), "png", 3)
+    assert seen == [3.0, None] and cv.particles.export_scale is None and cv.particles._timer.isActive()
+    assert QImage(str(tmp_path / "p3.png")).width() > 3 * 600
+    cv.set_paused(True)                                       # paused particles: the screen picture
+    seen.clear()
+    render_figure(cv, str(tmp_path / "p3b.png"), "png", 3)
+    assert seen == []
+    cv.set_view_mode("pulses")                                # paused pulses: drawn again as they are
+    t = cv.pulses.t
+    orig2 = cv.pulses.set_export_scale
+    cv.pulses.set_export_scale = lambda k: (seen.append(k), orig2(k))[1]
+    render_figure(cv, str(tmp_path / "p3c.png"), "png", 3)
+    assert seen == [3.0, None] and cv.pulses.t == t

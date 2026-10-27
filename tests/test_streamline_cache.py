@@ -277,3 +277,19 @@ def test_forced_redraw_keeps_the_stagnation_points():
     assert len(c.update(VIEW).stagnation) == 2
     again = c.update(VIEW, arrow_density=2.0, force=True)
     assert len(again.stagnation) == 2 and len(again.dividing) == 6
+
+
+def test_dividing_line_seeds_do_not_pile_up():
+    """The features (stagnation points, dividing streamlines) are found again whenever the view leaves
+    their region, mostly the same ones: their seeds are added to a field only once."""
+    c = StreamlineCache(CYL)
+    c.update(((-4.0, 4.0), (-3.0, 3.0)))
+    for f in c.fields.values():
+        f.special_seeds = np.array([5.0 + 5.0j])            # one pending seed outside the region
+    for _ in range(5):
+        c._update_features((-4.0, 4.0, -3.0, 3.0), None)
+    for f in c.fields.values():
+        z = f.special_seeds
+        assert z.size == 1 + len(c._seeds)
+        gaps = np.abs(z[:, None] - z[None, :]) + np.eye(z.size) * 1e9
+        assert gaps.min() > 0.2 * f.d

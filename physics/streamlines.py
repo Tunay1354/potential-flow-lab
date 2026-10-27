@@ -803,7 +803,7 @@ class StreamlineCache:
             seeds.append(z[min(k, z.size - 1)])
         self._seeds = np.array(seeds, dtype=complex)
         for f in self.fields.values():                   # fields that exist get the new ones too
-            f.special_seeds = np.concatenate([f.special_seeds, self._seeds])
+            f.special_seeds = _merge_seeds(f.special_seeds, self._seeds, 0.25 * f.d)
 
     def _extend(self, L, region, depth, cancelled):
         d = 2.0 ** -L
@@ -820,6 +820,17 @@ class StreamlineCache:
         f.extend(region, cancelled=cancelled)
         if self.v_min is None:
             self.v_min = f.v_min
+
+
+def _merge_seeds(pending: np.ndarray, new: np.ndarray, tol: float) -> np.ndarray:
+    """The pending seeds plus those new ones that are not (within tol) there yet: the features are
+    found again whenever the view leaves their region, mostly with the same dividing streamlines, and
+    the list would otherwise grow with every pan."""
+    out = list(pending)
+    for z in new:
+        if not out or np.min(np.abs(np.asarray(out) - z)) > tol:
+            out.append(z)
+    return np.asarray(out, dtype=complex)
 
 
 def _columns(traj) -> list[np.ndarray]:

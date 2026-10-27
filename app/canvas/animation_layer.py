@@ -21,8 +21,9 @@ The picture is drawn anew every frame.
 
 While animating, every other plot item is cached as a picture in device pixels (Qt's
 DeviceCoordinateCache, PlotCanvas.set_static_cache): a frame repaints the animation picture and copies
-the cached pictures, instead of drawing all streamlines again. The frame timer stops when the animation
-is paused (and does nothing while the window is hidden).
+the cached pictures, instead of drawing all streamlines again. While paused a frame draws nothing (the
+pulses only after a zoom / pan); while the window is minimized or hidden the timer slows down to a
+look every HIDDEN_MS.
 """
 import math
 import time
@@ -43,6 +44,7 @@ from .layer import PlotLayer
 from .legend import ColorLegend
 
 FRAME_MS = 16                    # ~60 frames per second
+HIDDEN_MS = 250                  # window minimized / hidden: only look now and then whether it is back
 BINS = 8                         # speed colors (also the legend bands)
 LINE_PX = 1.7                    # width of a particle's trail line (screen pixels)
 MAX_STEP_PX = 24                 # a longer step in one frame (next to a singular point) is not drawn:
@@ -202,8 +204,15 @@ class AnimatedLayer(PlotLayer):
     def frame(self):
         now = time.perf_counter()
         dt, self._last = (0.0 if self._last is None else min(now - self._last, 0.1)), now
-        if not self.animated or not self.canvas.isVisible():
+        if not self.animated:
             return
+        if not self.canvas.isVisible() or self.canvas.window().isMinimized():
+            self._timer.setInterval(HIDDEN_MS)          # nothing to draw: no work 60 times a second
+            self._last = None
+            return
+        if self._timer.interval() != FRAME_MS:
+            self._timer.setInterval(FRAME_MS)
+            self._last = now
         image = self._picture()
         if image is None or (self.paused and not (self.DRAW_WHILE_PAUSED and self._fresh)):
             return
