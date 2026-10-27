@@ -290,3 +290,27 @@ def test_legend_grows_with_a_2x_figure(win, qapp, tmp_path):
     qapp.processEvents()
     render_figure(cv, str(tmp_path / "l.png"), "png", 2)
     assert cv.particles.legend.flags() & QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations     # restored
+
+
+def test_compute_now_then_export_without_waiting(qapp, tmp_path):
+    """A plot alone (no main window): the scene, all layers drawn synchronously, a figure written —
+    what the command line export will do."""
+    from PySide6.QtGui import QImage
+    from app.canvas import PlotCanvas
+    from app.export import render_figure
+    from app.theme import LIGHT
+    from physics import Source, Uniform
+    cv = PlotCanvas(LIGHT, [Uniform(), Source(m=6.0, x0=-1.0), Source(m=-6.0, x0=1.0)])
+    cv.resize(900, 640)
+    cv.show()
+    qapp.processEvents()
+    cv.set_view((-4.0, 4.0), (-3.0, 3.0))
+    for key in ("speed", "bodies"):
+        cv.set_layer(key, True)
+    cv.compute_now()
+    assert cv.last_result is not None and len(cv.last_result.lines) > 20
+    assert len(cv.stagnation_points) == 2 and cv.fields.legend.isVisible() and cv.bodies.mask is not None
+    render_figure(cv, str(tmp_path / "cli.png"), "png", 1)
+    assert QImage(str(tmp_path / "cli.png")).width() > 500
+    cv.shutdown()
+    cv.close()

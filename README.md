@@ -100,8 +100,9 @@ açılışlarda hazır gelir.
 | `physics/stagnation.py` | Stagnation point'ler (w = 0, Newton) ve dividing streamline'lar; cisim içi / yüzeyi ayrımı |
 | `physics/kernel.py` | Numba ile derlenmiş hız alanı ve integrator (aynı matematik, ~10× hızlı, arayüzü bekletmez) |
 | `physics/diagnostics.py` | Flux, circulation, yüzey kuvvetleri (L′, D′) ölçümleri |
+| `physics/verification.py` | Analitik çözümlerle karşılaştırma tablosu (rapor, testler, ileride `--verify`) |
 | `tests/` | Otomatik doğrulama testleri (`pytest`) |
-| `scripts/verify_physics.py` | Rapor için doğrulama tablosu |
+| `scripts/verify_physics.py` | Doğrulama tablosunu yazdırır (`physics/verification.py`) |
 | `scripts/streamline_quality.py` | Streamline resminin kalite ölçümü (aralık düzgünlüğü, kesik uçlar, süre) |
 
 **Yeni bir plot katmanı eklemek** (ör. animasyon): `app/canvas/layer.py`'deki `PlotLayer`'dan bir sınıf

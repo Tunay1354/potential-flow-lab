@@ -35,7 +35,6 @@ DURATION_S = 4.0
 
 
 def run(win, app, elements):
-    from app.main_window import MainWindow  # noqa: F401
     win.load_scene(list(elements), ((-4.0, 4.0), (-3.0, 3.0)), title="smoothness")
     for _ in range(40):
         win.canvas.wait_idle(50)

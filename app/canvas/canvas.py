@@ -346,6 +346,14 @@ class PlotCanvas(QWidget):
         """Compute the streamlines now, synchronously (tests and scripts)."""
         self.streamlines.recompute()
 
+    def compute_now(self):
+        """Everything of the current scene and view drawn now, synchronously — streamlines, stagnation
+        points, dividing streamlines, field layers, bodies — e.g. before a figure is exported without
+        a window (command line). The background computation that was running is cancelled."""
+        self.streamlines.recompute()
+        self.fields.schedule(force=True, now=True)
+        self.bodies.update()
+
     def wait_idle(self, msecs: int = 10000) -> bool:
         """Wait until the background computation is idle (results still arrive via the event loop)."""
         return self.streamlines.wait_idle(msecs)
