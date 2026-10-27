@@ -201,6 +201,8 @@ def _direction(z, F):
     """Unit direction (u + i v)/|V| and speed |V|."""
     vel = _w(z, F).conjugate()
     sp = abs(vel)
+    if sp == 0.0:                     # exactly on a stagnation point (e.g. the corner of two walls):
+        return complex(math.nan, math.nan), 0.0       # no direction (callers stop there); no ZeroDivisionError
     return vel / sp, sp
 
 
