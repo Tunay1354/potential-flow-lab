@@ -162,10 +162,10 @@ sadece genel teknikler öğrenildi: döngünün tamamını derlemek, trail buffe
     - ✅ Solid bodies katmanı (27 Ekim, Layers → "Solid bodies (filled)", varsayılan kapalı): cismin içi
       (silindir, Rankine oval / half-body) kum rengi + hafif tarama ile dolu, yüzeyi koyu çizgi; içerideki
       streamline / ok / particle / pulse görünmez, particle'lar cismin içinde doğmaz. Cisim = geriye doğru
-      izlenen streamline'ı source / doublet'ten başlayan akışkan (uzaktan gelmeyen, kapalı döngü de olmayan);
-      dividing streamline'lar ekran ızgarasında sınır, bölgeler birkaç izle sınıflanır. Serbest akış yoksa
-      cisim yok; serbest vortex'in etrafındaki kapalı döngüler cisim sayılmaz. Bilinen sınır: Γ > 4πV∞R'de
-      silindirle birlikte dönen halka da cisim gibi dolar (aralarında dividing streamline yok)
+      izlenen streamline'ı source / doublet'ten başlayan ya da onların etrafında dönen akışkan
+      (`stagnation.trace_origin`); dividing streamline'lar ekran ızgarasında sınır, bölgeler birkaç izle
+      sınıflanır. Serbest akış yoksa cisim yok; serbest vortex'in etrafındaki kapalı döngüler cisim sayılmaz.
+      Γ > 4πV∞R'de silindirle birlikte dönen halka da cismin parçası (akışta aralarını ayıran bir şey yok)
     - ✅ GIF / MP4 kaydı (27 Ekim): File → Export animation… (Ctrl+Shift+E) veya üst bardaki Export menüsü.
       Seçenekler: Particles / Pulses, süre 1 · 2 · 3 · 5 · 10 s, kare hızı (GIF 20 / 25, MP4 24 / 30 / 60 fps),
       çözünürlük (GIF 1–2×, MP4 1–4×), arka plan, dört kenarda eksen, açık renkler. Kareler ekran görüntüsü
@@ -173,7 +173,26 @@ sadece genel teknikler öğrenildi: döngünün tamamını derlemek, trail buffe
       akıcı); önce ~1.5 s görünmeden çalışır. GIF: Pillow (ortak palet, değişmeyen pikseller saydam), MP4:
       imageio-ffmpeg (H.264, CRF 18). İkisi de isteğe bağlı paket; yoksa diyalog hangi paketin gerektiğini yazar.
       Ek düzeltme: renk lejantı k× PNG'de de büyüyor (önceden ekran boyunda kalıyordu)
-15. ☐ **Paket S — Surface pressure paneli**: cisimlerin yüzeyi Cp'ye göre renkli, dock panelde Cp – θ grafiği
+14b. ✅ **Gözden geçirme ve optimizasyon** (27 Ekim)
+    - Hata düzeltmesi: bazı pencere boylarında (ör. 1200 × 760) görünüm saniyede ~40 kez ileri geri
+      zıplıyordu (sol eksen yazısının genişliği "-2.5" / "-2" arasında gidip geliyor, aspect lock y aralığını
+      değiştiriyordu); eksen yazı alanı artık sadece büyüyor
+    - `app/paths.py` (dosya yolları tek yerde), `packaging/potential_flow_lab.spec` (Linux'ta denendi: exe
+      Numba çekirdeklerini kullanıcının önbellek klasöründe tutuyor; 1. açılış ~18 s CPU, 2. ~2 s)
+    - Tek cisim tanımı: `stagnation.trace_origin` (serbest akış / cisim / kapalı döngü / bilinmiyor) hem
+      durma noktası türlerinde hem çizilen dividing dallarında hem Solid bodies'de; serbest vortex artık
+      "in the flow". `bodies.find_bodies`: her cismin yüzeyi saat yönünün tersine sıralı (Paket S için)
+    - Plot ayarları tek tablodan: `model/plot_settings.py` + `app/canvas/settings.SLIDERS` +
+      `PlotCanvas.set_<ad>` (yeni ayar 6 yer yerine 3 yer)
+    - `physics/verification.py` (doğrulama tablosu modül; script, test, ileride `--verify`),
+      `PlotCanvas.compute_now()` (pencere açmadan her şeyi hemen çizer: komut satırı export'u için)
+    - Pencere küçültülünce animasyon dinleniyor; çekirdekler ilk streamline'lardan sonra arka planda
+      hazırlanıyor (ilk Particles / Pulses / Solid bodies tıklamasında donma yok); animasyon açıkken PNG
+      export'unda particle / pulse resmi figür çözünürlüğünde yeniden çiziliyor (keskin); dividing seed'leri
+      tekrar tekrar eklenmiyor
+    - `physics/streamlines.py` → `physics/streamlines/` paketi (aynı sonuç, bit bit karşılaştırıldı);
+      animasyon katmanı üç dosya; `requirements-dev.txt`; sürüm 0.5.0
+15. ▶ **Paket S — Surface pressure paneli**: cisimlerin yüzeyi Cp'ye göre renkli, dock panelde Cp – θ grafiği
     (silindirde analitik eğri), yüzey integraliyle lift / drag ↔ Kutta–Joukowski / d'Alembert, surface Cp CSV
 16. ☐ **Paket V — Komut satırı + otomatik doğrulama**: pencere açmadan figür / CSV export, `--verify`: verification
     case'ler ve analitik çözümlerle karşılaştırma tablosu (Markdown + CSV) ve rapor figürleri

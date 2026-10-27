@@ -46,8 +46,10 @@ status bar'da ✖ görünür (ayrıntı için üzerine gel). Hatalar listedeki n
    ```
    python -m venv .venv
    .venv\Scripts\activate
-   pip install -r requirements.txt
+   pip install -r requirements-dev.txt
    ```
+   (`requirements-dev.txt` = programın paketleri + `pytest` + exe için `pyinstaller`; sadece programı
+   çalıştırmak için `requirements.txt` yeter.)
    - `python` bulunamazsa: python.org'dan Python 3.12 kur, ilk ekranda **"Add python.exe to PATH"** işaretle.
    - PowerShell "running scripts is disabled" derse bir kez:
      `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` (soruya `Y`).
@@ -61,11 +63,13 @@ pytest                          # fizik testlerini çalıştır
 python scripts/verify_physics.py   # analitik vs. sayısal doğrulama tablosu
 ```
 Güncelleme geldiğinde: GitHub Desktop'ta **Fetch origin → Pull origin**.
-`requirements.txt` değiştiyse `pip install -r requirements.txt` komutunu tekrar çalıştır
-(Paket E1'den sonra bir kez gerekli: hızlı streamline motoru için **numba** eklendi).
+`requirements.txt` / `requirements-dev.txt` değiştiyse `pip install -r requirements-dev.txt` komutunu tekrar
+çalıştır.
 
-İlk açılışta streamline motoru bir kez derlenir (birkaç saniye, durum çubuğunda yazar); sonraki
-açılışlarda hazır gelir.
+İlk açılışta streamline motoru bir kez derlenir (birkaç saniye, durum çubuğunda yazar); animasyon ve
+Solid bodies çekirdekleri hemen ardından arka planda hazırlanır. Sonraki açılışlarda hepsi hazır gelir.
+
+Exe (Faz 5): `pyinstaller packaging/potential_flow_lab.spec` → `dist/Potential Flow Lab/`.
 
 Ölçüm scriptleri: `python scripts/streamline_quality.py` (çizgi kalitesi),
 `python scripts/smoothness.py` (pan / zoom sırasında kare aralıkları, arayüz akıcılığı).
@@ -76,10 +80,12 @@ açılışlarda hazır gelir.
 |---|---|
 | `main.py` | Programı başlatır (`python main.py sahne.pflow` dosyayı da açar) |
 | `app_info.py` | Program adı ve sürümü |
+| `app/paths.py` | Programın dosyalarının yeri (kaynak klasör veya exe) |
+| `packaging/` | Exe yapımı (PyInstaller spec) |
 | `presets/` | Hazır sahneler (`.pflow` dosyaları, klasör = menüdeki grup) |
 | `app/main_window.py` | Ana pencere: parçaları birleştirir, sinyalleri bağlar, element komutları (ekle / düzenle / taşı / sil, undo / redo) |
 | `app/window/` | Ana pencerenin parçaları: `layout.py` (yan paneller, palette sağ/sol, düzeni hatırlama), `menus.py` (palette, menüler, kısayollar), `files.py` (New / Open / Save, preset'ler), `exporting.py` (figür ve CSV export), `status.py` (durum çubuğu, probe, sahne kontrolü, başlıklar) |
-| `app/canvas/` | Plot kartı. `canvas.py` ortak durumu tutar (elementler, ayarlar, katman anahtarları, seçim) ve her olayı katmanlara iletir. Katmanlar: `streamline_layer.py` (arka planda hesap), `stagnation_layer.py`, `field_layer.py` (φ, \|V\|, Cp; `contours.py`, `legend.py`), `element_layer.py` (semboller, duvarlar, seçme), `animation_layer.py` (animasyon stilleri: particle'lar, streamline üstünde darbeler), `body_layer.py` (cisimlerin içi dolu: Solid bodies). `interaction.py`: fare modları, sürükleme, palette'ten bırakma. `settings.py`: Plot settings slider'larının tablosu |
+| `app/canvas/` | Plot kartı. `canvas.py` ortak durumu tutar (elementler, ayarlar, katman anahtarları, seçim) ve her olayı katmanlara iletir. Katmanlar: `streamline_layer.py` (arka planda hesap), `stagnation_layer.py`, `field_layer.py` (φ, \|V\|, Cp; `contours.py`, `legend.py`), `element_layer.py` (semboller, duvarlar, seçme), `animation_layer.py` + `particle_layer.py` + `pulse_layer.py` (animasyonlar: particle'lar, streamline üstünde darbeler), `body_layer.py` (cisimlerin içi dolu: Solid bodies). `interaction.py`: fare modları, sürükleme, palette'ten bırakma. `settings.py`: Plot settings slider'larının tablosu |
 | `app/export/` | `figure.py` (PNG / SVG / PDF), `data.py` (CSV, Qt'siz), `dialogs.py` |
 | `app/chrome/` | Pencerenin "çizim kağıdı" görünümü: `style.py` (font, renk), `header.py` (logo, tahta şerit, cetvel + menüler), `cards.py` (panel kartları, title block), `palette.py` (element paleti) |
 | `app/panels.py`, `app/dialogs.py` | Elements / Plot settings panelleri; parametre penceresi (alanlar `app/element_specs.py`'den otomatik) |
@@ -96,8 +102,11 @@ açılışlarda hazır gelir.
 | `physics/validation.py` | Sahne kontrolü: duvar arkasında/üstünde element, paralel olmayan uniform flow ... |
 | `physics/registry.py` | Hangi element tipleri var (yeni element otomatik eklenir) |
 | `physics/field.py` | Superposition (w = Σ wₖ), grid hesabı, Cp, singularity masking, fluid region |
-| `physics/streamlines.py` | Eşit aralıklı streamline'lar (Jobard–Lefer, RK4), soluklaşan uçlar, ok yerleri; pan'de çizgileri yerinde tutan önbellek (`StreamlineCache`) |
-| `physics/stagnation.py` | Stagnation point'ler (w = 0, Newton) ve dividing streamline'lar; cisim içi / yüzeyi ayrımı |
+| `physics/streamlines/` | Eşit aralıklı streamline'lar (Jobard–Lefer, RK4): `level.py` (bir aralık seviyesi), `cache.py` (pan'de çizgileri yerinde tutan önbellek), `seeds.py`, `rasters.py`, `arrows.py`, `drawing.py` (soluklaşan uçlar) |
+| `physics/stagnation.py` | Stagnation point'ler (w = 0, Newton) ve dividing streamline'lar; akışkanın nereden geldiği (`trace_origin`: serbest akış / cisim / kapalı döngü) |
+| `physics/bodies.py` | Cisimler: bölge resmi (`body_map`), yüzeyler saat yönünün tersine sıralı (`find_bodies`, Paket S için) |
+| `physics/warmup.py` | Numba çekirdeklerini arka planda önceden derler / yükler |
+| `physics/particles.py` | Animasyon fiziği: tracer particle'lar, streamline boyunca yolculuk süresi (pulse'lar) |
 | `physics/kernel.py` | Numba ile derlenmiş hız alanı ve integrator (aynı matematik, ~10× hızlı, arayüzü bekletmez) |
 | `physics/diagnostics.py` | Flux, circulation, yüzey kuvvetleri (L′, D′) ölçümleri |
 | `physics/verification.py` | Analitik çözümlerle karşılaştırma tablosu (rapor, testler, ileride `--verify`) |

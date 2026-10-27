@@ -1,0 +1,4 @@
+# For development: the program's packages + tests + building the exe
+-r requirements.txt
+pytest>=8.0
+pyinstaller>=6.0     # packaging/potential_flow_lab.spec (Faz 5)

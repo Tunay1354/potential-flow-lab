@@ -17,13 +17,15 @@ from physics.field import reference_speed
 
 from ..chrome import TitleBlock, device_line_rect, font
 from ..theme import FONT, LAYOUT
+from .animation_layer import STATIC_CACHE
 from .bar import CanvasBar
+from .body_layer import BodyLayer
 from .element_layer import ElementLayer
 from .field_layer import KEYS as FIELD_KEYS
 from .field_layer import FieldLayer
 from .interaction import DRAG_OPACITY, MOUSE_MODES, PlotInteraction, PlotViewBox
-from .animation_layer import STATIC_CACHE, ParticleLayer, PulseLayer
-from .body_layer import BodyLayer
+from .particle_layer import ParticleLayer
+from .pulse_layer import PulseLayer
 from .settings import PlotSettings
 from .stagnation_layer import StagnationLayer
 from .streamline_layer import StreamlineLayer

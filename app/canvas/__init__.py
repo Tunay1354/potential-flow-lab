@@ -7,7 +7,8 @@ canvas — the plot card of the main window.
     stagnation_layer.py  stagnation points and dividing streamlines
     field_layer.py       equipotential lines, |V| and Cp color bands (contours.py, legend.py)
     element_layer.py     element symbols, walls, selection glow, picking
-    animation_layer.py   the animated view: particles with trails, or pulses along the streamlines
+    animation_layer.py   what the animated views share; particle_layer.py (particles with trails),
+                         pulse_layer.py (pulses along the streamlines)
     body_layer.py        "Solid bodies": the inside of cylinders / Rankine bodies filled (physics/bodies.py)
     interaction.py       mouse modes, dragging elements, dropping palette elements
     settings.py          PlotSettings (saved with the scene)

@@ -283,7 +283,7 @@ def test_pulse_settings_are_their_own(win, qapp):
     assert cv.pulses.speed_slider == 8
     cv.set_view_mode("pulses")
     _frames(qapp, 4)
-    from app.canvas.animation_layer import pulse_spacing
+    from app.canvas.pulse_layer import pulse_spacing
     sep = cv.pulses.result.separation
     assert cv.pulses.period == pytest.approx(pulse_spacing(7) * sep / cv.pulses.v_typ)
 
