@@ -84,6 +84,9 @@ Teslim: yaklaşık 26 Kasım 2026 (rapor + user guide + canlı demo).
      hız / şiddet girilir, Cancel = eklenmez; Shift ile ızgaraya yapışır; uniform flow'da sadece pencere
    - Edit → Keyboard shortcuts… (Help'te de): tüm kısayollar görülür / değiştirilir, çakışma engellenir,
      "Reset all to defaults"; değişiklikler kalıcı
+   - Düzeltme: sürüklemeden sonra stagnation point'e tıklayınca dividing streamline yine çiziliyor
+   - Sector köşesi artık stagnation point olarak işaretlenmiyor (ödevde istenmiyor; köşe zaten duvarların
+     birleşimi); fizik tarafında hâlâ biliniyor
 9. ▶ **Export** (Faz 4'ten öne alındı): plot'u PNG / PDF / SVG olarak kaydetme, veri CSV (rapor figürleri için)
 10. ☐ **Faz 3 — Rapor malzemesi**: doğrulama figürleri ve tabloları (verification case'ler, stagnation
    karşılaştırmaları), user guide taslağı

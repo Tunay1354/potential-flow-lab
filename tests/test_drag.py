@@ -249,3 +249,33 @@ def test_shortcut_conflicts_are_refused(win):
     assert warnings and "Fit view" in warnings[0] and win.shortcuts.keys("mode.pan") == ["H"]
     dlg._reset()
     assert win.shortcuts.keys("edit.redo") == dlg.assignment()["edit.redo"]
+
+
+def test_dividing_lines_come_back_after_a_drag(win, qapp):
+    cv = win.canvas
+    cv.set_mode("move")
+    _drag(qapp, win, (0.0, 0.0), (0.4, 0.3))
+    for _ in range(50):
+        cv.wait_idle(50)
+        qapp.processEvents()
+    cv.set_mode("select")
+    win.select_stagnation(0)
+    qapp.processEvents()
+    x, _ = cv._dividing_item.getData()
+    assert cv._dividing_item.isVisible() and x is not None and len(x) > 0
+    _drag(qapp, win, (0.4, 0.3), (0.4, 0.3), before_release=cv.cancel_drag)     # an Esc'd drag too
+    assert cv._dividing_item.isVisible()
+
+
+def test_sector_vertex_is_not_marked(win, qapp):
+    from physics import SectorFlow, Source
+    win.load_scene([SectorFlow(V=1.0)], ((-1, 3), (-1, 3)), title="corner")
+    win.canvas.recompute()
+    qapp.processEvents()
+    assert win.canvas.stagnation_points == []                  # the corner itself is not marked
+    win.load_scene([SectorFlow(V=1.0), Source(m=1.0, x0=1.0, y0=1.0)], ((-1, 3), (-1, 3)), title="corner+")
+    win.canvas.recompute()
+    qapp.processEvents()
+    pts = win.canvas.stagnation_points
+    assert pts and all(p.kind != "vertex" for p in pts)
+    assert set(win.canvas._dividing_owner) <= set(range(len(pts)))

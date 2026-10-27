@@ -405,6 +405,7 @@ class PlotCanvas(QWidget):
             item.setVisible(on["streamlines"])
         self._arrow_item.setVisible(on["streamlines"])
         stag = on["stagnation"] and not self.is_dragging()      # hidden while an element is dragged
+        self._dividing_item.setVisible(not self.is_dragging())  # (its lines are chosen in _draw_stagnation)
         self._stag_item.setVisible(stag)
         for item in self._stag_glow:
             item.setVisible(stag)
@@ -683,9 +684,14 @@ class PlotCanvas(QWidget):
         self._arrow_item.setColor(self.theme["streamline"])
         old = (self.stagnation_points[self.selected_stagnation]
                if self.selected_stagnation is not None else None)
-        self.stagnation_points = list(result.stagnation)
-        self._dividing_lines = list(result.dividing)
-        self._dividing_owner = list(result.dividing_owner)
+        # the vertex of a sector flow is a stagnation point too (w ∝ ζ^(n−1) = 0), but it is the corner
+        # of the walls themselves: not marked (its dividing lines are the drawn walls)
+        keep = [k for k, p in enumerate(result.stagnation) if p.kind != "vertex"]
+        new_index = {k: i for i, k in enumerate(keep)}
+        self.stagnation_points = [result.stagnation[k] for k in keep]
+        pairs = [(ln, new_index[o]) for ln, o in zip(result.dividing, result.dividing_owner) if o in new_index]
+        self._dividing_lines = [ln for ln, _ in pairs]
+        self._dividing_owner = [o for _, o in pairs]
         self.selected_stagnation = None                 # keep the selection if the point is still there
         if old is not None:
             for k, p in enumerate(self.stagnation_points):
@@ -1012,8 +1018,7 @@ class PlotCanvas(QWidget):
         self.plot.viewport().setCursor(Qt.ClosedHandCursor)
         for item in self._line_items + [self._arrow_item]:
             item.setOpacity(0.3)
-        for item in [self._stag_item, self._stag_label, self._dividing_item] + self._stag_glow:
-            item.setVisible(False)
+        self._apply_layers()                              # stagnation points and their lines hide
         return True
 
     def drag_to(self, scene_pos, snap: bool = False):
