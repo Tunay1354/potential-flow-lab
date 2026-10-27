@@ -125,3 +125,24 @@ def test_saved_layout_of_another_version_is_ignored(qapp):
         assert w.dockWidgetArea(w.dock_settings) == Qt.RightDockWidgetArea
     finally:
         w.close()
+
+
+def test_plot_settings_never_hide_under_their_scrollbar(qapp):
+    """Regression: with the vertical scrollbar shown, the right edge of the panel (e.g. a slider's
+    handle at its maximum) was covered: the content was wider than the visible area."""
+    from app.main_window import MainWindow
+    w = MainWindow()
+    w._ask_save_changes = lambda: "discard"
+    w.resize(1300, 640)                                         # short: Plot settings needs its scrollbar
+    w.show()
+    for _ in range(5):
+        qapp.processEvents()
+    sp = w.settings_panel
+    try:
+        assert sp.verticalScrollBar().isVisible()
+        assert sp.widget().width() <= sp.viewport().width()
+        s = sp.s_density
+        right = s.mapTo(sp.viewport(), s.rect().topRight()).x()
+        assert right < sp.viewport().width()
+    finally:
+        w.close()

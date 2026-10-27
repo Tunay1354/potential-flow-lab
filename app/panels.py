@@ -1,7 +1,7 @@
 """
 panels.py — right-side panels: Elements list and Plot settings.
 """
-from PySide6.QtCore import QModelIndex, Qt, QTimer, Signal
+from PySide6.QtCore import QModelIndex, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox,
                                QHBoxLayout, QLabel, QPushButton, QScrollArea, QSlider, QTreeWidget,
@@ -301,6 +301,14 @@ class SettingsPanel(QScrollArea):
         self._add_section("computation", "Computation", g, lay)
 
         lay.addStretch(1)
+
+    def minimumSizeHint(self) -> QSize:
+        """At least as wide as the content PLUS the vertical scrollbar: without it the scrollbar (shown
+        when the panel is short) would cover the right edge, e.g. a slider's handle at its maximum."""
+        hint = super().minimumSizeHint()
+        body = self.widget().minimumSizeHint().width() if self.widget() else 0
+        bar = self.verticalScrollBar().sizeHint().width()
+        return QSize(max(hint.width(), body + bar + 2 * self.frameWidth()), hint.height())
 
     # ------------------------------------------------------------------ sections
     def _add_section(self, key, title, group, layout):
