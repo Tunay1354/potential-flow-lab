@@ -38,6 +38,8 @@ class StreamlineSet:
     stagnation: list = field(default_factory=list)                 # StagnationPoint (stagnation.py)
     dividing: list[np.ndarray] = field(default_factory=list)       # dividing streamlines, (N, 2) each
     dividing_owner: list[int] = field(default_factory=list)        # index in `stagnation` of each one
+    scene_dividing: list[np.ndarray] = field(default_factory=list) # the whole scene's, coarser (bodies)
+    scene_region: tuple[float, float, float, float] | None = None  # … the region they were found in
 
 
 @dataclass

@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from physics import Doublet, Source, Uniform, Vortex, kernel
-from physics.bodies import _label, body_mask, draw_barriers, find_bodies
+from physics.bodies import _label, body_map, body_mask, draw_barriers, find_bodies
 from physics.stagnation import BODY, FAR, LOOP, find_stagnation_points, trace_origin
 from physics.streamlines import StreamlineCache
 
@@ -209,3 +209,44 @@ def test_bodies_follow_zoom_and_a_moved_element(win, qapp):
     assert cv.bodies.mask.mean() > 0.4                                         # the zoomed cylinder
     _load(win, qapp, [Uniform(), Doublet(mu=1.0, x0=1.0)], ((-3.0, 3.0), (-2.0, 2.0)))
     assert cv.bodies.contains(np.array([1.5 + 0j, -0.5 + 0j])).tolist() == [True, False]
+
+
+def test_doublet_across_the_flow_is_no_body_and_gets_a_warning():
+    """α = 30°, δ = 0°: part of the free stream goes through the doublet (in, and out again downstream)
+    — the drawn lines are right (stagnation points = roots of w), but there is no solid body; δ = α
+    gives the cylinder again. A tilted source–sink pair alike; a half-body (net outflow) stays."""
+    from physics.validation import check_scene
+    box = (-4.0, 4.0, -3.0, 3.0)
+    tilted = [Uniform(alpha=30.0), Doublet(mu=1.0), Vortex(Gamma=-2.0)]
+    m = body_map(tilted, box, (300, 400), _dividing(tilted, box))
+    assert m is None or not m.mask.any()
+    (w,) = [s for s in check_scene(tilted) if s.severity == "warning"]
+    assert w.index == 1 and "δ = 30°" in w.message
+    aligned = [Uniform(alpha=30.0), Doublet(mu=1.0, delta=30.0), Vortex(Gamma=-2.0)]
+    m = body_map(aligned, box, (300, 400), _dividing(aligned, box))
+    assert m.mask.mean() * 48.0 == pytest.approx(np.pi, rel=0.03)
+    assert not [s for s in check_scene(aligned) if s.severity == "warning"]
+    pair = [Uniform(alpha=30.0), Source(m=6.0, x0=-1.0), Source(m=-6.0, x0=1.0)]
+    m = body_map(pair, box, (300, 400), _dividing(pair, box))
+    assert m is None or not m.mask.any()
+    half = [Uniform(), Source(m=6.0), Source(m=-2.0, x0=1.0)]
+    assert body_map(half, box, (300, 400), _dividing(half, box)).mask.any()
+
+
+@pytest.mark.parametrize("view", [((-0.8, 0.8), (-0.6, 0.6)), ((-0.1, 0.1), (0.9, 1.05)),
+                                  ((-1.05, -0.9), (-0.08, 0.08)), ((0.69, 0.73), (0.69, 0.73))])
+def test_body_is_right_when_zoomed_into_it(view):
+    """Zoomed into (part of) the cylinder, the stagnation points of its surface are far outside the
+    view: the surface comes from the scene-wide search, traced again at the view's scale; where no line
+    tells anything (next to a stagnation point), the coarse scene map does."""
+    from physics.bodies import scene_map
+    els = [Uniform(), Doublet(mu=1.0), Vortex(Gamma=-2.0)]
+    c = StreamlineCache(tuple(els))
+    c.update(((-4.0, 4.0), (-3.0, 3.0)))
+    res = c.update(view, force=True)
+    (x0, x1), (y0, y1) = view
+    m = body_map(els, (x0, x1, y0, y1), (240, 320), res.dividing, hint=scene_map(els, res))
+    gx, gy = np.meshgrid(np.linspace(x0, x1, 9)[1:-1], np.linspace(y0, y1, 9)[1:-1])
+    z = (gx + 1j * gy).ravel()
+    far = np.abs(np.abs(z) - 1.0) > 0.01 * (x1 - x0) + 0.002
+    assert np.array_equal(m.contains(z)[far], (np.abs(z) < 1.0)[far])

@@ -17,7 +17,7 @@ from PySide6.QtCore import QRectF, Qt, QTimer
 from PySide6.QtGui import QBrush, QColor, QPainterPath, QPen
 from PySide6.QtWidgets import QGraphicsPathItem
 
-from physics.bodies import body_map, surface_pieces
+from physics.bodies import body_map, scene_map, surface_pieces
 
 from .contours import filled_paths, mix
 from .layer import PlotLayer
@@ -39,7 +39,8 @@ class BodyLayer(PlotLayer):
         self.edge = self.add_item(pg.PlotCurveItem(connect="finite"), 2.52)
         self.raster = None                     # without contourpy: a pixel image instead of the shapes
         self.map = None                        # physics.bodies.BodyMap of the view; None = no bodies
-        self.lines = []                        # dividing streamlines of the drawn scene
+        self.lines = None                      # dividing streamlines of the drawn scene (None: none yet)
+        self._scene_lines, self._hint = None, None   # the whole scene's (coarser) and its body map
         self.changed = []                      # callbacks: the bodies changed (particles)
         self._timer = QTimer(plot)
         self._timer.setSingleShot(True)
@@ -81,6 +82,9 @@ class BodyLayer(PlotLayer):
     def set_result(self, result):
         """New streamlines with their dividing streamlines (full results only)."""
         self.lines = list(result.dividing)
+        self._result = result
+        if result.scene_dividing is not self._scene_lines:     # a new scene-wide search: a new hint
+            self._scene_lines, self._hint = result.scene_dividing, None
         if self.on:
             self.update()
 
@@ -111,11 +115,14 @@ class BodyLayer(PlotLayer):
         if self.canvas.is_dragging():
             return                                   # (a new result follows the release)
         bmap = None
-        if self.on and self.lines:
+        if self.on and self.lines is not None:
             (x0, x1), (y0, y1) = self.canvas.view()
             size = self.vb.size()
             cols, rows = int(max(size.width(), 2)), int(max(size.height(), 2))
-            bmap = body_map(self.canvas.elements, (x0, x1, y0, y1), (rows, cols), self.lines)
+            if self._hint is None and self._scene_lines:
+                self._hint = scene_map(self.canvas.elements, self._result) or False
+            bmap = body_map(self.canvas.elements, (x0, x1, y0, y1), (rows, cols), self.lines,
+                            hint=self._hint or None)
             if bmap is not None and bmap.count == 0:
                 bmap = None
         self.map = bmap
@@ -136,9 +143,13 @@ class BodyLayer(PlotLayer):
             return
         x0, x1, y0, y1 = self.mask_box
         rows, cols = mask.shape
-        x = x0 + (np.arange(cols) + 0.5) * (x1 - x0) / cols
-        y = y0 + (np.arange(rows) + 0.5) * (y1 - y0) / rows
-        paths = filled_paths(x, y, mask.astype(float), [0.0, 0.5, 1.0])
+        # cell centers, plus one cell past every side with the edge cells' values: the contour runs
+        # through cell centers, and without the extra cells the fill would end half a pixel inside the
+        # view (lines under the body showed through there)
+        x = x0 + (np.arange(-1, cols + 1) + 0.5) * (x1 - x0) / cols
+        y = y0 + (np.arange(-1, rows + 1) + 0.5) * (y1 - y0) / rows
+        padded = np.pad(mask, 1, mode="edge").astype(float)
+        paths = filled_paths(x, y, padded, [0.0, 0.5, 1.0])
         if paths is None:                                      # no contourpy: one pixel image
             c = QColor(self.theme["body_fill"])
             rgba = np.zeros((rows, cols, 4), np.uint8)

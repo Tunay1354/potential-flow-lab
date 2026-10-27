@@ -10,6 +10,7 @@ from typing import Callable, Sequence
 import numpy as np
 
 from ..base import FlowElement
+from ..field import active
 from .common import Cancelled, StreamlineSet
 from .level import StreamlineField, _inside, view_spacing
 
@@ -44,6 +45,7 @@ class StreamlineCache:
         self.v_min: float | None = None
         self.features = None                       # stagnation points + dividing streamlines (FlowFeatures)
         self.features_scale = 0.0                  # size of the view they were searched for
+        self._context = None                       # features of the whole scene (bodies), at its own scale
         self.with_features = True
 
     def _choose_level(self, view, current: int | None) -> int:
@@ -121,19 +123,27 @@ class StreamlineCache:
             res.stagnation = list(self.features.points)
             res.dividing = list(self.features.dividing)
             res.dividing_owner = list(self.features.owners)
+        if self._context:
+            res.scene_dividing, res.scene_region = self._context.dividing, self._context.region
         return res
 
     def _update_features(self, visible, cancelled):
         """Stagnation points and dividing streamlines for 3× the view. A point on every dividing
         streamline (about one line spacing from its stagnation point) becomes a first seed of the
         streamline fields, so the regular lines are spaced from the dividing ones."""
-        from ..stagnation import flow_features
+        from ..stagnation import bodies_box, features_with_context, flow_features
         x0, x1, y0, y1 = visible
         W, H = x1 - x0, y1 - y0
         region = (x0 - W, x1 + W, y0 - H, y1 + H)
         if cancelled is not None and cancelled():
             raise Cancelled()
-        self.features = flow_features(self.elements, region, scale=max(W, H))
+        box = bodies_box(active(self.elements))
+        context = None
+        if box is not None and not _inside(box, region):  # the bodies reach beyond the searched region
+            if self._context is None:                     # the whole scene, once, at its own scale
+                self._context = flow_features(self.elements, box, scale=max(box[1] - box[0], box[3] - box[2]))
+            context = self._context
+        self.features = features_with_context(self.elements, region, max(W, H), context)
         self.features_scale = max(W, H)
         d_view = view_spacing(self.elements, (x0, x1), (y0, y1), self.density)
         seeds = []

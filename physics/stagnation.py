@@ -192,10 +192,42 @@ def _boundary_distance(els, z) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------- bodies
-def _far_field_box(region):
+def bodies_box(els, margin: float = 4.0):
+    """A box round every source, doublet and vortex, `margin` × the size of its body (cylinder
+    radius √(μ/V∞), half-body width m/V∞, stagnation point distance Γ/(2πV∞)); None without a free
+    stream or such elements."""
+    v = reference_speed(els) if els else None
+    if not v:
+        return None
+    box = None
+    for e in els:
+        if e.TYPE == "doublet":
+            size = np.sqrt(abs(e.mu) / v)
+        elif e.TYPE == "source":
+            size = abs(e.m) / v
+        elif e.TYPE == "vortex":
+            size = abs(e.Gamma) / (2.0 * np.pi * v)
+        else:
+            continue
+        for p in e.singular_points():
+            r = margin * size
+            b = (p.real - r, p.real + r, p.imag - r, p.imag + r)
+            box = b if box is None else (min(box[0], b[0]), max(box[1], b[1]), min(box[2], b[2]), max(box[3], b[3]))
+    return box
+
+
+def _union(a, b):
+    return a if b is None else (min(a[0], b[0]), max(a[1], b[1]), min(a[2], b[2]), max(a[3], b[3]))
+
+
+def _far_field_box(region, els=()):
+    """Where a traced line counts as "from / to the far field": 3× the region, and wide enough round
+    every source, doublet and vortex for its body (or ring of turning fluid) to fit inside — else, in
+    a view zoomed into part of a body, a line turning inside the body would leave the box and count
+    as free stream."""
     x0, x1, y0, y1 = region
     L = max(x1 - x0, y1 - y0)
-    return (x0 - L, x1 + L, y0 - L, y1 + L)
+    return _union((x0 - L, x1 + L, y0 - L, y1 + L), bodies_box(els))
 
 
 def _tracer(els, scale):
@@ -219,20 +251,29 @@ def trace_origin(elements, z, region, scale=None) -> np.ndarray:
               too slow to follow): unknown
     This is THE definition of a body (stagnation point kinds, which dividing lines are drawn,
     bodies.py)."""
+    return trace_ends(elements, z, region, scale, -1.0)[0]
+
+
+def trace_ends(elements, z, region, scale=None, sign: float = -1.0):
+    """The streamline through every point z followed backwards (sign −1, see trace_origin) or forwards
+    (+1: where the fluid GOES; BODY = into a sink or a doublet). Returns (kinds, element): element =
+    index (in active(elements)) of the source / doublet the line ends at, −1 if none."""
     els = active(elements)
     z = np.atleast_1d(np.asarray(z, complex))
     out = np.full(z.size, STOPPED, dtype=np.int8)
+    which = np.full(z.size, -1, dtype=np.int64)
     if z.size == 0:
-        return out
+        return out, which
     x0, x1, y0, y1 = region
     tracer = _tracer(els, scale or max(x1 - x0, y1 - y0))
-    lines, closed, left = tracer.free_trace(z, -1.0, _far_field_box(region))
+    lines, closed, left = tracer.free_trace(z, sign, _far_field_box(region, els))
     left, closed = np.asarray(left, bool), np.asarray(closed, bool)
     out[left] = FAR
     out[~left & closed] = LOOP
-    mass = np.array([p for e in els if e.TYPE in MASS_TYPES for p in e.singular_points()], dtype=complex)
-    if not mass.size:
-        return out
+    owner = [(i, p) for i, e in enumerate(els) if e.TYPE in MASS_TYPES for p in e.singular_points()]
+    if not owner:
+        return out, which
+    mass = np.array([p for _i, p in owner], dtype=complex)
     reach = 4.0 * tracer.r_sing                         # lines stop r_sing before a singular point
     for k in np.nonzero(~left)[0]:
         ln = lines[k]
@@ -241,9 +282,11 @@ def trace_origin(elements, z, region, scale=None) -> np.ndarray:
                 out[k] = BODY
         else:
             end = ln[-1] if len(ln) else z[k]
-            if np.min(np.abs(mass - end)) < reach:
+            d = np.abs(mass - end)
+            if np.min(d) < reach:
                 out[k] = BODY
-    return out
+                which[k] = owner[int(np.argmin(d))][0]
+    return out, which
 
 
 def _encloses(ring, pts) -> np.ndarray:
@@ -336,6 +379,54 @@ def _onto_separatrix(flows, s, u, psi0, r):
         if abs(t) > 0.2 * r:
             return s
     return s + t * n
+
+
+def features_with_context(elements, region, scale, context: FlowFeatures | None) -> FlowFeatures:
+    """flow_features of `region` at the view `scale`, plus the dividing streamlines of the points
+    OUTSIDE it that `context` (the features of the whole scene, searched once at a coarser scale) has:
+    zoomed into part of a body, the stagnation points of its surface are far away, but the surface
+    still runs through the view. Those lines are traced again in the region at the view's scale,
+    from a point of the coarse line; their points are added to the list (outside the region)."""
+    feats = flow_features(elements, region, scale=scale)
+    if context is None:
+        return feats
+    els = active(elements)
+    x0, x1, y0, y1 = region
+    tracer = None
+    for k, p in enumerate(context.points):
+        if x0 <= p.x <= x1 and y0 <= p.y <= y1:
+            continue                                     # searched here at the finer scale
+        new = []
+        for ln, owner in zip(context.dividing, context.owners):
+            if owner != k:
+                continue
+            z = ln[:, 0] + 1j * ln[:, 1]
+            inside = (z.real > x0) & (z.real < x1) & (z.imag > y0) & (z.imag < y1)
+            for run in _runs(inside):
+                if run.size < 2:
+                    continue
+                if tracer is None:
+                    tracer = _tracer(els, scale)
+                seed = z[run[run.size // 2]]
+                fwd, _c, _l = tracer.free_trace(np.array([seed]), 1.0, region)
+                bwd, _c, _l = tracer.free_trace(np.array([seed]), -1.0, region)
+                pts = np.concatenate([bwd[0][::-1], [seed], fwd[0]])            # along the flow
+                if pts.size >= 3:
+                    new.append(np.column_stack([pts.real, pts.imag]))
+        if new:
+            feats.points.append(p)
+            feats.dividing += new
+            feats.owners += [len(feats.points) - 1] * len(new)
+    return feats
+
+
+def _runs(mask) -> list:
+    """Index arrays of the runs of True in a bool array."""
+    idx = np.nonzero(mask)[0]
+    if not idx.size:
+        return []
+    cuts = np.nonzero(np.diff(idx) > 1)[0] + 1
+    return np.split(idx, cuts)
 
 
 def flow_features(elements, region, dividing: bool = True, scale: float | None = None) -> FlowFeatures:

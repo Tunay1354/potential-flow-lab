@@ -6,7 +6,10 @@ or doublets, and the mathematics also gives a (fictitious) flow inside it. The b
 streamline, followed backwards, starts at a source or a doublet, or turns round one
 (stagnation.trace_origin, BODY): the inside of a cylinder, a Rankine oval or a Rankine half-body.
 Fluid turning round a free vortex is real flow; fluid from far upstream is the free stream. Without a
-free stream (no uniform flow) there are no bodies. (A fast-spinning cylinder, Γ > 4πV∞a: the ring of
+free stream (no uniform flow) there are no bodies. Fluid that comes out of a doublet (or a source
+paired with an equal sink) and goes off downstream is no body either: it passed through them (a
+doublet not aligned with the uniform flow, δ ≠ α, takes in a band of the free stream and lets it out
+again). Behind a source with more outflow than the sinks take in it is: the Rankine half-body. (A fast-spinning cylinder, Γ > 4πV∞a: the ring of
 fluid that turns with it belongs to the body too: nothing in the flow tells it apart from the
 cylinder, whose surface r = a is then an ordinary closed streamline.)
 
@@ -27,10 +30,12 @@ import numpy as np
 
 from . import kernel
 from .field import active, fluid_mask, reference_speed, singular_points
-from .stagnation import BODY, STOPPED, trace_origin
+from .stagnation import BODY, FAR, STOPPED, trace_ends
 
 SAMPLES = 5                      # cells traced per region
 MIN_CELLS = 12                   # smaller regions (slivers between two dividing lines) stay free stream
+PASS_SAMPLES = 16                # through-flow test: cells traced both ways per body region
+PASS_SHARE = 0.25                # … more than this share coming from / going to the far field: no body
 PROBE_CELLS = 3.0                # surface test: this many cells to each side of a line
 
 
@@ -120,11 +125,14 @@ class BodyMap:
         return self.body_at(z) > 0
 
 
-def body_map(elements, box, shape, dividing, rng=None) -> BodyMap | None:
+def body_map(elements, box, shape, dividing, rng=None, hint: BodyMap | None = None) -> BodyMap | None:
     """The bodies in `box` on a grid of `shape` = (rows, cols) cells. `dividing` = the dividing
-    streamlines ((N, 2) arrays) of the scene. None if the scene has no free stream."""
+    streamlines ((N, 2) arrays) of the scene (none: the whole box is one region, e.g. zoomed into a
+    body). `hint`: a coarser map of the whole scene, asked for regions none of whose traced lines tell
+    anything (zoomed in next to a stagnation point the flow is too slow to follow). None if the scene
+    has no free stream."""
     els = active(elements)
-    if reference_speed(els) is None or not dividing:
+    if reference_speed(els) is None:
         return None
     box = tuple(map(float, box))
     rng = rng or np.random.default_rng(1)
@@ -136,7 +144,7 @@ def body_map(elements, box, shape, dividing, rng=None) -> BodyMap | None:
         solid = np.zeros(shape, bool)
     barrier = draw_barriers(dividing, box, shape)
     labels, n = _label(~barrier & ~solid)
-    body = _classify(els, box, labels, n, x, y, rng)
+    body = _classify(els, box, labels, n, x, y, rng, hint)
     numbers = np.zeros(n + 1, np.int32)
     numbers[np.nonzero(body)[0]] = np.arange(1, int(body.sum()) + 1)
     out = numbers[labels]
@@ -152,7 +160,7 @@ def body_map(elements, box, shape, dividing, rng=None) -> BodyMap | None:
     return BodyMap(box, out, int(body.sum()))
 
 
-def _classify(els, box, labels, n, x, y, rng) -> np.ndarray:
+def _classify(els, box, labels, n, x, y, rng, hint=None) -> np.ndarray:
     """body[k] for every region k (the most frequent known origin of its sample points is BODY)."""
     rows, cols = labels.shape
     counts = np.bincount(labels.ravel(), minlength=n + 1)
@@ -170,13 +178,33 @@ def _classify(els, box, labels, n, x, y, rng) -> np.ndarray:
     if not seeds:
         return body
     width = max(box[1] - box[0], box[3] - box[2])
-    found = trace_origin(els, np.array(seeds), box, width)
-    owner = np.array(owner)
+    seeds, owner = np.array(seeds), np.array(owner)
+    found, _ = trace_ends(els, seeds, box, width, -1.0)
     for k in np.unique(owner):
         votes = found[(owner == k) & (found != STOPPED)]
         if votes.size:
             kinds, num = np.unique(votes, return_counts=True)
             body[k] = kinds[np.argmax(num)] == BODY
+        elif hint is not None:                           # nothing known: as in the coarse map
+            body[k] = hint.contains(seeds[owner == k]).mean() > 0.5
+    # Fluid of a body that goes off to the far field: behind a source (a Rankine half-body) the body
+    # really is open downstream. But when the sources do not give more than the sinks take in (a
+    # doublet, a source–sink pair), such fluid has passed THROUGH the singular points: a doublet not
+    # aligned with the uniform flow (δ ≠ α), or a tilted source–sink pair, takes in a band of the
+    # free stream and lets it out again downstream. That is no solid body.
+    net = sum(e.m for e in els if e.TYPE == "source")
+    if net > 1e-9 * (1.0 + sum(abs(e.m) for e in els if e.TYPE == "source")):
+        return body
+    for k in np.nonzero(body)[0]:                       # through-flow: free-stream fluid in the region
+        cells = order[starts[k]:starts[k + 1]]
+        pick = rng.choice(cells, size=min(PASS_SAMPLES, cells.size), replace=False)
+        z = x[pick % cols] + 1j * y[pick // cols]
+        came, _ = trace_ends(els, z, box, width, -1.0)
+        goes, _ = trace_ends(els, z, box, width, 1.0)
+        known = (came != STOPPED) & (goes != STOPPED)
+        far = known & ((came == FAR) | (goes == FAR))
+        if known.any() and far.sum() > PASS_SHARE * known.sum():
+            body[k] = False
     return body
 
 
@@ -234,6 +262,17 @@ class Body:
     @property
     def length(self) -> float:
         return float(sum(np.sum(np.hypot(*np.diff(s, axis=0).T)) for s in self.surface))
+
+
+def scene_map(elements, result, cells: int = 400) -> BodyMap | None:
+    """A coarse map of all bodies of the scene (the hint of body_map), from the scene-wide dividing
+    streamlines of a StreamlineSet; None when it has none."""
+    if not result.scene_dividing or result.scene_region is None:
+        return None
+    x0, x1, y0, y1 = result.scene_region
+    w, h = x1 - x0, y1 - y0
+    shape = (max(8, int(round(cells * h / max(w, h)))), max(8, int(round(cells * w / max(w, h)))))
+    return body_map(elements, result.scene_region, shape, result.scene_dividing)
 
 
 def find_bodies(elements, dividing, region, cells: int = 480) -> list[Body]:

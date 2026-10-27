@@ -84,11 +84,38 @@ def check_scene(elements: Sequence[FlowElement]) -> list[SceneIssue]:
         system = build_image_system(elements)
         out.extend(SceneIssue(None, iss) for iss in system.issues)
 
-    # 5) coincident singular points (allowed, e.g. doublet + vortex at a cylinder center)
+    # 5) a doublet makes a cylinder only along the free stream (δ = α): a warning, not an error
+    out.extend(_doublet_alignment(elements))
+
+    # 6) coincident singular points (allowed, e.g. doublet + vortex at a cylinder center)
     for i, j in coincident_singularities(elements):
         out.append(SceneIssue(j, Issue("info", f"{elements[j].NAME} is at the same point as "
                                                   f"[{i + 1}] {elements[i].NAME}. This is allowed (e.g. doublet + "
                                                   f"vortex of a lifting cylinder); the point itself is not plotted.")))
+    return out
+
+
+ALIGN_TOL_DEG = 0.01
+
+
+def _doublet_alignment(elements) -> list[SceneIssue]:
+    """A warning for every doublet whose axis is not along the free stream: uniform flow + doublet is
+    the flow past a cylinder only for δ = α (allowed, but rarely what is meant)."""
+    fs = sum((e.freestream_velocity() or 0j) for e in elements if e.enabled)
+    if abs(fs) == 0:
+        return []
+    alpha = np.degrees(np.angle(fs))
+    out = []
+    for i, e in enumerate(elements):
+        if not e.enabled or e.TYPE != "doublet" or e.mu == 0:
+            continue
+        axis = e.delta + (180.0 if e.mu < 0 else 0.0)
+        off = (axis - alpha + 180.0) % 360.0 - 180.0
+        if abs(off) > ALIGN_TOL_DEG:
+            out.append(SceneIssue(i, Issue("warning", f"The doublet axis (δ = {e.delta:.4g}°) is not along the "
+                                                      f"uniform flow (α = {alpha:.4g}°): this is not the flow "
+                                                      f"past a cylinder — part of the free stream goes through "
+                                                      f"the doublet. For a cylinder set δ = {alpha:.4g}°.")))
     return out
 
 

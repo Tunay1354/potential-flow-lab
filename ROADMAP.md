@@ -192,6 +192,23 @@ sadece genel teknikler öğrenildi: döngünün tamamını derlemek, trail buffe
       tekrar tekrar eklenmiyor
     - `physics/streamlines.py` → `physics/streamlines/` paketi (aynı sonuç, bit bit karşılaştırıldı);
       animasyon katmanı üç dosya; `requirements-dev.txt`; sürüm 0.5.0
+14c. ✅ **Kullanıcı geri bildirimi — 5 düzeltme** (27 Ekim, her biri ayrı commit)
+    - Üst bar: Static · Particles · Pulses düğmeleri arasında Select · Move · Pan ile aynı boşluk; Pulses ile
+      Select arası biraz daha geniş
+    - Equipotential lines: tekil noktaların etrafında pürüzlü boşluk yerine temiz daire (yarıçap: halkadaki en
+      yüksek hız 5× tipik hıza inene kadar); Solid bodies açıkken cismin içinde φ çizilmez. Yeniden çizim
+      ~245 → ~9 ms (kesikli kalem 1 px kozmetik: Qt'nin hızlı yolu; ekran kartına gerek kalmadı)
+    - Particles: Select / Pan ile kaydırırken izler kaybolmuyor (eski resim yeni görünüme kaydırılarak /
+      ölçeklenerek taşınır; çok büyük zoom'da temizlenir)
+    - Stagnation point'ler büyük / hızlı bir zoom'dan sonra eksik kalmıyor: görünüm aranan bölgeden 2.5×
+      küçülünce tekrar aranır (zayıf source dibindeki, birbirine çok yakın noktalar)
+    - Doublet ekseni serbest akışla hizalı değilse (δ ≠ α) durum çubuğunda uyarı: "bu silindir akışı değil,
+      serbest akışın bir kısmı doublet'in içinden geçiyor; silindir için δ = α". Solid bodies böyle içinden
+      akış geçen bölgeleri (net kaynak ≤ 0 iken örneklerin %25'ten fazlası serbest akıştan gelip gidiyorsa)
+      doldurmuyor (eğik source–sink çifti de)
+    - Ek: zoom yapılmış görünümde (ör. silindirin sadece üstü) cisim doğru doluyor: tüm sahnenin durma
+      noktaları / dividing streamline'ları bir kez hesaplanıp görünümde yerel olarak yeniden izleniyor, uzak
+      kutu sahneye göre; dolgu görünümün kenarına kadar (önceden yarım pikselde altındaki çizgi seçiliyordu)
 15. ▶ **Paket S — Surface pressure paneli**: cisimlerin yüzeyi Cp'ye göre renkli, dock panelde Cp – θ grafiği
     (silindirde analitik eğri), yüzey integraliyle lift / drag ↔ Kutta–Joukowski / d'Alembert, surface Cp CSV
 16. ☐ **Paket V — Komut satırı + otomatik doğrulama**: pencere açmadan figür / CSV export, `--verify`: verification
