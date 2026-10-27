@@ -111,19 +111,34 @@ Teslim: yaklaşık 26 Kasım 2026 (rapor + user guide + canlı demo).
       Computation → Custom V_ref açılır; Cp kutusunda "— needs V_ref" yazar
     - Bantlar tekil noktaya kadar dolu (ortada ızgaraya bağlı sekizgen boşluk yok); lejant aralığı
       görünen akışkandan, tekil noktalardan uzakta ve medyan hıza göre sınırlı (zoom'da patlamaz); Cp lejantı tam 1'de biter
-11. ☐ **Faz 4b — Animasyon** [5]: parçacıklar ve / veya çizgi üstünde kayan desen, 60 fps hedefi,
-    ayarları sonradan değiştirilebilir; (isteğe bağlı) cismin içindeki çizgileri gizleme / cismi doldurma
-12. ☐ **Paket E2 — Animasyon performansı**: profiling, gerekirse OpenGL (ekran kartı) çizim, animasyon ile arka
-    plan hesabının birlikte akıcı çalışması
-13. ☐ **Faz 5 — Paketleme**: Python gerektirmeyen Windows 10/11 exe (zip içinde klasör), GitHub Releases,
-    isteğe bağlı kurulum dosyası (Inno Setup), Numba önbelleği, .pflow dosyasına çift tıklayınca açılma
-    (macOS şimdilik kapsam dışı)
-14. ☐ **Faz 6 — Kunduz rehber ve cilalama** [7]: ilk açılışta atlanabilir tanıtım turu, Help yanındaki yeri,
+Sıra 27 Ekim'de yeniden belirlendi (arkadaşın C++ / OpenGL projesiyle karşılaştırmadan sonra; kod kopyalanmadı,
+sadece genel teknikler öğrenildi: döngünün tamamını derlemek, trail buffer, yüzey basıncı paneli, komut satırı doğrulama):
+
+11. ☐ **Paket R1 — Yapı düzeni**: canvas.py ve main_window.py modüllere bölünür, katmanlar için ortak arayüz,
+    gereksiz / tekrar eden kod temizlenir; davranış aynı kalır (testler + önce / sonra ekran görüntüleri)
+12. ☐ **Paket R2 — Hız**: Jobard–Lefer döngüsünün tamamı Numba'da (hedef: ~52 ms → < 10 ms); ayarlarda
+    "Live update while dragging" seçeneği
+13. ☐ **Ara kontrol — deneme exe'si**: PyInstaller + Numba + contourpy temiz Windows'ta açılıyor mu (erken görmek için)
+14. ☐ **Faz 4b — Animasyon** [5]: particle'lar Numba'da (RK2 + sub-step), trail buffer (her kare soluklaşır, yeni
+    noktalar üstüne), hıza göre renk, rastgele yaş başlangıcı, zoom'dan bağımsız animasyon hızı; renderer ayrı
+    (ileride OpenGL'e geçiş kolay); (isteğe bağlı) cismin içindeki çizgileri gizleme / cismi doldurma
+15. ☐ **Paket S — Surface pressure paneli**: cisimlerin yüzeyi Cp'ye göre renkli, dock panelde Cp – θ grafiği
+    (silindirde analitik eğri), yüzey integraliyle lift / drag ↔ Kutta–Joukowski / d'Alembert, surface Cp CSV
+16. ☐ **Paket V — Komut satırı + otomatik doğrulama**: pencere açmadan figür / CSV export, `--verify`: verification
+    case'ler ve analitik çözümlerle karşılaştırma tablosu (Markdown + CSV) ve rapor figürleri
+17. ☐ **Dye rake** (isteğe bağlı): çizilen rake'ten pulse'lı boya → streakline; taşınır, döndürülür, kaydedilir
+18. ☐ **Paket E2 — Performans + ekran kartı** (isteğe bağlı): animasyon çalışırken profiling, gerekirse
+    "Use graphics card (OpenGL)" seçeneği (açılamazsa normal çizime döner)
+19. ☐ **Faz 6 — Kunduz rehber ve cilalama** [7]: ilk açılışta atlanabilir tanıtım turu, Help yanındaki yeri,
     açma / kapama ayarı, animasyon modunda akışla süzülüp kaybolması ve geri dönmesi
-15. ☐ **Faz 3 — Rapor malzemesi** (27 Ekim: program bitince, en sona alındı): doğrulama scripti, figürler ve
-    tablolar (verification case'ler, duvarda V·n, stagnation karşılaştırmaları), sector kuralının yazılı
-    açıklaması, 4–6 sayfa rapor, user guide
-16. ☐ **Demo provası**
+20. ☐ **Faz 5 — Paketleme**: Python gerektirmeyen Windows 10/11 exe (zip içinde klasör), GitHub Releases,
+    isteğe bağlı kurulum dosyası (Inno Setup), Numba önbelleği, .pflow dosyasına çift tıklayınca açılma
+21. ☐ **Faz 3 — Rapor ve user guide**: malzemenin çoğu Paket V'den (figürler, tablolar, doğrulama), sector
+    kuralının yazılı açıklaması, 4–6 sayfa rapor, user guide
+22. ☐ **Demo provası**
+
+Sıkışırsa bırakılacaklar (önce bırakılan önce): dye rake, OpenGL, tanıtım turu. Animasyon, surface paneli,
+doğrulama ve exe dokunulmaz.
 
 (Köşeli parantezdeki numaralar 26 Ekim'deki istek listesindeki madde numaralarıdır.)
 
