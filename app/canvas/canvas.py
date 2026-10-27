@@ -117,7 +117,8 @@ class PlotCanvas(QWidget):
         self.bodies = self.add_layer(BodyLayer(self.plot, self.vb))
         self.particles = self.add_layer(ParticleLayer(self.plot, self.vb))      # animation styles
         self.pulses = self.add_layer(PulseLayer(self.plot, self.vb))
-        self.bodies.changed += [self.particles.bodies_changed, self.pulses.bodies_changed]
+        self.bodies.changed += [self.particles.bodies_changed, self.pulses.bodies_changed,
+                                lambda: self.layers["equipotential"] and self.fields.schedule(force=True)]
         self.interaction = PlotInteraction(self)
 
         self.bar.message.connect(self.message)

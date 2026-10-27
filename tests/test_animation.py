@@ -382,3 +382,11 @@ def test_warm_up_compiles_exactly_what_the_plot_uses(win, qapp):
         cv.set_view_mode(mode)
         _frames(qapp, 6)
     assert {n: len(getattr(kernel, n).signatures) for n in names} == before
+
+
+def test_view_buttons_are_spaced_like_the_mouse_mode_buttons(win, qapp):
+    bar = win.canvas.bar
+    gap = lambda a, b: b.geometry().left() - a.geometry().right()
+    assert gap(bar.btn_static, bar.btn_particles) == gap(bar.btn_particles, bar.btn_pulses) \
+        == gap(bar.btn_select, bar.btn_move) > 1
+    assert gap(bar.btn_pulses, bar.btn_select) > 2 * gap(bar.btn_select, bar.btn_move)

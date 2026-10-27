@@ -291,3 +291,44 @@ def test_works_without_contourpy(fl, monkeypatch):
     assert np.ptp(pts[:, 1]) == pytest.approx(np.ptp(ref[np.isfinite(ref[:, 0]), 1]))
     fl.update([Uniform(), Doublet(mu=1.0)], VIEW, {"equipotential": True, "speed": True})
     assert fl.phi.isVisible() and len(fl.bands) == 1 and fl.legend.isVisible()
+
+
+def test_phi_lines_keep_a_clean_circle_round_a_singular_point(fl):
+    """No φ lines inside a circle round the doublet (φ → ∞: they would crowd into a blot), lines right
+    outside it; the pen is exactly 1 px (Qt's fast path: 1.1 px was ~30× slower to draw)."""
+    from app.canvas.field_layer import crowd_circles
+    from physics import Doublet, Uniform
+    els = [Uniform(), Doublet(mu=1.0)]
+    view = ((-2.2, 2.2), (-1.6, 1.6))
+    fl.update(els, view, {"equipotential": True}, 3)
+    pen = fl.phi.opts["pen"]
+    assert pen.widthF() == 1.0 and pen.isCosmetic() and list(pen.dashPattern()) == [3.0, 3.0]
+    x, y = fl.phi.getData()
+    r = np.hypot(x, y)[np.isfinite(x)]
+    (s, radius), = crowd_circles(els, 5.0, 0.01, 1.0)        # max |V| on the circle 1 + 1/r² = 5 -> r = 0.5
+    assert abs(s) < 1e-12 and 0.5 <= radius < 0.6
+    hole = r.min()                                              # (the layer's limit: 5 × the median |V|)
+    assert 0.35 < hole < 0.75
+    angles = np.angle((x + 1j * y)[np.isfinite(x)][r < hole * 1.3])
+    assert np.ptp(angles) > 5.0                                  # all round: a circle, not a few spikes
+
+
+def test_no_phi_lines_inside_solid_bodies(qapp):
+    from app.main_window import MainWindow
+    from physics import Doublet, Uniform
+    w = MainWindow()
+    w._ask_save_changes = lambda: "discard"
+    w.resize(1300, 820)
+    w.show()
+    w.load_scene([Uniform(), Doublet(mu=1.0)], ((-3.0, 3.0), (-2.0, 2.0)))
+    cv = w.canvas
+    cv.set_layer("equipotential", True)
+    cv.set_layer("bodies", True)
+    cv.compute_now()
+    from PySide6.QtTest import QTest
+    QTest.qWait(300)
+    qapp.processEvents()
+    x, y = cv.fields.phi.getData()
+    r = np.hypot(x, y)[np.isfinite(x)]
+    assert r.size > 100 and r.min() > 0.97                         # nothing inside the cylinder r = 1
+    w.close()

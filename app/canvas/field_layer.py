@@ -8,7 +8,8 @@ field_layer.py — the "field" layers of the plot:
 
 Everything is computed on a grid over the view (+ a margin, so a short pan shows no empty edge), after
 the view has settled for a moment. Points in the solid (behind walls, outside a wedge) are left out;
-φ lines keep away from singular points, the color bands are filled right up to them. φ of a vortex
+φ lines keep out of a circle round every singular point (inside it they would crowd into a blot: φ → ∞
+there) and out of solid bodies; the color bands are filled right up to the singular points. φ of a vortex
 (and of a sector flow) is multi-valued: it jumps across a branch cut. Grid cells where φ jumps much
 more than the local velocity allows are left out, so no false lines bunch along the cut.
 
@@ -22,7 +23,9 @@ from PySide6.QtCore import QRectF, Qt, QTimer
 from PySide6.QtGui import QBrush, QColor, QPen
 from PySide6.QtWidgets import QGraphicsPathItem
 
-from physics.field import complex_potential, compute_field, fluid_mask, singularity_mask
+from physics.field import (active, complex_potential, complex_velocity, compute_field, fluid_mask,
+                           singular_points, singularity_mask)
+from physics.images import resolve
 from physics.streamlines import view_spacing
 
 from .contours import CROWD_SPEED, contour_xy, cp_bands, cut_mask, filled_paths, speed_bands
@@ -34,7 +37,27 @@ MARGIN = 0.25                    # grid covers the view + 25 % on every side
 GRID_POINTS = {1: 150, 2: 240, 3: 400}      # points across the grid for Grid quality Low / Medium / High
 MAP_ALPHA = 0.82                 # opacity of the color maps (streamlines stay readable on top)
 MAX_LEVELS = 400
+PHI_DASH = (3.0, 3.0)            # φ lines: dash, gap (× the line width)
+EXTREME_SPEED = 3.0              # φ lines are also left out where |V| > this × CROWD_SPEED × typical
 SETTLE_MS = 90                   # computed this long after the last zoom / pan step
+
+
+def crowd_circles(elements, limit: float, r_min: float, r_max: float, n_ring: int = 48, n_radii: int = 40):
+    """[(singular point, radius)]: the smallest circle round each singular point outside of which the
+    speed on the circle stays below `limit` (r_min … r_max)."""
+    els = active(elements)
+    flows = resolve(els)
+    radii = np.geomspace(r_min, max(r_max, 1.01 * r_min), n_radii)
+    ring = np.exp(2j * np.pi * (np.arange(n_ring) + 0.5) / n_ring)
+    out = []
+    for s in singular_points(els):
+        z = (s + radii[:, None] * ring[None, :]).ravel()
+        with np.errstate(all="ignore"):
+            sp = np.abs(complex_velocity(flows, z))
+        sp = np.where(np.isfinite(sp) & fluid_mask(els, z), sp, 0.0).reshape(n_radii, n_ring)
+        ok = (sp <= limit).all(axis=1)
+        out.append((complex(s), float(radii[int(np.argmax(ok))] if ok.any() else radii[-1])))
+    return out
 
 
 class FieldLayer(PlotLayer):
@@ -65,7 +88,11 @@ class FieldLayer(PlotLayer):
     def apply_theme(self, theme):
         super().apply_theme(theme)
         self.legend.theme = theme
-        self.phi.setPen(pg.mkPen(theme["equipotential"], width=1.1, style=Qt.DashLine))
+        # exactly 1 px: Qt draws 1-px lines on a fast path; any other width (1.1) goes through its general
+        # stroker, ~30× slower with the many short pieces of the φ lines
+        pen = pg.mkPen(theme["equipotential"], width=1.0)
+        pen.setDashPattern(list(PHI_DASH))
+        self.phi.setPen(pen)
         line = QColor(theme["plot_axis"])
         line.setAlphaF(0.28)
         self.map_lines.setPen(pg.mkPen(line, width=0.8))
@@ -161,8 +188,15 @@ class FieldLayer(PlotLayer):
         phi[f.mask | singularity_mask(elements, f.grid.Z, 1.5 * f.grid.spacing) | ~fluid] = np.nan
         phi[cut_mask(phi, speed, x[1] - x[0], y[1] - y[0])] = np.nan
         typical = np.nanmedian(speed[inview]) if np.any(np.isfinite(speed[inview])) else np.nan
-        if np.isfinite(typical):
-            phi[speed > CROWD_SPEED * typical] = np.nan     # lines would crowd into a dark blot
+        if np.isfinite(typical):                        # lines would crowd into a dark blot:
+            (x0, x1), (y0, y1) = view
+            h = max(x[1] - x[0], y[1] - y[0])
+            for s, r in crowd_circles(elements, CROWD_SPEED * typical, 1.5 * h, 0.5 * max(x1 - x0, y1 - y0)):
+                phi[np.abs(f.grid.Z - s) < r] = np.nan      # a clean circle round a singular point
+            phi[speed > EXTREME_SPEED * CROWD_SPEED * typical] = np.nan
+        bodies = getattr(self.canvas, "bodies", None)
+        if bodies is not None and bodies.map is not None:
+            phi[bodies.contains(f.grid.Z)] = np.nan          # not inside solid bodies
         step = typical * view_spacing(elements, *view, density) if np.isfinite(typical) and typical > 0 else np.nan
         vals = phi[np.isfinite(phi)]
         xy = np.zeros((0, 2))
