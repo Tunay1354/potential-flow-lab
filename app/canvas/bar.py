@@ -35,13 +35,10 @@ class CanvasBar(QWidget):
         self.btn_static.setChecked(True)
         views = QButtonGroup(self)
         views.setExclusive(True)
-        pair = QHBoxLayout()                      # the view mode buttons touch each other
-        pair.setSpacing(0)
-        for key, b in self.view_buttons.items():
+        for key, b in self.view_buttons.items():          # spaced like Select · Move · Pan
             views.addButton(b)
-            pair.addWidget(b)
+            lay.addWidget(b)
             b.clicked.connect(lambda _=False, k=key: self.view_mode_selected.emit(k))
-        lay.addLayout(pair)
 
         lay.addWidget(self._separator())
         self.btn_select = self._tool("Select", "", checkable=True, icon="select")
