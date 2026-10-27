@@ -41,10 +41,11 @@ def warm_up() -> bool:
     from .bodies import body_map
     from .elements import Doublet, Uniform
     from .particles import Particles, travel_times
-    from .streamlines import StreamlineCache
     scene = [Uniform(), Doublet(mu=1.0)]
     box = (-3.0, 3.0, -2.0, 2.0)
-    res = StreamlineCache(tuple(scene), 1.0).update(((box[0], box[1]), (box[2], box[3])), force=True)
+    th = np.linspace(0.0, 2.0 * np.pi, 65)
+    circle = np.column_stack([np.cos(th), np.sin(th)])              # the cylinder's surface r = 1
+    axis = np.column_stack([np.linspace(-3.0, -1.0, 9), np.zeros(9)])
     p = Particles(64)                                               # particles (advect, respawn)
     p.set_scene(scene)
     p.set_view(box)
@@ -54,6 +55,6 @@ def warm_up() -> bool:
     kernel.fade_bytes(img.reshape(-1), 200)
     kernel.draw_segments(img, x, x, x[::-1].copy(), x, np.zeros(4, np.int64), np.ones((1, 4)), 1.0,
                          np.ones(4), False)
-    travel_times(res.lines[:2], scene, 0.1, 1e-3)
-    body_map(scene, box, (24, 36), res.dividing)                     # solid bodies
+    travel_times([axis, circle], scene, 0.1, 1e-3)
+    body_map(scene, box, (24, 36), [circle, axis])                   # solid bodies
     return True
