@@ -45,7 +45,8 @@ VERSION = 1
 EXTENSION = ".pflow"
 
 # plot settings stored with a scene: name -> type
-SETTINGS = {"density": float, "line_width": float, "show_arrows": bool, "arrow_density": float}
+SETTINGS = {"density": float, "line_width": float, "show_arrows": bool, "arrow_density": float,
+            "field_quality": float, "cp_reference": float}
 
 # MIGRATIONS[n] converts the dict of a version-n file into version n + 1
 MIGRATIONS: dict[int, Callable[[dict], dict]] = {}

@@ -57,6 +57,9 @@ LIGHT = {
     "streamline":   "#23395F",
     "dividing_streamline": "#211A12",
     "stagnation":   "#4B2E1C",   # ring of a stagnation point marker (dark walnut), also its glow
+    "equipotential": "#8C6A45",  # dashed φ = const lines
+    "map_speed":    ["#F6F0E2", "#E9D5B0", "#D9A877", "#B9714A", "#8A4530"],   # |V| bands, slow -> fast
+    "map_cp":       ["#4E7FA8", "#F6F0E2", "#B8432F"],   # Cp bands: suction, 0, stagnation (Cp = 1)
     "body_fill":    "#E6DCC6",
     "body_edge":    "#3A3326",
     # element colors (toolbar icons, list icons, plot markers)
@@ -109,6 +112,9 @@ DARK = {
     "streamline":   "#9EC6EA",
     "dividing_streamline": "#F3EAD9",
     "stagnation":   "#F3EAD9",
+    "equipotential": "#C9A983",
+    "map_speed":    ["#1D1915", "#3B2C22", "#6A4630", "#A8693D", "#E0A060"],
+    "map_cp":       ["#5E95C8", "#1D1915", "#E07A5F"],
     "body_fill":    "#2E2720",
     "body_edge":    "#CFC3AE",
     "el_uniform":   "#6FA6DA",

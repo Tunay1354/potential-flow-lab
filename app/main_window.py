@@ -22,7 +22,7 @@ from app_info import APP_NAME, APP_VERSION, ORGANIZATION
 from model import EXTENSION, SceneDocument, SceneFileError, SceneModel, preview_change
 from model import load_scene as read_scene_file
 from model import save_scene as write_scene_file
-from physics import ELEMENT_TYPES, check_scene, reference_speed, velocity
+from physics import ELEMENT_TYPES, check_scene, complex_potential, velocity
 from physics.field import fluid_mask, singular_points
 
 from .canvas import PlotCanvas
@@ -54,6 +54,7 @@ class MainWindow(QMainWindow):
         self.scene_title = "Lifting (rotating) cylinder"
         self.current_path: str | None = None           # file of the scene (None = never saved)
         self.recent = RecentFiles()
+        self._last_probe = None
         self.setAcceptDrops(True)                      # drop a .pflow file on the window to open it
         self.resize(*LAYOUT["window_size"])
 
@@ -106,6 +107,8 @@ class MainWindow(QMainWindow):
         sp.line_width_changed.connect(cv.set_line_width)
         sp.arrows_changed.connect(cv.set_arrows)
         sp.layer_changed.connect(self._layer_changed)
+        sp.field_quality_changed.connect(cv.set_field_quality)
+        sp.cp_reference_changed.connect(lambda v: (cv.set_cp_reference(v), self._update_probe(self._last_probe)))
         sp.view_edited.connect(cv.set_view)
         sp.fit_requested.connect(cv.fit_view)
         cv.view_changed.connect(sp.set_view)
@@ -682,7 +685,10 @@ class MainWindow(QMainWindow):
         cv = self.canvas
         (x0, x1), (y0, y1) = cv.vb.viewRange()
         settings = {"density": cv.density, "line_width": cv.line_width,
-                    "show_arrows": cv.show_arrows, "arrow_density": cv.arrow_density}
+                    "show_arrows": cv.show_arrows, "arrow_density": cv.arrow_density,
+                    "field_quality": float(cv.field_quality)}
+        if cv.v_ref_override:
+            settings["cp_reference"] = float(cv.v_ref_override)
         return SceneDocument(list(self.elements), self.scene_title, ((x0, x1), (y0, y1)), settings)
 
     def _apply_document(self, doc: SceneDocument):
@@ -697,6 +703,9 @@ class MainWindow(QMainWindow):
             cv.set_line_width(s.get("line_width", cv.line_width))
             self.settings_panel.set_streamline_settings(cv.density, cv.line_width, cv.show_arrows,
                                                         cv.arrow_density)
+        cv.field_quality = int(s.get("field_quality", 2)) if s else 2
+        cv.v_ref_override = s.get("cp_reference") if s else None
+        self.settings_panel.set_computation_settings(cv.field_quality, cv.v_ref_override)
         self.model.reset(doc.elements)         # one streamline computation with the new view + settings
 
     def maybe_save(self) -> bool:
@@ -953,6 +962,9 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------ status bar
     def _layer_changed(self, key, on):
+        other = {"speed": "cp", "cp": "speed"}.get(key)
+        if on and other and self.settings_panel.layer_boxes[other].isChecked():
+            self.settings_panel.layer_boxes[other].setChecked(False)     # one color map at a time
         self.canvas.set_layer(key, on)
         act = self.layer_actions.get(key)
         if act is not None and act.isChecked() != on:
@@ -961,6 +973,7 @@ class MainWindow(QMainWindow):
             act.blockSignals(False)
 
     def _update_probe(self, pos):
+        self._last_probe = pos
         if pos is None:
             self.probe_label.setText("Move the mouse over the plot")
             return
@@ -982,8 +995,10 @@ class MainWindow(QMainWindow):
         u, v = float(u), float(v)
         V = float(np.hypot(u, v))
         text = where + f"u = {u:7.3f}   v = {v:7.3f}   |V| = {V:7.3f}"
-        v_ref = reference_speed(self.elements)
-        text += f"   Cp = {1.0 - (V / v_ref) ** 2:7.3f}" if v_ref else "   Cp: no V∞"
+        v_ref = self.canvas.cp_reference()
+        text += f"   Cp = {1.0 - (V / v_ref) ** 2:7.3f}" if v_ref else "   Cp: no V_ref"
+        F = complex(complex_potential(self.elements, np.array([z]))[0])
+        text += f"   │   φ = {F.real:7.3f}   ψ = {F.imag:7.3f}"
         self.probe_label.setText(text)
 
     def _probe_radius(self):

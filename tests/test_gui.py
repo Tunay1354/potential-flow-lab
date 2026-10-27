@@ -624,4 +624,4 @@ def test_layer_switches_in_panel_and_view_menu_agree(shown, qapp):
     shown.settings_panel.layer_boxes["walls"].setChecked(False)
     shown.load_preset(preset("Symmetry wall: source near a wall"))
     assert cv._walls and not any(w.isVisible() for w in cv._walls)  # newly drawn walls stay hidden
-    assert not shown.layer_actions["cp"].isEnabled()                  # Phase 4
+    assert shown.layer_actions["cp"].isEnabled()                      # Phase 4 layers are available

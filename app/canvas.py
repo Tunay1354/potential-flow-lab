@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (QButtonGroup, QFrame, QGraphicsPathItem, QHBoxLay
 from physics.streamlines import FADE_LEVELS, Cancelled, StreamlineCache, fade_piece_lists
 
 from .arrows_item import ArrowsItem
+from .field_layers import FieldLayers
 from .chrome import TitleBlock, button_font, device_line_rect, font
 from .geometry import fluid_polygon, ray_in_rect, rect_polygon, sector_shading, visible_wall_segment
 from .icons import make_tool_icon
@@ -63,6 +64,7 @@ class _Job(QRunnable):
 
 
 MOUSE_MODES = ("select", "move", "pan")
+FIELD_LAYERS = ("equipotential", "speed", "cp")
 
 
 class CanvasBar(QWidget):
@@ -283,7 +285,16 @@ class PlotCanvas(QWidget):
         self._dividing_lines, self._dividing_owner = [], []
         self.selected_stagnation = None          # index of the selected stagnation point (or None)
         # "dividing": ALL dividing streamlines; those of a selected stagnation point are always shown
-        self.layers = {"streamlines": True, "dividing": False, "stagnation": True, "markers": True, "walls": True}
+        self.layers = {"streamlines": True, "dividing": False, "stagnation": True, "markers": True, "walls": True,
+                       "equipotential": False, "speed": False, "cp": False}
+        # field layers (φ lines, |V| / Cp color maps): computed on a grid when the view settles
+        self.fields = FieldLayers(self.plot, self.vb)
+        self.field_quality = 2                   # Grid quality: 1 low, 2 medium, 3 high
+        self.v_ref_override = None               # Cp reference speed set by the user (None = V∞)
+        self._field_timer = QTimer(self)
+        self._field_timer.setSingleShot(True)
+        self._field_timer.setInterval(90)
+        self._field_timer.timeout.connect(self.update_fields)
         self._markers, self._walls = [], []
 
         # background computation: one worker thread; requests during a computation are collected
@@ -334,6 +345,7 @@ class PlotCanvas(QWidget):
         self._new_cache()
         self._draw_overlays()                # symbols and walls at once, streamlines when ready
         self.request()
+        self.schedule_fields(force=True)
 
     def set_selected(self, index: int):
         """Highlight one element (no streamline recomputation needed)."""
@@ -382,6 +394,7 @@ class PlotCanvas(QWidget):
         self.density = density
         self._new_cache()
         self.request()
+        self.schedule_fields(force=True)            # φ line spacing follows the streamline spacing
 
     def set_arrows(self, show: bool, density: float | None = None):
         self.show_arrows = show
@@ -396,6 +409,9 @@ class PlotCanvas(QWidget):
         if key not in self.layers:
             return
         self.layers[key] = on
+        if key in FIELD_LAYERS:
+            self.schedule_fields(force=True, now=True)
+            return
         if key == "stagnation" and not on:
             self.selected_stagnation = None
         self._draw_stagnation()
@@ -530,6 +546,8 @@ class PlotCanvas(QWidget):
         self.theme = t = theme
         self.update()                                # frame color
         self.bar.apply_theme(t)
+        self.fields.apply_theme(t)
+        self.schedule_fields(force=True)
         self.plot.setBackground(t["plot_bg"])
         pi = self.plot.getPlotItem()
         tick_font = font("mono", FONT["plot_label_size_pt"] - 1)
@@ -888,6 +906,47 @@ class PlotCanvas(QWidget):
         if self._needs_cull():
             self._cull()
         self.schedule()
+        if self.field_layers_on() and self.fields.needs_update(self._view()):
+            self.schedule_fields()
+
+    # ------------------------------------------------------------------ field layers (φ, |V|, Cp)
+    def field_layers_on(self) -> bool:
+        return any(self.layers[k] for k in FIELD_LAYERS)
+
+    def schedule_fields(self, force: bool = False, now: bool = False):
+        """Recompute the field layers soon (after the view settles); force = also if the view is still
+        covered (scene, settings or theme changed)."""
+        if force:
+            self.fields.covered = None
+        if not self.field_layers_on():
+            self.fields.hide_all()
+            return
+        if now:
+            self._field_timer.stop()
+            self.update_fields()
+        else:
+            self._field_timer.start()
+
+    def update_fields(self):
+        if self.is_dragging():
+            return                                   # computed again when the element is released
+        self.fields.update(self.elements, self._view(), self.layers, self.field_quality, self.v_ref_override,
+                           self.density)
+        if self.fields.message:
+            self.bar.message.emit(self.fields.message)
+
+    def set_field_quality(self, quality: int):
+        self.field_quality = int(quality)
+        self.schedule_fields(force=True)
+
+    def set_cp_reference(self, v_ref):
+        """None = V∞ of the uniform flow(s); a number = the user's reference speed."""
+        self.v_ref_override = v_ref if v_ref else None
+        self.schedule_fields(force=True)
+
+    def cp_reference(self):
+        from physics.field import reference_speed
+        return self.v_ref_override or reference_speed(self.elements)
 
     # ------------------------------------------------------------------ picking (click to select)
     def pick(self, scene_pos) -> list[int]:
@@ -1019,7 +1078,7 @@ class PlotCanvas(QWidget):
         self.element_clicked.emit(row)                    # the dragged element is the selected one
         self.selected = row
         self.plot.viewport().setCursor(Qt.ClosedHandCursor)
-        for item in self._line_items + [self._arrow_item]:
+        for item in self._line_items + [self._arrow_item] + self.fields.items():
             item.setOpacity(0.3)
         self._apply_layers()                              # stagnation points and their lines hide
         return True
@@ -1061,7 +1120,7 @@ class PlotCanvas(QWidget):
         return True
 
     def _finish_drag_look(self):
-        for item in self._line_items + [self._arrow_item]:
+        for item in self._line_items + [self._arrow_item] + self.fields.items():
             item.setOpacity(1.0)
         self._ghost_label.setVisible(False)
         self.plot.viewport().setCursor(Qt.OpenHandCursor if self.mode in ("move", "pan") else Qt.ArrowCursor)

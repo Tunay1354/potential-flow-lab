@@ -97,17 +97,29 @@ Teslim: yaklaşık 26 Kasım 2026 (rapor + user guide + canlı demo).
    - Seçenekler ve son klasör hatırlanır
    - Figürde eksenler dört tarafta (üst / sağ, alt / sol ile aynı; plot alanı ortada) — sadece dosyada,
      ekran değişmez; "with numbers and axis titles" ile üst / sağdaki sayılar kapatılabilir
-10. ▶ **Faz 3 — Rapor malzemesi**: doğrulama figürleri ve tabloları (verification case'ler, stagnation
-   karşılaştırmaları), user guide taslağı
-11. ☐ **Faz 4 — Ekstralar**: animasyon [5] (parçacıklar ve / veya çizgi üstünde kayan desen, 60 fps hedefi,
-    ayarları sonradan değiştirilebilir), φ / |V| / Cp katmanları, probe geliştirmeleri
+10. ✅ **Faz 4a — Alan katmanları** (animasyon hariç)
+    - Equipotential lines φ: kesikli çizgiler, aralık streamline aralığına göre (akış ağı: kareler);
+      vortex / sector'ün branch cut'ında sahte çizgi yok; tekil noktaların dibinde (|V| > 5× tipik) çizilmez
+    - Speed |V| ve Cp: dolu kontur bantları (vektör: ekranda pürüzsüz, SVG / PDF'te keskin), bant sınırlarında
+      ince çizgi, sağ üstte değer lejantı (export'ta da var); aynı anda tek renk haritası
+    - Cp için referans hız: Computation → Cp reference (V∞ veya Custom V_ref); probe, Cp bantları ve CSV aynı
+    - Computation → Grid quality (Low / Medium / High) gerçek: alan katmanlarının ızgarası
+    - Ayarlar sahne dosyasına kaydedilir (field_quality, cp_reference)
+    - Probe: u, v, |V|, Cp yanında φ ve ψ
+    - Sürüklerken alan katmanları da soluklaşır, bırakınca yeniden hesaplanır
+11. ☐ **Faz 4b — Animasyon** [5]: parçacıklar ve / veya çizgi üstünde kayan desen, 60 fps hedefi,
+    ayarları sonradan değiştirilebilir; (isteğe bağlı) cismin içindeki çizgileri gizleme / cismi doldurma
 12. ☐ **Paket E2 — Animasyon performansı**: profiling, gerekirse OpenGL (ekran kartı) çizim, animasyon ile arka
     plan hesabının birlikte akıcı çalışması
 13. ☐ **Faz 5 — Paketleme**: Python gerektirmeyen Windows 10/11 exe (zip içinde klasör), GitHub Releases,
     isteğe bağlı kurulum dosyası (Inno Setup), Numba önbelleği, .pflow dosyasına çift tıklayınca açılma
     (macOS şimdilik kapsam dışı)
 14. ☐ **Faz 6 — Kunduz rehber ve cilalama** [7]: ilk açılışta atlanabilir tanıtım turu, Help yanındaki yeri,
-    açma / kapama ayarı, animasyon modunda akışla süzülüp kaybolması ve geri dönmesi, demo provası
+    açma / kapama ayarı, animasyon modunda akışla süzülüp kaybolması ve geri dönmesi
+15. ☐ **Faz 3 — Rapor malzemesi** (27 Ekim: program bitince, en sona alındı): doğrulama scripti, figürler ve
+    tablolar (verification case'ler, duvarda V·n, stagnation karşılaştırmaları), sector kuralının yazılı
+    açıklaması, 4–6 sayfa rapor, user guide
+16. ☐ **Demo provası**
 
 (Köşeli parantezdeki numaralar 26 Ekim'deki istek listesindeki madde numaralarıdır.)
 

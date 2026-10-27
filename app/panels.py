@@ -162,9 +162,9 @@ LAYERS = (
     ("streamlines", "Streamlines", True, True),
     ("dividing", "All dividing streamlines", False, True),
     ("stagnation", "Stagnation points", True, True),
-    ("equipotential", "Equipotential lines (φ)", False, False),
-    ("speed", "|V| contours", False, False),
-    ("cp", "Cp contours", False, False),
+    ("equipotential", "Equipotential lines (φ)", False, True),
+    ("speed", "Speed |V| (color bands)", False, True),
+    ("cp", "Pressure coefficient Cp (color bands)", False, True),
     ("markers", "Element markers", True, True),
     ("walls", "Walls", True, True),
 )
@@ -180,6 +180,8 @@ class SettingsPanel(QScrollArea):
     arrows_changed = Signal(bool, float)     # show arrows?, arrow density (1 = default)
     layer_changed = Signal(str, bool)        # layer key (see LAYERS), visible?
     sections_changed = Signal()              # a section was hidden or shown again
+    field_quality_changed = Signal(int)      # grid of the field layers: 1 low, 2 medium, 3 high
+    cp_reference_changed = Signal(object)    # None = V∞ of the uniform flow, else the user's V_ref
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -259,13 +261,25 @@ class SettingsPanel(QScrollArea):
         # --- Computation ----------------------------------------------------
         g = QGroupBox("COMPUTATION")
         f = QFormLayout(g)
-        q = themed_combo(QComboBox())
+        q = self.c_quality = themed_combo(QComboBox())
         q.addItems(["Low (fast)", "Medium", "High (export quality)"])
         q.setCurrentIndex(1)
+        q.setToolTip("Grid of the φ lines and the |V| / Cp color bands")
+        q.currentIndexChanged.connect(lambda i: self.field_quality_changed.emit(i + 1))
         f.addRow("Grid quality", q)
-        ref = themed_combo(QComboBox())
-        ref.addItems(["From uniform flow (V∞)", "Custom…"])
+        ref = self.c_cp_ref = themed_combo(QComboBox())
+        ref.addItems(["From uniform flow (V∞)", "Custom"])
+        ref.setToolTip("Cp = 1 − (V / V_ref)²  (probe, Cp color bands, exported data)")
         f.addRow("Cp reference", ref)
+        self.s_vref = QDoubleSpinBox()
+        self.s_vref.setRange(0.001, 1e6)
+        self.s_vref.setDecimals(3)
+        self.s_vref.setValue(1.0)
+        self.s_vref.setSuffix("  m/s")
+        self.s_vref.setEnabled(False)
+        f.addRow("V_ref", self.s_vref)
+        ref.currentIndexChanged.connect(self._cp_reference_edited)
+        self.s_vref.editingFinished.connect(self._cp_reference_edited)
         self._add_section("computation", "Computation", g, lay)
 
         lay.addStretch(1)
@@ -326,6 +340,26 @@ class SettingsPanel(QScrollArea):
                 w.setChecked(val)
             else:
                 w.setValue(int(min(max(val, w.minimum()), w.maximum())))
+            w.blockSignals(False)
+
+    def _cp_reference_edited(self, *_):
+        custom = self.c_cp_ref.currentIndex() == 1
+        self.s_vref.setEnabled(custom)
+        self.cp_reference_changed.emit(self.s_vref.value() if custom else None)
+
+    def cp_reference(self):
+        return self.s_vref.value() if self.c_cp_ref.currentIndex() == 1 else None
+
+    def set_computation_settings(self, quality: int, cp_reference):
+        """Show saved values without emitting signals (File → Open sets the canvas itself)."""
+        for w in (self.c_quality, self.c_cp_ref, self.s_vref):
+            w.blockSignals(True)
+        self.c_quality.setCurrentIndex(min(max(int(quality), 1), 3) - 1)
+        self.c_cp_ref.setCurrentIndex(1 if cp_reference else 0)
+        if cp_reference:
+            self.s_vref.setValue(float(cp_reference))
+        self.s_vref.setEnabled(bool(cp_reference))
+        for w in (self.c_quality, self.c_cp_ref, self.s_vref):
             w.blockSignals(False)
 
     def arrow_density(self) -> float:

@@ -33,3 +33,20 @@ def fresh_layout():
     yield
     for group in ("layout", "shortcuts", "export"):
         QSettings().remove(group)
+
+
+@pytest.fixture(autouse=True)
+def collect_garbage_between_tests():
+    """Qt objects left over by a test (also those kept alive by a failed test's traceback) are
+    destroyed right after it, while no background computation of a later window is running.
+    A later garbage collection could otherwise delete them in the middle of another test."""
+    yield
+    import gc
+    gc.collect()
+    try:
+        from PySide6.QtWidgets import QApplication
+    except ImportError:                       # pragma: no cover
+        return
+    app = QApplication.instance()
+    if app is not None:
+        app.processEvents()

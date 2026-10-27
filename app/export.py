@@ -279,7 +279,7 @@ def streamline_rows(lines, view):
     return header, rows
 
 
-def field_rows(elements, view, nx: int):
+def field_rows(elements, view, nx: int, v_ref=None):
     """u, v, |V|, Cp, φ, ψ on an nx × ny grid over the view (same spacing in x and y). Points in the
     solid or on a singularity are left empty. ψ (and φ) of a vortex (source) are multi-valued: they
     jump across a branch cut, as in the textbook formulas."""
@@ -293,7 +293,7 @@ def field_rows(elements, view, nx: int):
     bad = ~np.asarray(fluid_mask(elements, z), bool).ravel()
     bad |= np.asarray(singularity_mask(elements, z, 1e-9 * (x1 - x0)), bool).ravel()
     speed = np.hypot(u, v)
-    v_ref = reference_speed(elements)
+    v_ref = v_ref or reference_speed(elements)          # Computation → Cp reference, else V∞
     cp = 1.0 - (speed / v_ref) ** 2 if v_ref else np.full_like(speed, np.nan)
     cols = [z.real, z.imag, u, v, speed, cp, F.real, F.imag]
     for c in cols[2:]:
@@ -333,7 +333,7 @@ def export_data(path: str, datasets, elements, canvas, grid_nx: int = 101, separ
         "elements": lambda: element_rows(elements),
         "stagnation": lambda: stagnation_rows(canvas.stagnation_points),
         "streamlines": lambda: streamline_rows(canvas.last_result.lines if canvas.last_result else [], view),
-        "field": lambda: field_rows(elements, view, grid_nx),
+        "field": lambda: field_rows(elements, view, grid_nx, getattr(canvas, "v_ref_override", None)),
     }
     chosen = [d for d in datasets if d in tables]
     stem, ext = os.path.splitext(path)
