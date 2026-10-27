@@ -279,3 +279,75 @@ def test_sector_vertex_is_not_marked(win, qapp):
     pts = win.canvas.stagnation_points
     assert pts and all(p.kind != "vertex" for p in pts)
     assert set(win.canvas.stagnation.dividing_owner) <= set(range(len(pts)))
+
+
+# ---------------------------------------------------------------- R2: live update while dragging
+import numpy as np  # noqa: E402
+
+def test_live_drag_lines_follow_the_element(win, qapp):
+    """Live: the visible streamlines are recomputed for the moved element while it is dragged, at full
+    opacity; on release the scene changes once (one undo step) and is computed as usual."""
+    cv = win.canvas
+    assert cv.live_drag and win.settings_panel.c_live.isChecked()           # the default
+    cv.set_mode("move")
+    before = cv.streamlines.line_items[0].getData()[0].copy()
+    seen = {}
+
+    def during():
+        from PySide6.QtTest import QTest
+        QTest.qWait(300)                                                    # let a preview arrive
+        seen["previews"] = len(cv.streamlines.preview_ms)
+        seen["opacity"] = cv.streamlines.line_items[0].opacity()
+        seen["fields"] = all(i.opacity() < 1 for i in cv.fields.items())
+        seen["lines"] = cv.streamlines.line_items[0].getData()[0].copy()
+    _drag(qapp, win, (0.0, 0.0), (1.0, 0.8), before_release=during)
+    assert seen["previews"] >= 1 and seen["opacity"] == 1.0 and seen["fields"]
+    assert seen["lines"].shape != before.shape or not np.allclose(seen["lines"], before, equal_nan=True)
+    moved = [e for e in win.elements if e.POSITION_KEYS and (e.x0, e.y0) != (0.0, 0.0)]
+    assert len(moved) == 1 and moved[0].x0 == pytest.approx(1.0, abs=0.02)
+    assert win.act_undo.text().startswith("Undo move")
+
+
+def test_live_drag_off_fades_and_waits(win, qapp):
+    cv = win.canvas
+    win.settings_panel.c_live.setChecked(False)
+    assert not cv.live_drag
+    cv.set_mode("move")
+    seen = {}
+    _drag(qapp, win, (0.0, 0.0), (1.0, 0.8),
+          before_release=lambda: seen.update(opacity=cv.streamlines.line_items[0].opacity(),
+                                             previews=len(cv.streamlines.preview_ms)))
+    assert seen["opacity"] < 1.0 and seen["previews"] == 0
+
+
+def test_live_drag_cancelled_brings_the_old_lines_back(win, qapp):
+    from PySide6.QtTest import QTest
+    cv = win.canvas
+    cv.set_mode("move")
+    QTest.qWait(300)
+    before = cv.streamlines.line_items[0].getData()[0].copy()
+
+    def cancel():
+        QTest.qWait(300)
+        assert cv.streamlines.preview_ms                                    # the lines had moved
+        cv.cancel_drag()
+    elements = list(win.elements)
+    _drag(qapp, win, (0.0, 0.0), (1.2, 0.5), before_release=cancel)
+    for _ in range(40):
+        cv.wait_idle(50)
+        qapp.processEvents()
+    assert win.elements == elements
+    np.testing.assert_allclose(cv.streamlines.line_items[0].getData()[0], before)
+
+
+def test_live_drag_setting_is_remembered(win, qapp):
+    from PySide6.QtCore import QSettings
+    from app.main_window import MainWindow
+    win.settings_panel.c_live.setChecked(False)
+    assert QSettings().value("plot/live_drag", type=bool) is False
+    w2 = MainWindow()
+    try:
+        assert not w2.canvas.live_drag and not w2.settings_panel.c_live.isChecked()
+    finally:
+        w2._ask_save_changes = lambda: "discard"
+        w2.close()

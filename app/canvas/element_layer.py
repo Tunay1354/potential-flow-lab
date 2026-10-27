@@ -4,7 +4,8 @@ sector vertex), the symmetry walls and sector sides with hatch marks and shaded 
 of the selected element, and picking (which element is under the mouse).
 
 Walls are drawn for a region 3× the view, so a pan does not need a redraw at once. While an element
-is dragged, its moved copy is drawn instead (canvas.shown_elements()).
+is dragged, its moved copy is drawn instead (canvas.shown_elements()). Items are rebuilt only for
+elements that changed (a drag moves one symbol 60 times a second; the others stay as they are).
 """
 import numpy as np
 import pyqtgraph as pg
@@ -22,7 +23,9 @@ class ElementLayer(PlotLayer):
 
     def __init__(self, plot, vb):
         super().__init__(plot, vb)
-        self.markers, self.walls = [], []        # plot items (rebuilt on every change)
+        self.markers, self.walls = [], []        # plot items
+        self._marker_rows = []                   # per element: (what was drawn, its items)
+        self._walls_key = None                   # what the walls were drawn for
         self._wall_rect = None                   # region the walls were drawn for (x0, x1, y0, y1, view width)
         self._hatch_spacing = 1.0
 
@@ -60,25 +63,57 @@ class ElementLayer(PlotLayer):
         return cv.shown_elements()[cv.selected] if 0 <= cv.selected < len(cv.elements) else None
 
     def _draw_markers(self):
-        for it in self.markers:
-            self.plot.removeItem(it)
-        self.markers = []
-        t, sel = self.theme, self._selected()
-        for e in self.canvas.shown_elements():
-            pts = e.marker_points() if e.enabled else []
-            if not pts:
+        sel, rows = self._selected(), []
+        shown = self.canvas.shown_elements()
+        for row, e in enumerate(shown):
+            key = (e, e is sel, id(self.theme))
+            old = self._marker_rows[row] if row < len(self._marker_rows) else None
+            if old is not None and old[0] == key:
+                rows.append(old)                          # unchanged: keep its items
                 continue
-            xs, ys = [p.real for p in pts], [p.imag for p in pts]
-            style = MARKERS.get(e.TYPE, MARKERS["default"])
-            color = t.get("el_sink" if getattr(e, "is_sink", False) else f"el_{e.TYPE}", t["plot_axis"])
-            if style["filled"]:
-                brush, pen = pg.mkBrush(color), pg.mkPen(t["plot_bg"], width=1.5)
-            else:
-                brush, pen = pg.mkBrush(None), pg.mkPen(color, width=2)
-            if e is sel:                                  # selected: soft glow in the element's own color
-                self.markers += glow_dots(self.plot, xs, ys, color, style["size"], 2.9)
-            item = pg.ScatterPlotItem(xs, ys, size=style["size"], symbol=style["symbol"], brush=brush, pen=pen)
-            self.markers.append(self.add_item(item, 3))
+            if old is not None and old[0][1:] == key[1:] and self._moved_only(old[0][0], e, old[1]):
+                pts = e.marker_points()                   # only moved (dragged): move its items
+                for item in old[1]:
+                    item.setData([p.real for p in pts], [p.imag for p in pts])
+                rows.append((key, old[1]))
+                continue
+            if old is not None:
+                self._remove(old[1])
+            rows.append((key, self._marker_items(row, e, e is sel)))
+        for _key, items in self._marker_rows[len(shown):]:
+            self._remove(items)
+        self._marker_rows = rows
+        self.markers = [it for _key, items in rows for it in items]
+
+    def _marker_items(self, row, e, selected) -> list:
+        """Symbol of one element (+ its glow when selected). The z value keeps the list order for
+        symbols on the same spot (e.g. doublet + vortex of a lifting cylinder)."""
+        pts = e.marker_points() if e.enabled else []
+        if not pts:
+            return []
+        t = self.theme
+        xs, ys = [p.real for p in pts], [p.imag for p in pts]
+        style = MARKERS.get(e.TYPE, MARKERS["default"])
+        color = t.get("el_sink" if getattr(e, "is_sink", False) else f"el_{e.TYPE}", t["plot_axis"])
+        if style["filled"]:
+            brush, pen = pg.mkBrush(color), pg.mkPen(t["plot_bg"], width=1.5)
+        else:
+            brush, pen = pg.mkBrush(None), pg.mkPen(color, width=2)
+        out = glow_dots(self.plot, xs, ys, color, style["size"], 2.9) if selected else []
+        item = pg.ScatterPlotItem(xs, ys, size=style["size"], symbol=style["symbol"], brush=brush, pen=pen)
+        return out + [self.add_item(item, 3 + 1e-6 * row)]
+
+    @staticmethod
+    def _moved_only(old, new, items) -> bool:
+        """True if `new` is `old` at another position (same symbol, same number of points)."""
+        keys = getattr(new, "POSITION_KEYS", ())
+        return (bool(items) and type(old) is type(new) and bool(keys) and new.enabled
+                and old.copy(**{k: getattr(new, k) for k in keys}) == new
+                and len(old.marker_points()) == len(new.marker_points()))
+
+    def _remove(self, items):
+        for it in items:
+            self.plot.removeItem(it)
 
     def _walls_need_redraw(self) -> bool:
         if self._wall_rect is None:
@@ -99,13 +134,17 @@ class ElementLayer(PlotLayer):
         """Symmetry walls and the sides of a sector flow inside the rectangle xr × yr.
         Solid region shaded once; each wall drawn only where it borders the fluid (corners look like
         an L or a wedge); hatch marks on the solid side. A plate (β = 360°) has fluid on both sides."""
-        for it in self.walls:
-            self.plot.removeItem(it)
-        self.walls = []
         shown = self.canvas.shown_elements()
         walls = [e for e in shown if e.enabled and e.IS_BOUNDARY]
         sectors = [e for e in shown if e.enabled and e.TYPE == "sector"]
         t, sel = self.theme, self._selected()
+        key = (tuple(walls), tuple(sectors), [e is sel for e in walls + sectors], xr, yr,
+               self._hatch_spacing, id(t))
+        if key == self._walls_key:
+            return                                          # nothing to redraw (e.g. a symbol is dragged)
+        self._walls_key = key
+        self._remove(self.walls)
+        self.walls = []
         # 1) shading of the solid region
         if walls:
             self._add_shading("cut", fluid_polygon(walls, xr, yr), xr, yr, t["el_wall"])

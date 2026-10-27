@@ -4,9 +4,9 @@ interaction.py — what the mouse does on the plot.
   * Mouse modes: Select (a click selects an element or a stagnation point), Move (drag an element to a
     new place), Pan (dragging moves the view, nothing is selected). In every mode the wheel zooms and
     dragging an empty place pans.
-  * Move mode: the dragged element is a preview only (nothing is computed; the streamlines and field
-    layers fade, the stagnation points hide); on release it goes to the model as one undo step.
-    Shift snaps to a grid, Esc cancels.
+  * Move mode: the dragged element is a preview (the field layers fade, the stagnation points hide; the
+    streamlines fade too, or follow it live with "Live update while dragging"); on release it goes to
+    the model as one undo step and everything is computed again. Shift snaps to a grid, Esc cancels.
   * Dragging an element type from the palette onto the plot: a faint marker with coordinates shows
     where it goes; the drop opens the Add dialog with that position.
 """
@@ -174,6 +174,7 @@ class PlotInteraction(QObject):
         y = snapped(p.y() + d["offset"][1], step, snap)
         d["preview"] = el.copy(**{kx: x, ky: y})
         cv.element_layer.draw()
+        cv.drag_moved()
         self._show_ghost_label(x, y, snap)
 
     def end_drag(self):

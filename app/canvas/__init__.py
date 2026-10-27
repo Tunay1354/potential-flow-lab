@@ -12,9 +12,9 @@ canvas — the plot card of the main window.
     bar.py               the bar above the plot
 """
 from .bar import CanvasBar
-from .canvas import LAYERS, PlotCanvas
+from .canvas import LAYERS, LIVE_DRAG_DEFAULT, PlotCanvas
 from .interaction import ELEMENT_MIME, MOUSE_MODES, snap_step, snapped
 from .settings import PlotSettings
 
-__all__ = ["CanvasBar", "PlotCanvas", "PlotSettings", "LAYERS", "ELEMENT_MIME", "MOUSE_MODES",
+__all__ = ["CanvasBar", "PlotCanvas", "PlotSettings", "LAYERS", "LIVE_DRAG_DEFAULT", "ELEMENT_MIME", "MOUSE_MODES",
            "snap_step", "snapped"]

@@ -43,6 +43,9 @@ except ImportError:                                   # pragma: no cover
 
 ANGLE_TOL = 1e-9          # same as sector.py: points this close to a wedge side count as inside
 JIT = dict(cache=True, nogil=True, error_model="numpy")   # numpy error model: 1/0 -> inf (no exception)
+# short helpers (microseconds) keep the interpreter lock: releasing and taking it back would cost more
+# than they do (the window thread may hold it for a while), see the Jobard–Lefer bookkeeping below
+QUICK = dict(cache=True, nogil=False, error_model="numpy")
 
 # ---------------------------------------------------------------------- scene -> arrays
 # The scene is ONE table per purpose (a tuple of many small arrays would cost a reference-count update
@@ -350,7 +353,7 @@ def _grown(a, n):
 # Rasters over the computed region (cell size d/4): "is there a line within radius r?". A bool raster
 # for the seed test; an owner raster (2, ny, nx) of line ids for the stop test (see _OwnerRaster in
 # streamlines.py, which falls back to the same operations in NumPy when Numba is missing).
-@njit(**JIT)
+@njit(**QUICK)
 def _cell_index(v, origin, c, n):
     """Cell of coordinate v, clipped to 0 … n − 1 (like int() + clip in NumPy; not finite -> 0)."""
     if not math.isfinite(v):
@@ -362,7 +365,7 @@ def _cell_index(v, origin, c, n):
     return i if i < n - 1 else n - 1
 
 
-@njit(**JIT)
+@njit(**QUICK)
 def raster_test(a, z, x0, y0, c):
     """Bool raster a (ny, nx): value at every point."""
     ny, nx = a.shape
@@ -372,7 +375,7 @@ def raster_test(a, z, x0, y0, c):
     return out
 
 
-@njit(**JIT)
+@njit(**QUICK)
 def raster_stamp(a, z, radius, x0, y0, c):
     """Bool raster: set every cell within `radius` of every point."""
     ny, nx = a.shape
@@ -388,7 +391,7 @@ def raster_stamp(a, z, radius, x0, y0, c):
                     a[min(max(iy + oy, 0), ny - 1), min(max(ix + ox, 0), nx - 1)] = True
 
 
-@njit(**JIT)
+@njit(**QUICK)
 def owner_test(a, z, self_id, x0, y0, c):
     """Owner raster a (2, ny, nx): is a line OTHER than self_id near every point?"""
     ny, nx = a.shape[1], a.shape[2]
@@ -401,7 +404,7 @@ def owner_test(a, z, self_id, x0, y0, c):
     return out
 
 
-@njit(**JIT)
+@njit(**QUICK)
 def owner_stamp(a, z, radius, owner, x0, y0, c):
     """Owner raster: note `owner` in every cell within `radius` of every point (first slot if free,
     else the second slot, unless the first already is `owner`)."""
@@ -424,7 +427,7 @@ def owner_stamp(a, z, radius, owner, x0, y0, c):
                         a[1, yy, xx] = owner
 
 
-@njit(**JIT)
+@njit(**QUICK)
 def neighbour_seeds(seg, d):
     """Points at distance d on both sides of a line, every d along it (see streamlines.py)."""
     m = seg.size
@@ -454,7 +457,7 @@ def neighbour_seeds(seg, d):
     return out[:n]
 
 
-@njit(**JIT)
+@njit(**QUICK)
 def pick_seeds(cand, psi, speed, batch, b_psi, b_tol, limit, d):
     """Which candidates join the batch (status 0) or wait for a later one (status 1): at most
     `limit` seeds, at least 2d apart and on different streamlines (ψ farther apart than 0.3·d·|V|).
@@ -510,3 +513,81 @@ def nearest_line_points(P, L, skey, order, lx, ly, ny_cells, max_dist):
         if best < max_dist:
             out[i] = best_j
     return out
+
+
+@njit(**QUICK)
+def _interp(x, s, f, lo, hi):
+    """np.interp(x, s[lo:hi], f[lo:hi]) for one x (s non-decreasing)."""
+    if x <= s[lo]:
+        return f[lo]
+    if x >= s[hi - 1]:
+        return f[hi - 1]
+    j = lo + np.searchsorted(s[lo:hi], x, side="right") - 1
+    slope = (f[j + 1] - f[j]) / (s[j + 1] - s[j])
+    r = slope * (x - s[j]) + f[j]
+    if not math.isfinite(r):
+        r = slope * (x - s[j + 1]) + f[j + 1]
+        if not math.isfinite(r) and f[j] == f[j + 1]:
+            r = f[j]
+    return r
+
+
+@njit(**QUICK)
+def fade_cut(xy, offs, cut0, cut1, d, levels, taper_ratio):
+    """Lines (points xy, line i = xy[offs[i]:offs[i + 1]]) cut into pieces for drawing with fading ends
+    (see streamlines.fade_piece_lists). Returns the points of all pieces (one after the other),
+    offsets (pieces + 1), the opacity level of every piece and its bounding box (x0, x1, y0, y1)."""
+    nl = offs.size - 1
+    P = nl * (1 + 2 * levels)
+    pts = np.empty((xy.shape[0] + 2 * P + 2 * nl * levels * 2 + 16, 2))
+    po = np.zeros(P + 1, np.int64)
+    plev = np.empty(P, np.int64)
+    boxes = np.empty((P, 4))
+    s = np.empty(xy.shape[0])
+    npc, n = 0, 0
+    for i in range(nl):
+        lo, hi = offs[i], offs[i + 1]
+        if hi - lo < 2:
+            continue
+        s[lo] = 0.0
+        for k in range(lo + 1, hi):
+            s[k] = s[k - 1] + math.hypot(xy[k, 0] - xy[k - 1, 0], xy[k, 1] - xy[k - 1, 1])
+        total = s[hi - 1]
+        n_cut = int(cut0[i]) + int(cut1[i])
+        Lt = min(taper_ratio * d, total / n_cut) if n_cut else 0.0
+        a = Lt if cut0[i] else 0.0
+        b = total - Lt if cut1[i] else total
+        for piece in range(1 + 2 * levels):
+            if piece == 0:
+                if not b > a:
+                    continue
+                pa, pb, lev = a, b, 0
+            else:
+                k = (piece + 1) // 2
+                start = piece % 2 == 1
+                if (start and not cut0[i]) or (not start and not cut1[i]):
+                    continue
+                l0, l1 = Lt * (levels - k) / levels, Lt * (levels - k + 1) / levels
+                pa, pb, lev = (l0, l1, k) if start else (total - l1, total - l0, k)
+            if n + (hi - lo) + 2 > pts.shape[0]:
+                grown = np.empty((2 * pts.shape[0] + hi - lo + 2, 2))
+                grown[:n] = pts[:n]
+                pts = grown
+            po[npc] = n
+            pts[n, 0] = _interp(pa, s, xy[:, 0], lo, hi)
+            pts[n, 1] = _interp(pa, s, xy[:, 1], lo, hi)
+            n += 1
+            for k2 in range(lo, hi):
+                if s[k2] > pa and s[k2] < pb:
+                    pts[n, 0], pts[n, 1] = xy[k2, 0], xy[k2, 1]
+                    n += 1
+            pts[n, 0] = _interp(pb, s, xy[:, 0], lo, hi)
+            pts[n, 1] = _interp(pb, s, xy[:, 1], lo, hi)
+            n += 1
+            seg = pts[po[npc]:n]
+            boxes[npc, 0], boxes[npc, 1] = seg[:, 0].min(), seg[:, 0].max()
+            boxes[npc, 2], boxes[npc, 3] = seg[:, 1].min(), seg[:, 1].max()
+            plev[npc] = lev
+            npc += 1
+    po[npc] = n
+    return pts[:n], po[:npc + 1], plev[:npc], boxes[:npc]

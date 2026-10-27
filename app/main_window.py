@@ -14,7 +14,7 @@ shortcuts), files.py (New / Open / Save, presets), exporting.py (figure and CSV 
 (status bar, probe, scene check, titles). This file keeps the assembly, the wiring and the element
 commands (add / edit / move / duplicate / delete, undo / redo).
 """
-from PySide6.QtCore import QEvent, Qt, QTimer
+from PySide6.QtCore import QEvent, QSettings, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QKeySequence, QPalette, QShortcut
 from PySide6.QtWidgets import QAbstractButton, QApplication, QHBoxLayout, QMainWindow, QMenuBar, QMessageBox, QWidget
 
@@ -22,7 +22,7 @@ from app_info import APP_NAME, APP_VERSION, ORGANIZATION
 from model import SceneModel, preview_change
 from physics import ELEMENT_TYPES
 
-from .canvas import PlotCanvas
+from .canvas import LIVE_DRAG_DEFAULT, PlotCanvas
 from .chrome import HeaderBar, load_fonts, paint_paper_grid, tint_title_bar
 from .dialogs import ElementDialog
 from .element_specs import spec_for
@@ -127,6 +127,10 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         sp.layer_changed.connect(self._layer_changed)
         sp.field_quality_changed.connect(cv.set_field_quality)
         sp.cp_reference_changed.connect(self._cp_reference_changed)
+        live = QSettings().value("plot/live_drag", LIVE_DRAG_DEFAULT, type=bool)      # a program setting
+        cv.set_live_drag(live)
+        sp.set_live_drag(live)
+        sp.live_drag_changed.connect(lambda on: (cv.set_live_drag(on), QSettings().setValue("plot/live_drag", on)))
         sp.view_edited.connect(cv.set_view)
         sp.fit_requested.connect(cv.fit_view)
         sp.sections_changed.connect(self._sections_changed)

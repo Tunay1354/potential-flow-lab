@@ -124,8 +124,20 @@ sadece genel teknikler öğrenildi: döngünün tamamını derlemek, trail buffe
     - Katman anahtarları ve slider ölçekleri tek listede (önceden iki yerde tanımlıydı)
     - Kullanılmayan kod silindi; kapanan pencere ve diyaloglar artık bellekten siliniyor (önceden kalıyordu:
       testlerde her pencere bir sonrakini yavaşlatıyordu)
-12. ☐ **Paket R2 — Hız**: Jobard–Lefer döngüsünün tamamı Numba'da (hedef: ~52 ms → < 10 ms); ayarlarda
-    "Live update while dragging" seçeneği
+12. ✅ **Paket R2 — Hız**
+    - Numba kernel'i: sahne tek bir tablo (16 ayrı dizi yerine) → bir hız hesabı 244 → 38 ns; çizgiler kompakt döner
+    - Jobard–Lefer'in Python'da kalan işleri derlendi: raster işaretleme / test, komşu seed'ler, seed seçimi,
+      ok yerleri, soluklaşan uçların parçaları, stagnation için Newton (Numba yoksa NumPy yolu aynen var, testli)
+    - Kısa yardımcılar GIL'i bırakmıyor (bırakıp geri almak pencereyle yarışta işin kendisinden pahalıydı)
+    - Ölçüm (en iyi 5): görünen çizgiler ~38 → ~10 ms, tam güncelleme ~270 → ~55 ms, pan adımı ~150 → ~20 ms;
+      `streamline_quality.py` sonuçları birebir aynı (çizgi sayısı, aralık, iç uçlar)
+    - Not: NumPy'nin |z|'si işlemciye göre son bitte farklı yuvarlanıyor; bu yüzden bazı sahnelerde 1–2 çizgi
+      farklı yere konabiliyor (eski kod da makineden makineye böyleydi); kalite aynı
+    - Sürüklerken elementin sembolleri yeniden kurulmuyor, yerinde taşınıyor: sürükleme ~27 → ~39 fps
+    - **Live update while dragging** (Plot settings → Computation, program ayarı, varsayılan açık): sürüklerken
+      görünen bölgenin çizgileri arka planda yeniden hesaplanır (en yeni konum önce); bırakınca her şey tam
+      hesaplanır, Esc eski çizgileri geri getirir. Ölçüm (2 çekirdekli test makinesi, yazılımsal çizim):
+      saniyede ~27–33 çizgi güncellemesi, pencere ~26–32 fps (canlı kapalıyken ~39 fps)
 13. ☐ **Ara kontrol — deneme exe'si**: PyInstaller + Numba + contourpy temiz Windows'ta açılıyor mu (erken görmek için)
 14. ☐ **Faz 4b — Animasyon** [5]: particle'lar Numba'da (RK2 + sub-step), trail buffer (her kare soluklaşır, yeni
     noktalar üstüne), hıza göre renk, rastgele yaş başlangıcı, zoom'dan bağımsız animasyon hızı; renderer ayrı

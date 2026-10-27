@@ -26,6 +26,8 @@ from .settings import PlotSettings
 from .stagnation_layer import StagnationLayer
 from .streamline_layer import StreamlineLayer
 
+LIVE_DRAG_DEFAULT = True          # "Live update while dragging" until the user changes it
+
 # layer switches: key, label (Plot settings → Layers, View → Layers), shown at the start.
 # "dividing": ALL dividing streamlines (those of a selected stagnation point are always shown)
 LAYERS = (
@@ -61,6 +63,7 @@ class PlotCanvas(QWidget):
         self.settings = PlotSettings()
         self.layers = {key: on for key, _label, on in LAYERS}
         self.selected = -1                       # index of the selected element (highlighted)
+        self.live_drag = LIVE_DRAG_DEFAULT       # streamlines follow a dragged element (program setting)
         self.last_result = None                  # the drawn StreamlineSet (File → Export data)
 
         # the plot card: a thin ink frame (painted in paintEvent) around bar, plot and title block
@@ -174,6 +177,11 @@ class PlotCanvas(QWidget):
             self.settings.arrow_density = density
         self.streamlines.redraw()
 
+    def set_live_drag(self, on: bool):
+        """Live update while dragging: the streamlines of the visible region follow a dragged element
+        (computed in the background, newest position first); otherwise they fade until release."""
+        self.live_drag = bool(on)
+
     def set_line_width(self, width: float):
         self.settings.line_width = width
         self.streamlines.set_line_pens()
@@ -277,14 +285,18 @@ class PlotCanvas(QWidget):
 
     def drag_started(self):
         for layer in self._layers:
-            for item in layer.items() if layer.FADES_WHILE_DRAGGING else ():
+            for item in layer.items() if layer.fades_while_dragging() else ():
                 item.setOpacity(DRAG_OPACITY)
             layer.drag_started()
         self.apply_visibility()
 
+    def drag_moved(self):
+        for layer in self._layers:
+            layer.drag_moved()
+
     def drag_finished(self):
         for layer in self._layers:
-            for item in layer.items() if layer.FADES_WHILE_DRAGGING else ():
+            for item in layer.items():
                 item.setOpacity(1.0)
             layer.drag_finished()
         self.apply_visibility()

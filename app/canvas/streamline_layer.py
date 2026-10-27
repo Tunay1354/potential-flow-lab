@@ -10,6 +10,11 @@ requests are collected and only the newest is computed next. A change of the sce
 starts a new cache and cancels the running computation (generation number); results of old
 generations are thrown away. `recompute()` is the synchronous version (tests and scripts).
 
+Live update while dragging (canvas.live_drag): every move of a dragged element asks for a preview —
+the lines of the visible region only, at the current spacing level, without stagnation points — in the
+same thread; while one runs, only the newest position is kept for the next. On release the scene
+changes and everything is computed as usual (on Esc the lines of the old scene come back).
+
 Every result also carries the stagnation points and dividing streamlines; the canvas hands them on
 (PlotCanvas.streamlines_drawn).
 """
@@ -20,7 +25,7 @@ import pyqtgraph as pg
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QColor
 
-from physics.streamlines import FADE_LEVELS, Cancelled, StreamlineCache, fade_piece_lists
+from physics.streamlines import FADE_LEVELS, Cancelled, StreamlineCache, fade_piece_boxes
 
 from ..theme import LAYOUT
 from .arrows_item import ArrowsItem
@@ -31,6 +36,7 @@ class _ResultSignal(QObject):
     """Carries background results to the GUI thread (queued connection)."""
     done = Signal(int, object, float)        # generation, (StreamlineSet, level) / None / exception, ms
     partial = Signal(int, object)            # generation, (StreamlineSet, level) of the visible part
+    preview = Signal(int, object, float)     # generation, StreamlineSet of a dragged scene / None / exc., ms
 
 
 class _Job(QRunnable):
@@ -70,11 +76,15 @@ class StreamlineLayer(PlotLayer):
         self._arrows = np.zeros((0, 3))
         self.cull_rect = None                     # lines / arrows handed to the plot meet this rect
         self._first_job = True                    # the very first job may compile the kernel
+        self._preview_wanted = False              # live drag: a newer element position waits
+        self._preview_shown = False               # live drag: the drawn lines belong to the dragged scene
+        self.preview_ms = []                      # computation time of every preview drawn (measurements)
         self._pool = QThreadPool(plot)            # Qt objects owned by the plot widget (deleted with it)
         self._pool.setMaxThreadCount(1)
         self._results = _ResultSignal(plot)
         self._results.done.connect(self._on_result)
         self._results.partial.connect(self._on_partial)
+        self._results.preview.connect(self._on_preview)
 
     def items(self):
         return self.line_items + [self.arrow_item]
@@ -93,6 +103,22 @@ class StreamlineLayer(PlotLayer):
         if self._needs_cull():
             self._cull()
         self.request()
+
+    def fades_while_dragging(self) -> bool:
+        return not self.canvas.live_drag
+
+    def drag_moved(self):
+        if not self.canvas.live_drag:
+            return
+        self._preview_wanted = True
+        if not self.busy:
+            self._start_preview()
+
+    def drag_finished(self):
+        self._preview_wanted = False
+        if self._preview_shown:                       # back to the lines of the scene (Esc), or the
+            self._preview_shown = False               # new scene follows at once (released)
+            self.redraw()
 
     def visibility_changed(self):
         on = self.canvas.layers["streamlines"]
@@ -181,10 +207,51 @@ class StreamlineLayer(PlotLayer):
         current = gen == self.generation
         if current and isinstance(payload, tuple) and payload[0] is not None:
             self._draw(*payload, ms)
-        if self.pending or not current:
-            self._start_job()                            # newer view or newer scene
+        self._next_job(not current)
         if isinstance(payload, BaseException):
             raise payload
+
+    def _next_job(self, stale: bool):
+        if self._preview_wanted and self.canvas.is_dragging():
+            self._start_preview()                        # the newest position of a dragged element
+        elif self.pending or stale:
+            self._start_job()                            # newer view or newer scene
+
+    # ------------------------------------------------------------------ live drag (preview)
+    def _start_preview(self):
+        self.busy, self._preview_wanted = True, False
+        gen, view, level = self.generation, self.canvas.view(), self.drawn_level
+        elements, density = tuple(self.canvas.shown_elements()), self.canvas.settings.density
+        arrows = self._arrow_density()
+
+        def work():
+            t0 = time.perf_counter()
+            try:
+                cache = StreamlineCache(elements, density)
+                cache.level, cache.with_features = level, False     # same spacing as the drawn lines
+                result = cache.update(view, arrows, force=True, margin=False,
+                                      cancelled=lambda: gen != self.generation)
+            except Cancelled:
+                result = None
+            except Exception as exc:                     # report bugs in the GUI thread
+                result = exc
+            self._results.preview.emit(gen, result, (time.perf_counter() - t0) * 1000.0)
+
+        if self.background:
+            self._pool.start(_Job(work))
+        else:
+            work()
+
+    def _on_preview(self, gen, result, ms):
+        self.busy = False
+        if gen == self.generation and self.canvas.is_dragging() and result is not None \
+                and not isinstance(result, BaseException):
+            self._show(result)
+            self._preview_shown = True
+            self.preview_ms.append(ms)
+        self._next_job(gen != self.generation)
+        if isinstance(result, BaseException):
+            raise result
 
     def recompute(self):
         """Synchronous computation (cancels a running background one)."""
@@ -215,15 +282,16 @@ class StreamlineLayer(PlotLayer):
     def _draw(self, result, level, ms):
         """Draw a StreamlineSet. ms = None for a partial result (the visible part; more follows)."""
         self.drawn_domain, self.drawn_level = result.domain, level
-        self._pieces = []
-        for parts in fade_piece_lists(result.lines, result.tapers, result.separation):
-            boxes = np.array([(p[:, 0].min(), p[:, 0].max(), p[:, 1].min(), p[:, 1].max()) for p in parts]) \
-                if parts else np.zeros((0, 4))
-            self._pieces.append((parts, boxes))
+        self._preview_shown = False
+        self._show(result)
+        self.canvas.streamlines_drawn(result, ms)
+
+    def _show(self, result):
+        """Hand the lines and arrows of a result to the plot."""
+        self._pieces = fade_piece_boxes(result.lines, result.tapers, result.separation)
         self._arrows = np.asarray(result.arrows, dtype=float).reshape(-1, 3)
         self._cull()
         self.arrow_item.setColor(self.theme["streamline"])
-        self.canvas.streamlines_drawn(result, ms)
 
     def _cull(self):
         """Hand to the plot only the line pieces and arrows near the view (the computed region is

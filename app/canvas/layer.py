@@ -10,11 +10,13 @@ hooks it needs plus one `add_layer(...)` line in PlotCanvas.__init__.
     selection_changed()   another element is selected
     view_changed()        zoom / pan
     visibility_changed()  a layer switch (canvas.layers) or the drag state changed
-    drag_started()        an element is being dragged (nothing is computed until it is released)
+    drag_started()        an element is being dragged
+    drag_moved()          ... and moved (canvas.shown_elements() has its new position)
     drag_finished()
     shutdown()            the window closes
 
-Layers with FADES_WHILE_DRAGGING = True have their items() drawn faintly while an element is dragged.
+Layers whose fades_while_dragging() is True have their items() drawn faintly while an element is
+dragged (they show the old position until it is released).
 """
 import pyqtgraph as pg
 from PySide6.QtGui import QColor
@@ -37,8 +39,11 @@ class PlotLayer:
         return item
 
     def items(self) -> list:
-        """Items drawn faintly while an element is dragged (see FADES_WHILE_DRAGGING)."""
+        """Items drawn faintly while an element is dragged (see fades_while_dragging)."""
         return []
+
+    def fades_while_dragging(self) -> bool:
+        return self.FADES_WHILE_DRAGGING
 
     # hooks (see the module docstring); a layer overrides the ones it needs
     def apply_theme(self, theme: dict):
@@ -57,6 +62,9 @@ class PlotLayer:
         pass
 
     def drag_started(self):
+        pass
+
+    def drag_moved(self):
         pass
 
     def drag_finished(self):

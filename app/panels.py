@@ -188,6 +188,7 @@ class SettingsPanel(QScrollArea):
     sections_changed = Signal()              # a section was hidden or shown again
     field_quality_changed = Signal(int)      # grid of the field layers: 1 low, 2 medium, 3 high
     cp_reference_changed = Signal(object)    # None = V∞ of the uniform flow, else the user's V_ref
+    live_drag_changed = Signal(bool)         # streamlines follow a dragged element (program setting)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -283,6 +284,11 @@ class SettingsPanel(QScrollArea):
         f.addRow("V_ref", self.s_vref)
         ref.currentIndexChanged.connect(self._cp_reference_edited)
         self.s_vref.editingFinished.connect(self._cp_reference_edited)
+        self.c_live = QCheckBox("Live update while dragging")
+        self.c_live.setToolTip("The streamlines follow an element while you drag it (Move mode).\n"
+                               "Off: they fade and are computed when you release it.")
+        self.c_live.toggled.connect(self.live_drag_changed)
+        f.addRow(self.c_live)
         self._add_section("computation", "Computation", g, lay)
 
         lay.addStretch(1)
@@ -365,6 +371,12 @@ class SettingsPanel(QScrollArea):
         self.ensureWidgetVisible(self.s_vref)
         self.s_vref.setFocus()
         self.s_vref.selectAll()
+
+    def set_live_drag(self, on: bool):
+        """Show the saved program setting (no signal)."""
+        self.c_live.blockSignals(True)
+        self.c_live.setChecked(on)
+        self.c_live.blockSignals(False)
 
     def _cp_reference_edited(self, *_):
         custom = self.c_cp_ref.currentIndex() == 1

@@ -733,10 +733,10 @@ class StreamlineCache:
 
     def update(self, view, arrow_density: float = 1.0, cancelled: Callable[[], bool] | None = None,
                progress: Callable[[StreamlineSet], None] | None = None,
-               force: bool = False) -> StreamlineSet | None:
+               force: bool = False, margin: bool = True) -> StreamlineSet | None:
         """Lines for `view` = ((x0, x1), (y0, y1)). Returns None if nothing changed since the last
         call (same level, view already filled) unless `force`. `progress` gets the picture once the
-        visible part is done (before the margin around it)."""
+        visible part is done (before the margin around it); margin=False: the visible part only."""
         (x0, x1), (y0, y1) = map(lambda r: tuple(map(float, r)), view)
         if x1 <= x0 or y1 <= y0:
             return None
@@ -759,7 +759,7 @@ class StreamlineCache:
         if self.with_features and (self.features is None or not _inside(visible, self.features.region)):
             self._update_features(visible, cancelled)
             changed = True
-        for region in (visible, around):
+        for region in (visible, around) if margin else (visible,):
             f = self.fields.get(L)
             if f is not None and f.contains(region):
                 continue
@@ -1065,6 +1065,30 @@ def fade_pieces(lines: list[np.ndarray], tapers: list[tuple[bool, bool]], d: flo
 def fade_piece_lists(lines: list[np.ndarray], tapers: list[tuple[bool, bool]], d: float,
                      levels: int = FADE_LEVELS) -> list[list[np.ndarray]]:
     """Like fade_pieces, but every opacity level is a list of separate (N, 2) pieces."""
+    return [parts for parts, _boxes in fade_piece_boxes(lines, tapers, d, levels)]
+
+
+def fade_piece_boxes(lines: list[np.ndarray], tapers: list[tuple[bool, bool]], d: float,
+                     levels: int = FADE_LEVELS) -> list[tuple[list[np.ndarray], np.ndarray]]:
+    """Per opacity level: (pieces, their bounding boxes (n, 4) = x0, x1, y0, y1) — for drawing only
+    what is near the view."""
+    if kernel.HAVE_NUMBA and lines:
+        xy = np.ascontiguousarray(np.concatenate(lines), dtype=float).reshape(-1, 2)
+        offs = np.concatenate([[0], np.cumsum([len(ln) for ln in lines])]).astype(np.int64)
+        cut0 = np.array([t[0] for t in tapers], bool)
+        cut1 = np.array([t[1] for t in tapers], bool)
+        pts, po, plev, boxes = kernel.fade_cut(xy, offs, cut0, cut1, float(d), int(levels), TAPER_RATIO)
+        out = []
+        for k in range(levels + 1):
+            idx = np.nonzero(plev == k)[0]
+            out.append(([pts[po[i]:po[i + 1]] for i in idx], boxes[idx].reshape(-1, 4)))
+        return out
+    lists = _fade_piece_lists_numpy(lines, tapers, d, levels)
+    return [(parts, np.array([(p[:, 0].min(), p[:, 0].max(), p[:, 1].min(), p[:, 1].max()) for p in parts])
+             .reshape(-1, 4)) for parts in lists]
+
+
+def _fade_piece_lists_numpy(lines, tapers, d, levels):
     out: list[list[np.ndarray]] = [[] for _ in range(levels + 1)]
     for xy, (cut0, cut1) in zip(lines, tapers):
         if xy.shape[0] < 2:
