@@ -390,3 +390,39 @@ def test_view_buttons_are_spaced_like_the_mouse_mode_buttons(win, qapp):
     assert gap(bar.btn_static, bar.btn_particles) == gap(bar.btn_particles, bar.btn_pulses) \
         == gap(bar.btn_select, bar.btn_move) > 1
     assert gap(bar.btn_pulses, bar.btn_select) > 2 * gap(bar.btn_select, bar.btn_move)
+
+
+def test_particle_trails_go_on_while_panning(win, qapp):
+    """A pan changes the view at every mouse move: the trail picture is carried over (shifted), not
+    cleared — it used to be empty almost every time it was painted."""
+    from PySide6.QtTest import QTest
+    cv = win.canvas
+    cv.set_view_mode("particles")
+    _frames(qapp, 20)
+
+    def lit():
+        img = cv.particles.trail.image
+        if img is None:
+            return 0
+        a = np.frombuffer(img.bits(), np.uint8).reshape(img.height(), img.bytesPerLine() // 4, 4)[..., 3]
+        return int((a > 40).sum())
+    still = lit()
+    (x0, x1), (y0, y1) = cv.view()
+    seen = []
+    for k in range(40):                                       # a slow pan: a mouse move every 8 ms
+        d = 0.01 * (k + 1)
+        cv.set_view((x0 + d, x1 + d), (y0, y1))
+        QTest.qWait(8)
+        seen.append(lit())
+    assert min(seen[5:]) > 0.3 * still                       # always plenty of trail on the screen
+    assert cv.particles.trail.rect.left() == pytest.approx(cv.view()[0][0], abs=0.02)
+
+
+def test_big_zoom_starts_the_trails_again(win, qapp):
+    cv = win.canvas
+    cv.set_view_mode("particles")
+    _frames(qapp, 10)
+    cv.set_view((-1.0, 1.0), (-0.75, 0.75))                  # 4× zoom: old trails would be blurred
+    img = cv.particles._picture()                             # (the next frame's picture, before drawing)
+    a = np.frombuffer(img.bits(), np.uint8).reshape(img.height(), img.bytesPerLine() // 4, 4)[..., 3]
+    assert a.max() == 0

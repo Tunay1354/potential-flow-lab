@@ -73,6 +73,7 @@ class AnimatedLayer(PlotLayer):
     A style implements start() (animation switched on), typical() (the typical speed of the view) and
     render(image, dt) (one frame); `animated` = this style is running."""
     DRAW_WHILE_PAUSED = False            # draw a new picture (zoom / pan) while paused
+    KEEP_PICTURE = False                 # zoom / pan: the old picture is carried over into the new one
 
     def __init__(self, plot, vb):
         super().__init__(plot, vb)
@@ -232,13 +233,35 @@ class AnimatedLayer(PlotLayer):
         view = self.canvas.view()
         key = (view, w, h)
         if key != self._view_key or self._image is None:
+            old, old_view = (self._image, self._view) if self._view_key is not None else (None, None)
             self._view_key, self._view = key, view
             (x0, x1), (y0, y1) = view
             self._rect = QRectF(x0, y0, x1 - x0, y1 - y0)
             self._image = QImage(w, h, QImage.Format_ARGB32_Premultiplied)
             self._image.fill(Qt.transparent)
             self._fresh = True
+            if self.KEEP_PICTURE and old is not None:
+                self._carry_over(old, old_view)
         return self._image
+
+    def _carry_over(self, old, old_view):
+        """The old picture drawn into the new one where its region now is (a pan shifts it by whole
+        pixels; a zoom scales it), so trails go on while the view moves. Not after a big zoom."""
+        (a0, a1), (b0, b1) = old_view
+        (x0, x1), (y0, y1) = self._view
+        sx, sy = self._image.width() / (x1 - x0), self._image.height() / (y1 - y0)
+        target = QRectF((a0 - x0) * sx, (b0 - y0) * sy, (a1 - a0) * sx, (b1 - b0) * sy)
+        ratio = target.width() / max(old.width(), 1)
+        if not 0.5 < ratio < 2.0:
+            return
+        painter = QPainter(self._image)
+        if abs(ratio - 1.0) < 1e-6:                              # pan: whole pixels, no blur
+            painter.drawImage(round(target.x()), round(target.y()), old)
+        else:
+            painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+            painter.drawImage(target, old)
+        painter.end()
+        self._fresh = False
 
     def _to_pixels(self, image, z):
         """Data points (complex) -> picture pixels (x, y; row 0 = bottom)."""

@@ -24,6 +24,7 @@ def trail_seconds(slider: int) -> float:
 
 class ParticleLayer(AnimatedLayer):
     """Style "Particles": tracer particles with fading trails."""
+    KEEP_PICTURE = True                  # the trails go on while the view moves
 
     def __init__(self, plot, vb):
         super().__init__(plot, vb)
@@ -43,10 +44,9 @@ class ParticleLayer(AnimatedLayer):
             self._colors()
 
     def view_changed(self):
-        if self.animated:
+        if self.animated:                     # (the picture is carried over by the next frame)
             self.particles.set_view(self._box())
             self._colors()
-            self._clear()
 
     def drag_moved(self):
         if self.animated:                                     # the particles flow around the moved element
