@@ -9,7 +9,7 @@ Nothing else in the code contains hard-coded colors or sizes.
 """
 import os
 
-ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
+from .paths import ASSETS_DIR
 
 # ---------------------------------------------------------------------------
 # Color palettes

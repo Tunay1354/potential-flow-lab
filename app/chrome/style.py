@@ -8,7 +8,8 @@ import os
 from PySide6.QtCore import QRectF
 from PySide6.QtGui import QColor, QFont, QFontDatabase
 
-from ..theme import ASSETS_DIR, FONT, first_family
+from ..paths import ASSETS_DIR
+from ..theme import FONT, first_family
 
 _fonts_loaded = False
 

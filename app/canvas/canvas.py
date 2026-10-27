@@ -94,6 +94,11 @@ class PlotCanvas(QWidget):
         self.title_block = TitleBlock(self)      # SCENE | ELEMENTS | VIEW | FILE (filled by the window)
         lay.addWidget(self.title_block)
         self.vb = self.plot.getPlotItem().getViewBox()
+        # axis label space only grows: with the aspect lock, a shrinking axis (e.g. "-2.5" -> "-2")
+        # widens the plot area, which changes the y range and its labels again -> the view would jump
+        # back and forth without end at some window sizes
+        for name in ("left", "bottom"):
+            self.plot.getPlotItem().getAxis(name).setStyle(autoReduceTextSpace=False)
         # background grid: one GridItem (the axis-based grid of pyqtgraph is ~15× slower to draw)
         self._grid = pg.GridItem(textPen=None)
         self._grid.setTickSpacing(x=[None, None], y=[None, None])

@@ -146,3 +146,29 @@ def test_plot_settings_never_hide_under_their_scrollbar(qapp):
         assert right < sp.viewport().width()
     finally:
         w.close()
+
+
+def test_view_does_not_jump_back_and_forth(qapp):
+    """1200 × 760 used to make the left axis switch between two widths ("-2.5" / "-2" labels): with
+    the aspect lock the y range changed with it, ~40 times a second, for ever."""
+    import time
+    w = make_window(qapp)
+    w.resize(1200, 760)
+    w.show()
+    changes = []
+    w.canvas.vb.sigRangeChanged.connect(lambda *a: changes.append(1))
+    t0 = time.time()
+    while time.time() - t0 < 0.6:
+        qapp.processEvents()
+    changes.clear()
+    t0 = time.time()
+    while time.time() - t0 < 0.8:
+        qapp.processEvents()
+    w.close()
+    assert len(changes) <= 1
+
+
+def test_paths_point_at_the_bundled_files():
+    import os
+    from app.paths import ASSETS_DIR, PRESETS_DIR
+    assert os.path.isdir(os.path.join(ASSETS_DIR, "fonts")) and os.path.isdir(PRESETS_DIR)

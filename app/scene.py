@@ -10,14 +10,12 @@ from __future__ import annotations
 
 import os
 import re
-import sys
 from dataclasses import dataclass
 
 from model import EXTENSION, SceneFileError, load_scene
 from physics import Doublet, Uniform, Vortex
 
-ROOT = getattr(sys, "_MEIPASS", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # exe: bundle dir
-PRESETS_DIR = os.path.join(ROOT, "presets")
+from .paths import PRESETS_DIR
 
 
 def starter_scene():
