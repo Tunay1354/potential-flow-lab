@@ -930,8 +930,13 @@ class PlotCanvas(QWidget):
     def update_fields(self):
         if self.is_dragging():
             return                                   # computed again when the element is released
-        self.fields.update(self.elements, self._view(), self.layers, self.field_quality, self.v_ref_override,
-                           self.density)
+        try:
+            self.fields.update(self.elements, self._view(), self.layers, self.field_quality,
+                               self.v_ref_override, self.density)
+        except Exception as exc:                     # never let a field layer break the window
+            self.fields.hide_all()
+            self.bar.message.emit(f"Field layers could not be drawn: {exc}")
+            return
         if self.fields.message:
             self.bar.message.emit(self.fields.message)
 

@@ -24,6 +24,13 @@ from physics.streamlines import view_spacing
 
 from .theme import FONT, first_family
 
+try:                                    # fast, smooth contours (pip install contourpy); without it: fallback
+    import contourpy
+    HAVE_CONTOURPY = True
+except ImportError:                     # pragma: no cover - depends on the installation
+    contourpy = None
+    HAVE_CONTOURPY = False
+
 MARGIN = 0.25                    # grid covers the view + 25 % on every side
 GRID_POINTS = {1: 150, 2: 240, 3: 400}      # points across the grid for Grid quality Low / Medium / High
 MAP_ALPHA = 0.82                 # opacity of the color maps (streamlines stay readable on top)
@@ -65,7 +72,8 @@ def cut_mask(f: np.ndarray, speed: np.ndarray, hx: float, hy: float, factor: flo
 def contour_xy(x, y, z, levels):
     """Contour lines of z (NaN = no data) at `levels`, as one (N, 2) array with NaN rows between
     lines (for one PlotCurveItem with connect='finite')."""
-    import contourpy
+    if not HAVE_CONTOURPY:
+        return _marching_squares(x, y, z, levels)
     zm = np.ma.masked_invalid(z)
     if zm.mask.all() or not len(levels):
         return np.zeros((0, 2))
@@ -80,11 +88,51 @@ def contour_xy(x, y, z, levels):
     return np.vstack(parts) if parts else np.zeros((0, 2))
 
 
+# marching squares (fallback without contourpy): which cell edges a contour joins, per corner case
+# corners: a (i, j), b (i+1, j), c (i+1, j+1), d (i, j+1); bit a=1 b=2 c=4 d=8
+# edges: 0 = a-b (bottom), 1 = b-c (right), 2 = d-c (top), 3 = a-d (left)
+_CASES = {1: ((3, 0),), 2: ((0, 1),), 3: ((3, 1),), 4: ((1, 2),), 5: ((3, 0), (1, 2)), 6: ((0, 2),),
+          7: ((3, 2),), 8: ((2, 3),), 9: ((0, 2),), 10: ((0, 1), (2, 3)), 11: ((1, 2),), 12: ((1, 3),),
+          13: ((0, 1),), 14: ((0, 3),)}
+
+
+def _marching_squares(x, y, z, levels):
+    """Contour lines as short straight pieces (two points + a NaN row each), NumPy only."""
+    a, b, c, d = z[:-1, :-1], z[:-1, 1:], z[1:, 1:], z[1:, :-1]
+    ok = np.isfinite(a) & np.isfinite(b) & np.isfinite(c) & np.isfinite(d)
+    X0, Y0 = np.meshgrid(x[:-1], y[:-1])
+    X1, Y1 = np.meshgrid(x[1:], y[1:])
+    out = []
+    with np.errstate(invalid="ignore", divide="ignore"):
+        for lev in levels:
+            case = ((a > lev) * 1 + (b > lev) * 2 + (c > lev) * 4 + (d > lev) * 8) * ok
+
+            def frac(v0, v1):
+                return np.clip((lev - v0) / (v1 - v0), 0.0, 1.0)
+
+            pts = {0: (X0 + frac(a, b) * (X1 - X0), Y0),
+                   1: (X1, Y0 + frac(b, c) * (Y1 - Y0)),
+                   2: (X0 + frac(d, c) * (X1 - X0), Y1),
+                   3: (X0, Y0 + frac(a, d) * (Y1 - Y0))}
+            for k, pairs in _CASES.items():
+                sel = case == k
+                if not sel.any():
+                    continue
+                for e0, e1 in pairs:
+                    n = int(sel.sum())
+                    seg = np.full((n, 3, 2), np.nan)
+                    seg[:, 0, 0], seg[:, 0, 1] = pts[e0][0][sel], pts[e0][1][sel]
+                    seg[:, 1, 0], seg[:, 1, 1] = pts[e1][0][sel], pts[e1][1][sel]
+                    out.append(seg.reshape(-1, 2))
+    return np.vstack(out) if out else np.zeros((0, 2))
+
+
 def filled_paths(x, y, z, edges):
     """Filled contour bands of z between consecutive `edges` (the first band is open downwards, the
     last upwards), as one QPainterPath per band (holes via the odd-even rule). Vector shapes: smooth
-    on the screen and sharp in SVG / PDF exports."""
-    import contourpy
+    on the screen and sharp in SVG / PDF exports. None without contourpy (then a pixel image is used)."""
+    if not HAVE_CONTOURPY:
+        return None
     zm = np.ma.masked_invalid(z)
     if zm.mask.all():
         return []
@@ -307,7 +355,11 @@ class FieldLayers:
             self._clear_map()
             return
         self._clear_map()
-        for path, c in zip(filled_paths(x, y, values, edges), colors):
+        paths = filled_paths(x, y, values, edges)
+        if paths is None:                                   # no contourpy: one pixel image of the bands
+            self._raster_bands(x, y, values, edges, colors)
+            paths = []
+        for path, c in zip(paths, colors):
             if path is None:
                 continue
             item = QGraphicsPathItem(path)
@@ -321,6 +373,18 @@ class FieldLayers:
         self.legend.set_bands(title, edges, colors)
         self.map_lines.setVisible(True)
         self.legend.setVisible(True)
+
+    def _raster_bands(self, x, y, values, edges, colors):
+        idx = np.clip(np.searchsorted(edges, values, side="right") - 1, 0, len(colors) - 1)
+        lut = np.array([(*c, int(255 * MAP_ALPHA)) for c in colors], dtype=np.uint8)
+        rgba = lut[idx]
+        rgba[~np.isfinite(values)] = (0, 0, 0, 0)
+        img = pg.ImageItem(np.ascontiguousarray(rgba.transpose(1, 0, 2)))
+        hx, hy = x[1] - x[0], y[1] - y[0]
+        img.setRect(QRectF(x[0] - hx / 2, y[0] - hy / 2, hx * len(x), hy * len(y)))
+        img.setZValue(-5)
+        self.plot.addItem(img)
+        self.bands.append(img)
 
     def _clear_map(self):
         for it in self.bands:

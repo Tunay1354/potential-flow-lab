@@ -185,3 +185,20 @@ def test_legend_is_in_exported_figures(win, tmp_path):
     assert any(isinstance(i, ColorLegend) and i.isVisible() for i in scene_items)
     render_figure(win.canvas, str(tmp_path / "f.svg"), "svg")
     assert "|V|" in open(tmp_path / "f.svg", encoding="utf-8").read()
+
+
+def test_works_without_contourpy(fl, monkeypatch):
+    """Without the optional contourpy package: φ lines from a NumPy marching-squares fallback and the
+    bands as one pixel image — nothing fails."""
+    import app.field_layers as mod
+    from physics import Doublet, Uniform
+    xs = np.linspace(-2, 2, 41)
+    X, Y = np.meshgrid(xs, xs)
+    ref = mod.contour_xy(xs, xs, X, [0.5])
+    monkeypatch.setattr(mod, "HAVE_CONTOURPY", False)
+    pieces = mod.contour_xy(xs, xs, X, [0.5])
+    pts = pieces[np.isfinite(pieces[:, 0])]
+    assert len(pts) and np.allclose(pts[:, 0], 0.5)                  # the line x = 0.5
+    assert np.ptp(pts[:, 1]) == pytest.approx(np.ptp(ref[np.isfinite(ref[:, 0]), 1]))
+    fl.update([Uniform(), Doublet(mu=1.0)], VIEW, {"equipotential": True, "speed": True})
+    assert fl.phi.isVisible() and len(fl.bands) == 1 and fl.legend.isVisible()
