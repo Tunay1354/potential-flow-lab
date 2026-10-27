@@ -342,6 +342,23 @@ class SettingsPanel(QScrollArea):
                 w.setValue(int(min(max(val, w.minimum()), w.maximum())))
             w.blockSignals(False)
 
+    def set_cp_available(self, available: bool):
+        """The Cp layer needs a reference speed (V∞ of a uniform flow, or a custom V_ref)."""
+        box = self.layer_boxes["cp"]
+        base = dict((k, t) for k, t, _on, _r in LAYERS)["cp"]
+        box.setText(base if available else base + "  — needs V_ref")
+        box.setToolTip("" if available else "This scene has no uniform flow (V∞): set a custom V_ref in "
+                       "Computation → Cp reference")
+
+    def show_cp_reference(self):
+        """Bring the V_ref field into view: Computation section shown, 'Custom' chosen, field focused."""
+        self.set_section_visible("computation", True)
+        if self.c_cp_ref.currentIndex() != 1:
+            self.c_cp_ref.setCurrentIndex(1)            # emits cp_reference_changed with the current V_ref
+        self.ensureWidgetVisible(self.s_vref)
+        self.s_vref.setFocus()
+        self.s_vref.selectAll()
+
     def _cp_reference_edited(self, *_):
         custom = self.c_cp_ref.currentIndex() == 1
         self.s_vref.setEnabled(custom)

@@ -208,6 +208,7 @@ class PlotCanvas(QWidget):
     element_moved = Signal(int, object)  # Move mode: element index, the moved copy (released)
     element_dropped = Signal(str, object)   # palette drag: element type, (x, y) or None (no position)
     mode_changed = Signal(str)          # mouse mode: "select", "move", "pan"
+    cp_reference_requested = Signal()   # the "Set V_ref" note of the Cp legend was clicked
 
     def __init__(self, theme: dict, elements: list, parent=None):
         super().__init__(parent)
@@ -289,6 +290,7 @@ class PlotCanvas(QWidget):
                        "equipotential": False, "speed": False, "cp": False}
         # field layers (φ lines, |V| / Cp color maps): computed on a grid when the view settles
         self.fields = FieldLayers(self.plot, self.vb)
+        self.fields.legend.clicked = self.cp_reference_requested.emit
         self.field_quality = 2                   # Grid quality: 1 low, 2 medium, 3 high
         self.v_ref_override = None               # Cp reference speed set by the user (None = V∞)
         self._field_timer = QTimer(self)

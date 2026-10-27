@@ -107,6 +107,10 @@ Teslim: yaklaşık 26 Kasım 2026 (rapor + user guide + canlı demo).
     - Ayarlar sahne dosyasına kaydedilir (field_quality, cp_reference)
     - Probe: u, v, |V|, Cp yanında φ ve ψ
     - Sürüklerken alan katmanları da soluklaşır, bırakınca yeniden hesaplanır
+    - V∞ olmayan sahnede (sink, source + wall, sector) Cp: lejant yerine açıklama kartı, tıklayınca
+      Computation → Custom V_ref açılır; Cp kutusunda "— needs V_ref" yazar
+    - Bantlar tekil noktaya kadar dolu (ortada ızgaraya bağlı sekizgen boşluk yok); lejant aralığı
+      görünen akışkandan, tekil noktalardan uzakta ve medyan hıza göre sınırlı (zoom'da patlamaz); Cp lejantı tam 1'de biter
 11. ☐ **Faz 4b — Animasyon** [5]: parçacıklar ve / veya çizgi üstünde kayan desen, 60 fps hedefi,
     ayarları sonradan değiştirilebilir; (isteğe bağlı) cismin içindeki çizgileri gizleme / cismi doldurma
 12. ☐ **Paket E2 — Animasyon performansı**: profiling, gerekirse OpenGL (ekran kartı) çizim, animasyon ile arka

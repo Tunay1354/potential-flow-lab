@@ -19,7 +19,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import QGraphicsPathItem
 
-from physics.field import compute_field, complex_potential
+from physics.field import complex_potential, compute_field, fluid_mask, singularity_mask
 from physics.streamlines import view_spacing
 
 from .theme import FONT, first_family
@@ -191,17 +191,69 @@ class ColorLegend(pg.GraphicsWidgetAnchor, pg.GraphicsWidget):
         self.theme = None
         self.title = ""
         self.edges, self.colors = [], []
+        self.note = None                  # (text, link): a message instead of the color bands
+        self.clicked = None               # called when the note's link is clicked
         self.setZValue(20)
 
     def set_bands(self, title, edges, colors):
         self.title, self.edges, self.colors = title, list(edges), list(colors)
+        self.note = None
+        self._resize(self.W, self.H)
+        self.unsetCursor()
         self.update()
 
+    def set_note(self, title, text, link):
+        """A small card with a message (e.g. Cp without reference speed) and a clickable action."""
+        self.title, self.note = title, (text, link)
+        self.edges, self.colors = [], []
+        self._resize(206, 96)
+        self.setCursor(Qt.PointingHandCursor)
+        self.update()
+
+    def _resize(self, w, h):
+        self.prepareGeometryChange()
+        self.setFixedWidth(w)
+        self.setFixedHeight(h)
+
     def boundingRect(self):
-        return QRectF(0, 0, self.W, self.H)
+        return QRectF(0, 0, self.width(), self.height())
+
+    def mouseClickEvent(self, ev):                    # pyqtgraph's click event
+        if self.note is not None and self.clicked is not None and ev.button() == Qt.LeftButton:
+            ev.accept()
+            self.clicked()
+
+    def _paint_note(self, p):
+        t = self.theme
+        w, h = self.width(), self.height()
+        p.setPen(QPen(QColor(t["accent"]), 1))
+        p.setBrush(QColor(t["panel_bg"]))
+        p.drawRect(QRectF(0.5, 0.5, w - 1, h - 1))
+        mono = QFont(first_family("mono"))
+        mono.setPointSizeF(FONT["mono_size_pt"] - 1.5)
+        body = QFont(first_family("families"))
+        body.setPointSizeF(FONT["size_pt"] - 1.5)
+        p.setFont(mono)
+        p.setPen(QColor(t["text"]))
+        p.drawText(QRectF(10, 6, w - 20, 16), Qt.AlignLeft | Qt.AlignVCenter, self.title)
+        p.setFont(body)
+        text, link = self.note
+        p.drawText(QRectF(10, 24, w - 20, h - 46), Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap, text)
+        link_font = QFont(body)
+        link_font.setUnderline(True)
+        link_font.setWeight(QFont.DemiBold)
+        p.setFont(link_font)
+        p.setPen(QColor(t["accent"]))
+        p.drawText(QRectF(10, h - 22, w - 20, 16), Qt.AlignLeft | Qt.AlignVCenter, link)
 
     def paint(self, p, *args):
-        if self.theme is None or len(self.edges) < 2:
+        if self.theme is None:
+            return
+        if self.note is not None:
+            p.setRenderHint(QPainter.Antialiasing, False)
+            self._paint_note(p)
+            return
+        if len(self.edges) < 2:
             return
         t = self.theme
         p.setRenderHint(QPainter.Antialiasing, False)
@@ -303,15 +355,19 @@ class FieldLayers:
         gy = (y0 - MARGIN * H, y1 + MARGIN * H)
         nx = GRID_POINTS.get(int(quality), 240)
         ny = max(20, int(round(nx * (gy[1] - gy[0]) / (gx[1] - gx[0]))))
-        f = compute_field(elements, gx, gy, nx, ny)
+        # only the singular points themselves are left out (the color bands are filled up to them);
+        # the φ lines keep away from them (see near_singular)
+        f = compute_field(elements, gx, gy, nx, ny, mask_radius=1e-9 * (gx[1] - gx[0]))
         self.covered = (gx[0], gx[1], gy[0], gy[1])
         x, y = f.grid.x, f.grid.y
         speed = f.speed
+        fluid = fluid_mask(elements, f.grid.Z)
+        near_singular = singularity_mask(elements, f.grid.Z, 1.5 * f.grid.spacing)
 
         # equipotential lines
         if want_phi:
             phi = complex_potential(elements, f.grid.Z).real
-            phi[f.mask] = np.nan
+            phi[f.mask | near_singular | ~fluid] = np.nan
             hx, hy = x[1] - x[0], y[1] - y[0]
             phi[cut_mask(phi, speed, hx, hy)] = np.nan
             inview = (f.grid.X >= x0) & (f.grid.X <= x1) & (f.grid.Y >= y0) & (f.grid.Y <= y1)
@@ -338,22 +394,39 @@ class FieldLayers:
         if want_map is None:
             self._clear_map()
             return
+        # the legend range comes from the visible fluid, away from singular points (otherwise a zoom
+        # near a source or into a body would stretch it to huge values and wash out the bands)
+        inview = (f.grid.X >= x0) & (f.grid.X <= x1) & (f.grid.Y >= y0) & (f.grid.Y <= y1)
+        keep_off = max(3 * f.grid.spacing, 0.04 * (x1 - x0))
+        sample = fluid & inview & ~singularity_mask(elements, f.grid.Z, keep_off) & np.isfinite(speed)
+        if not sample.any():
+            sample = fluid & inview & np.isfinite(speed)
         if want_map == "cp":
             v_ref = v_ref or f.v_ref
             if not v_ref:
                 self.message = "Cp needs a reference speed: add a uniform flow or set V_ref in Computation."
                 self._clear_map()
+                self.legend.set_note("Cp", "Cp = 1 − (V / V∞)² needs a reference speed. This scene has no "
+                                     "uniform flow (V∞).", "Set V_ref in Computation  →")
+                self.legend.setVisible(True)
                 return
             values = 1.0 - (speed / v_ref) ** 2
-            edges, colors = self._cp_bands(values)
+            edges, colors = self._cp_bands(values[sample])
             title = "Cp"
         else:
             values = speed
-            edges, colors = self._speed_bands(values)
+            edges, colors = self._speed_bands(values[sample])
             title = "|V|  [m/s]"
         if len(edges) < 2:
             self._clear_map()
+            self.legend.setVisible(False)
             return
+        # next to a singular point |V| -> ∞ (Cp -> −∞): beyond the legend, so the last (first) band
+        # is filled right up to the point instead of leaving a hole whose shape depends on the grid
+        span = edges[-1] - edges[0]
+        lo_cap, hi_cap = edges[0] - span, edges[-1] + span
+        values = np.where(fluid & ~np.isfinite(values), lo_cap if want_map == "cp" else hi_cap, values)
+        values = np.where(fluid, np.clip(values, lo_cap, hi_cap), np.nan)
         self._clear_map()
         paths = filled_paths(x, y, values, edges)
         if paths is None:                                   # no contourpy: one pixel image of the bands
@@ -398,7 +471,10 @@ class FieldLayers:
         vals = speed[np.isfinite(speed)]
         if not vals.size:
             return [], []
-        hi = float(np.percentile(vals, 98))
+        # robust top: faster points (next to singular points) simply fall into the last band
+        hi = float(min(np.percentile(vals, 98), CROWD_SPEED * np.median(vals)))
+        if not hi > 0:
+            hi = float(vals.max()) or 1.0
         step = nice_step(hi, BANDS)
         top = max(step, math.ceil(hi / step) * step)
         edges = np.arange(0.0, top + 0.5 * step, step)       # faster points: in the last band
@@ -410,12 +486,13 @@ class FieldLayers:
         vals = cp[np.isfinite(cp)]
         if not vals.size:
             return [], []
-        lo = float(min(np.percentile(vals, 2), -0.25))
+        # 1 − Cp ∝ V², so the same robust cap as for |V| (at most CROWD_SPEED × the median speed)
+        floor = 1.0 - CROWD_SPEED ** 2 * max(float(np.median(1.0 - vals)), 0.0)
+        lo = float(min(max(np.percentile(vals, 2), floor), -0.25))
         step = nice_step(1.0 - lo, BANDS)
         bottom = math.floor(lo / step) * step
-        edges = list(np.arange(bottom, 1.0 + 0.5 * step, step))
-        if edges[-1] < 1.0 - 1e-9:
-            edges.append(edges[-1] + step)
+        edges = [e for e in np.arange(bottom, 1.0 + 0.5 * step, step) if e < 1.0 - 0.25 * step]
+        edges.append(1.0)                                   # Cp ≤ 1 everywhere (1 = stagnation)
         neg, mid, pos = self.theme["map_cp"]
         colors = []
         for a, b in zip(edges[:-1], edges[1:]):

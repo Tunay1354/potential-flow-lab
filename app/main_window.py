@@ -108,7 +108,9 @@ class MainWindow(QMainWindow):
         sp.arrows_changed.connect(cv.set_arrows)
         sp.layer_changed.connect(self._layer_changed)
         sp.field_quality_changed.connect(cv.set_field_quality)
-        sp.cp_reference_changed.connect(lambda v: (cv.set_cp_reference(v), self._update_probe(self._last_probe)))
+        sp.cp_reference_changed.connect(lambda v: (cv.set_cp_reference(v), self._update_probe(self._last_probe),
+                                                   self._update_cp_available()))
+        cv.cp_reference_requested.connect(self._show_cp_reference)
         sp.view_edited.connect(cv.set_view)
         sp.fit_requested.connect(cv.fit_view)
         cv.view_changed.connect(sp.set_view)
@@ -507,12 +509,24 @@ class MainWindow(QMainWindow):
         self.issue_label = QLabel("")
         self.count_label = QLabel("")
         sb.addPermanentWidget(self.probe_label)
+        # a message (e.g. "Moved vortex — Ctrl+Z to undo") gets the room of the probe text while shown
+        sb.messageChanged.connect(lambda text: self.probe_label.setVisible(not text))
         sb.addPermanentWidget(self.issue_label)
         sb.addPermanentWidget(self.count_label)
 
     # ------------------------------------------------------------------ model -> view
+    def _update_cp_available(self):
+        self.settings_panel.set_cp_available(self.canvas.cp_reference() is not None)
+
+    def _show_cp_reference(self):
+        if not self.dock_settings.isVisible():
+            self.dock_settings.show()
+        self.settings_panel.show_cp_reference()
+        self.flash("Enter a reference speed V_ref for Cp (Computation → Cp reference).")
+
     def _on_model_changed(self, focus):
         self.elements_panel.set_elements(self.elements, select=focus)
+        self._update_cp_available()
         self.dock_elements.titleBarWidget().note.setText(
             f"{len(self.elements)} ITEM{'' if len(self.elements) == 1 else 'S'}")
         self._rebuild_elements_menu()

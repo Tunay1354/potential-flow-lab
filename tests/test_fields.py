@@ -104,6 +104,60 @@ def test_cp_needs_a_reference_speed(fl):
     assert fl.bands and fl.legend.title == "Cp" and fl.legend.edges[-1] >= 1.0 - 1e-9
 
 
+def test_cp_without_reference_shows_a_note_instead_of_the_legend(fl):
+    from physics import Source
+    fl.update([Source(m=-2.0)], VIEW, {"cp": True})
+    assert fl.legend.isVisible() and fl.legend.note is not None and not fl.legend.edges
+    assert "V_ref" in fl.legend.note[1]
+    called = []
+    fl.legend.clicked = lambda: called.append(1)
+
+    class Click:                                   # stand-in for pyqtgraph's MouseClickEvent
+        def button(self):
+            from PySide6.QtCore import Qt
+            return Qt.LeftButton
+
+        def accept(self):
+            pass
+    fl.legend.mouseClickEvent(Click())
+    assert called
+    fl.update([Source(m=-2.0)], VIEW, {"cp": True}, v_ref=1.0)
+    assert fl.legend.note is None and fl.bands
+
+
+@pytest.mark.parametrize("m", [2.0, -2.0])
+def test_bands_are_filled_up_to_a_singular_point(fl, m):
+    """No hole (whose shape depends on the grid) around a source or sink: the fastest band reaches
+    the point itself."""
+    from PySide6.QtCore import QPointF
+    from physics import Source
+    fl.update([Source(m=m)], VIEW, {"speed": True})
+    for r in (0.02, 0.05, 0.1):
+        assert any(b.path().contains(QPointF(r, 0.3 * r)) for b in fl.bands), r
+    last = fl.bands[-1].path()
+    assert last.contains(QPointF(0.03, 0.01))      # in the last (fastest) band
+
+
+@pytest.mark.parametrize("view", [((-0.5, 0.5), (-0.3, 0.3)), ((-0.05, 0.05), (-0.03, 0.03))])
+def test_legend_range_stays_sensible_when_zoomed_near_a_singular_point(fl, view):
+    from physics import Doublet, Source, Uniform
+    fl.update([Source(m=2.0)], view, {"speed": True})
+    edges = fl.legend.edges
+    w = view[0][1] - view[0][0]
+    typical = 2.0 / (2 * np.pi * 0.25 * w)                            # |V| a quarter view away
+    assert edges[-1] <= 6 * typical and len(edges) - 1 <= 20
+    fl.update([Uniform(), Doublet(mu=1.0)], view, {"cp": True})
+    edges = fl.legend.edges
+    assert edges[-1] == 1.0 and len(edges) - 1 <= 20
+
+
+def test_cp_legend_ends_at_one(fl):
+    from physics import Doublet, Uniform
+    for view in (VIEW, ((-0.5, 0.5), (-0.3, 0.3))):
+        fl.update([Uniform(), Doublet(mu=1.0)], view, {"cp": True})
+        assert fl.legend.edges[-1] == 1.0 and fl.legend.edges[-2] < 1.0
+
+
 def test_layers_off_hide_everything(fl):
     from physics import Uniform
     fl.update([Uniform()], VIEW, {"equipotential": True, "speed": True})
@@ -134,6 +188,41 @@ def test_one_color_map_at_a_time(win, qapp):
     assert not boxes["speed"].isChecked() and win.canvas.layers["cp"] and not win.canvas.layers["speed"]
     assert win.layer_actions["cp"].isChecked() and not win.layer_actions["speed"].isChecked()
     assert win.canvas.fields.legend.title == "Cp"
+
+
+def test_cp_checkbox_says_when_a_reference_is_needed(win, qapp):
+    from physics import Source, Uniform
+    box = win.settings_panel.layer_boxes["cp"]
+    win.load_scene([Source(m=-2.0)], VIEW, title="sink")
+    assert "needs V_ref" in box.text()
+    win.load_scene([Uniform(), Source(m=1.0)], VIEW, title="half body")
+    assert "needs V_ref" not in box.text()
+    win.load_scene([Source(m=-2.0)], VIEW, title="sink")
+    win.settings_panel.c_cp_ref.setCurrentIndex(1)                   # a custom V_ref is enough
+    assert "needs V_ref" not in box.text()
+
+
+def test_clicking_the_cp_note_opens_the_reference_setting(win, qapp):
+    from physics import Source
+    sp, cv = win.settings_panel, win.canvas
+    win.load_scene([Source(m=-2.0)], VIEW, title="sink")
+    sp.set_section_visible("computation", False)
+    sp.layer_boxes["cp"].setChecked(True)
+    cv.update_fields()
+    assert cv.fields.legend.note is not None
+    cv.fields.legend.clicked()
+    assert sp.section_visible("computation") and sp.c_cp_ref.currentIndex() == 1
+    assert cv.v_ref_override == sp.s_vref.value()
+    cv.update_fields()
+    assert cv.fields.legend.note is None and cv.fields.bands
+
+
+def test_status_message_hides_the_probe_readout(win, qapp):
+    win._update_probe((-3.0, 2.0))
+    win.flash("hello")
+    assert not win.probe_label.isVisibleTo(win)
+    win.statusBar().clearMessage()
+    assert win.probe_label.isVisibleTo(win)
 
 
 def test_custom_cp_reference_and_grid_quality_are_saved(win, qapp, tmp_path):
