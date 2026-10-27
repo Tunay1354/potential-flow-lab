@@ -107,7 +107,7 @@ def find_stagnation_points(elements, region, classify: bool = True, scale: float
     bdist = _boundary_distance(els, z)
     points = [StagnationPoint(complex(v), "vertex") for v in vertices]
     points += [StagnationPoint(complex(p), "wall" if b < 1e-6 * L else "flow") for p, b in zip(z, bdist)]
-    if classify and reference_speed(els) is not None:
+    if classify and has_free_stream(els):
         points = _classify_bodies(els, points, region, L)
     points.sort(key=lambda p: (round(p.x, 9), round(p.y, 9)))
     return points
@@ -192,24 +192,54 @@ def _boundary_distance(els, z) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------- bodies
-def bodies_box(els, margin: float = 4.0):
-    """A box round every source, doublet and vortex, `margin` × the size of its body (cylinder
-    radius √(μ/V∞), half-body width m/V∞, stagnation point distance Γ/(2πV∞)); None without a free
-    stream or such elements."""
-    v = reference_speed(els) if els else None
+def has_free_stream(els) -> bool:
+    """Fluid comes from far away: a uniform flow, or a sector flow (corner flow …). Without it there
+    are no bodies (all fluid comes out of the sources)."""
+    return reference_speed(els) is not None or any(e.TYPE == "sector" and e.V != 0 for e in els)
+
+
+def _stream_speed(els, p) -> float | None:
+    """Speed of the free stream at the point p: |V∞|, or the speed of the sector flow(s) there."""
+    v = reference_speed(els)
+    if v:
+        return v
+    far = resolve([e for e in els if e.TYPE == "sector"])
+    if not far:
+        return None
+    for z in (p, p + abs(p) + 1.0):                       # (at a corner vertex the speed is 0)
+        with np.errstate(all="ignore"):
+            w = abs(complex_velocity(far, np.array([z], complex))[0])
+        if np.isfinite(w) and w > 0:
+            return float(w)
+    return None
+
+
+def body_size(els, e, p) -> float | None:
+    """Size of the body (or ring of turning fluid) an element would make in the free stream at its
+    point p: cylinder radius √(μ/V), half-body width m/V, stagnation distance Γ/(2πV)."""
+    v = _stream_speed(els, p)
     if not v:
+        return None
+    if e.TYPE == "doublet":
+        return float(np.sqrt(abs(e.mu) / v))
+    if e.TYPE == "source":
+        return abs(e.m) / v
+    if e.TYPE == "vortex":
+        return abs(e.Gamma) / (2.0 * np.pi * v)
+    return None
+
+
+def bodies_box(els, margin: float = 4.0):
+    """A box round every source, doublet and vortex, `margin` × the size of its body (body_size);
+    None without a free stream or such elements."""
+    if not els or not has_free_stream(els):
         return None
     box = None
     for e in els:
-        if e.TYPE == "doublet":
-            size = np.sqrt(abs(e.mu) / v)
-        elif e.TYPE == "source":
-            size = abs(e.m) / v
-        elif e.TYPE == "vortex":
-            size = abs(e.Gamma) / (2.0 * np.pi * v)
-        else:
-            continue
-        for p in e.singular_points():
+        for p in (e.singular_points() if e.TYPE in ("doublet", "source", "vortex") else ()):
+            size = body_size(els, e, p)
+            if not size:
+                continue
             r = margin * size
             b = (p.real - r, p.real + r, p.imag - r, p.imag + r)
             box = b if box is None else (min(box[0], b[0]), max(box[1], b[1]), min(box[2], b[2]), max(box[3], b[3]))
@@ -236,7 +266,7 @@ def _tracer(els, scale):
 
 
 # where the fluid at a point comes from (the streamline through it, followed backwards)
-FAR, LOOP, BODY, STOPPED = 0, 1, 2, 3
+FAR, LOOP, BODY, STOPPED, OPEN = 0, 1, 2, 3, 4
 MASS_TYPES = ("source", "doublet")            # elements that make bodies (a vortex alone does not)
 
 
@@ -246,6 +276,8 @@ def trace_origin(elements, z, region, scale=None) -> np.ndarray:
         BODY  it starts at a source or a doublet, or turns in a closed loop round one: fluid of a
               body (inside a cylinder or a Rankine oval / half-body; with a fast-spinning cylinder
               also the ring of fluid that turns with it)
+        OPEN  it starts at a source or a doublet that the free stream passes THROUGH (open_elements:
+              a doublet not along the flow at it, a tilted source–sink pair): real flow, no body
         LOOP  any other closed loop (e.g. round a free vortex in a uniform flow): real flow, no body
         STOPPED the line stopped anywhere else (e.g. next to a stagnation point, where the flow is
               too slow to follow): unknown
@@ -259,11 +291,29 @@ def trace_ends(elements, z, region, scale=None, sign: float = -1.0):
     (+1: where the fluid GOES; BODY = into a sink or a doublet). Returns (kinds, element): element =
     index (in active(elements)) of the source / doublet the line ends at, −1 if none."""
     els = active(elements)
+    out, which, loops = _trace_raw(els, z, region, scale, sign)
+    if not ((out == BODY).any()):
+        return out, which
+    opened = open_elements(els)
+    if opened:
+        for k in np.nonzero(out == BODY)[0]:
+            owners = loops.get(k)                       # closed loop: the mass elements it goes round
+            if owners is not None:
+                if all(i in opened for i in owners):
+                    out[k] = OPEN
+            elif which[k] in opened:
+                out[k] = OPEN
+    return out, which
+
+
+def _trace_raw(els, z, region, scale, sign):
+    """trace_ends without open_elements: (kinds, element, {line: elements a BODY loop goes round})."""
     z = np.atleast_1d(np.asarray(z, complex))
     out = np.full(z.size, STOPPED, dtype=np.int8)
     which = np.full(z.size, -1, dtype=np.int64)
+    loops = {}
     if z.size == 0:
-        return out, which
+        return out, which, loops
     x0, x1, y0, y1 = region
     tracer = _tracer(els, scale or max(x1 - x0, y1 - y0))
     lines, closed, left = tracer.free_trace(z, sign, _far_field_box(region, els))
@@ -272,21 +322,104 @@ def trace_ends(elements, z, region, scale=None, sign: float = -1.0):
     out[~left & closed] = LOOP
     owner = [(i, p) for i, e in enumerate(els) if e.TYPE in MASS_TYPES for p in e.singular_points()]
     if not owner:
-        return out, which
+        return out, which, loops
     mass = np.array([p for _i, p in owner], dtype=complex)
     reach = 4.0 * tracer.r_sing                         # lines stop r_sing before a singular point
     for k in np.nonzero(~left)[0]:
         ln = lines[k]
         if closed[k]:
-            if len(ln) > 2 and _encloses(ln, mass).any():
-                out[k] = BODY
+            if len(ln) > 2:
+                inside = _encloses(ln, mass)
+                if inside.any():
+                    out[k] = BODY
+                    loops[k] = {owner[j][0] for j in np.nonzero(inside)[0]}
         else:
             end = ln[-1] if len(ln) else z[k]
             d = np.abs(mass - end)
             if np.min(d) < reach:
                 out[k] = BODY
                 which[k] = owner[int(np.argmin(d))][0]
-    return out, which
+    return out, which, loops
+
+
+# ---------------------------------------------------------------------- free stream through a body?
+RING_POINTS = 64                 # open_elements: points round every source / doublet
+_OPEN_CACHE: dict = {}
+
+
+def open_elements(elements) -> frozenset:
+    """The sources / doublets (indices in active(elements)) the free stream passes THROUGH, which
+    therefore make no body. A real body cannot swallow the free stream: free-stream fluid flowing into
+    a sink or a doublet (a doublet not along the flow at it — δ ≠ α, or a vortex beside it turns the
+    flow there —, a source–sink pair across the flow) means that what looks like a body has the free
+    stream going in at one place and out at another.
+    Test: streamlines from a small ring round every source / doublet, followed both ways. Elements
+    whose fluid reaches each other form a group; a group is open when free-stream fluid flows into
+    one of its sinks / doublets, or when its fluid goes off to the far field although its sources do
+    not give more than its sinks take in. (A source with more outflow — the Rankine half-body — is no
+    such case: its body is open downstream.) Depends on the scene only, not on the view: the same
+    answer at every zoom (cached per scene)."""
+    els = active(elements)
+    if not has_free_stream(els):
+        return frozenset()
+    import json
+    key = tuple(json.dumps(e.to_dict(), sort_keys=True) for e in els)
+    hit = _OPEN_CACHE.get(key)
+    if hit is not None:
+        return hit
+    mass = [(i, complex(p)) for i, e in enumerate(els) if e.TYPE in MASS_TYPES for p in e.singular_points()]
+    sing = np.array(singular_points(els), dtype=complex)
+    parent = {i: i for i, _p in mass}
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    takes_far, sends_far = set(), set()
+    for i, p in mass:
+        e = els[i]
+        if (e.TYPE == "source" and e.m == 0) or (e.TYPE == "doublet" and e.mu == 0):
+            continue
+        size = body_size(els, e, p)
+        if not size:
+            continue
+        # well inside the fluid the element owns: 0.3 × the cylinder radius, 0.2 × the distance of a
+        # half-body's stagnation point m/(2πV)
+        r = 0.3 * size if e.TYPE == "doublet" else 0.2 * size / (2.0 * np.pi)
+        others = np.abs(sing - p)
+        others = others[others > 1e-9 * (1.0 + abs(p))]
+        if others.size:
+            r = min(r, 0.3 * float(others.min()))
+        ring = p + r * np.exp(2j * np.pi * (np.arange(RING_POINTS) + 0.5) / RING_POINTS)
+        ring = ring[fluid_mask(els, ring)]
+        if not ring.size:
+            continue
+        region = (p.real - r, p.real + r, p.imag - r, p.imag + r)
+        for sign, far_set in ((-1.0, takes_far), (1.0, sends_far)):
+            kinds, ends, _loops = _trace_raw(els, ring, region, 20.0 * r, sign)
+            if (kinds == FAR).any():
+                far_set.add(i)
+            for j in set(ends[ends >= 0].tolist()):
+                if j in parent:
+                    parent[find(j)] = find(i)
+    groups: dict = {}
+    for i, _p in mass:
+        groups.setdefault(find(i), set()).add(i)
+    opened = set()
+    for members in groups.values():
+        net = sum(els[i].m for i in members if els[i].TYPE == "source")
+        scale = sum(abs(els[i].m) for i in members if els[i].TYPE == "source")
+        takes = any(i in takes_far and not (els[i].TYPE == "source" and els[i].m > 0) for i in members)
+        through = net <= 1e-9 * (1.0 + scale) and any(i in sends_far for i in members)
+        if takes or through:
+            opened |= members
+    out = frozenset(opened)
+    if len(_OPEN_CACHE) > 16:
+        _OPEN_CACHE.clear()
+    _OPEN_CACHE[key] = out
+    return out
 
 
 def _encloses(ring, pts) -> np.ndarray:
@@ -441,7 +574,7 @@ def flow_features(elements, region, dividing: bool = True, scale: float | None =
     L = scale or max(x1 - x0, y1 - y0)
     sing = [complex(s) for s in singular_points(els)]
     zs = [p.z for p in points]
-    has_stream = reference_speed(els) is not None
+    has_stream = has_free_stream(els)
     tracer = _tracer(els, L)
     box = (x0, x1, y0, y1)
     for k, p in enumerate(points):
@@ -465,7 +598,7 @@ def flow_features(elements, region, dividing: bool = True, scale: float | None =
             u = (starts - p.z) / r
             probes = np.concatenate([starts, starts + 0.3 * r * 1j * u, starts - 0.3 * r * 1j * u])
             origin = trace_origin(els, probes, region, L).reshape(3, -1)
-            keep = ((origin == FAR) | (origin == LOOP)).any(axis=0)
+            keep = ((origin == FAR) | (origin == LOOP) | (origin == OPEN)).any(axis=0)
             starts, signs = starts[keep], signs[keep]
             if not starts.size:
                 continue

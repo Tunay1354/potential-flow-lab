@@ -4,14 +4,15 @@ bodies.py — the solid bodies of a scene: where they are (a picture of a region
 In potential flow a body is not a solid object: its surface is a streamline that closes around sources
 or doublets, and the mathematics also gives a (fictitious) flow inside it. The body is the fluid whose
 streamline, followed backwards, starts at a source or a doublet, or turns round one
-(stagnation.trace_origin, BODY): the inside of a cylinder, a Rankine oval or a Rankine half-body.
-Fluid turning round a free vortex is real flow; fluid from far upstream is the free stream. Without a
-free stream (no uniform flow) there are no bodies. Fluid that comes out of a doublet (or a source
-paired with an equal sink) and goes off downstream is no body either: it passed through them (a
-doublet not aligned with the uniform flow, δ ≠ α, takes in a band of the free stream and lets it out
-again). Behind a source with more outflow than the sinks take in it is: the Rankine half-body. (A fast-spinning cylinder, Γ > 4πV∞a: the ring of
-fluid that turns with it belongs to the body too: nothing in the flow tells it apart from the
-cylinder, whose surface r = a is then an ordinary closed streamline.)
+(stagnation.trace_origin, BODY): the inside of a cylinder, a Rankine oval or a Rankine half-body (also
+in a corner flow). Fluid turning round a free vortex is real flow; fluid from far away is the free
+stream (a uniform flow or a sector flow). Without a free stream there are no bodies.
+A source / doublet the free stream passes THROUGH makes no body (stagnation.open_elements, OPEN): a
+doublet not along the flow at it (δ ≠ α, or a vortex beside it turning the flow there), a source–sink
+pair across the flow. That is decided per element, for the whole scene, so the picture is the same at
+every zoom. (A fast-spinning cylinder, Γ > 4πV∞a: the ring of fluid that turns with it belongs to the
+body too: nothing in the flow tells it apart from the cylinder, whose surface r = a is then an
+ordinary closed streamline.)
 
 How (body_map): the region is cut into cells (for the plot: the screen pixels). The dividing
 streamlines are drawn into the cells as barriers; the cells between them form regions (connected
@@ -29,13 +30,11 @@ from dataclasses import dataclass
 import numpy as np
 
 from . import kernel
-from .field import active, fluid_mask, reference_speed, singular_points
-from .stagnation import BODY, FAR, STOPPED, trace_ends
+from .field import active, fluid_mask, singular_points
+from .stagnation import BODY, STOPPED, has_free_stream, trace_ends
 
 SAMPLES = 5                      # cells traced per region
 MIN_CELLS = 12                   # smaller regions (slivers between two dividing lines) stay free stream
-PASS_SAMPLES = 16                # through-flow test: cells traced both ways per body region
-PASS_SHARE = 0.25                # … more than this share coming from / going to the far field: no body
 PROBE_CELLS = 3.0                # surface test: this many cells to each side of a line
 
 
@@ -132,7 +131,7 @@ def body_map(elements, box, shape, dividing, rng=None, hint: BodyMap | None = No
     anything (zoomed in next to a stagnation point the flow is too slow to follow). None if the scene
     has no free stream."""
     els = active(elements)
-    if reference_speed(els) is None:
+    if not has_free_stream(els):
         return None
     box = tuple(map(float, box))
     rng = rng or np.random.default_rng(1)
@@ -187,24 +186,6 @@ def _classify(els, box, labels, n, x, y, rng, hint=None) -> np.ndarray:
             body[k] = kinds[np.argmax(num)] == BODY
         elif hint is not None:                           # nothing known: as in the coarse map
             body[k] = hint.contains(seeds[owner == k]).mean() > 0.5
-    # Fluid of a body that goes off to the far field: behind a source (a Rankine half-body) the body
-    # really is open downstream. But when the sources do not give more than the sinks take in (a
-    # doublet, a source–sink pair), such fluid has passed THROUGH the singular points: a doublet not
-    # aligned with the uniform flow (δ ≠ α), or a tilted source–sink pair, takes in a band of the
-    # free stream and lets it out again downstream. That is no solid body.
-    net = sum(e.m for e in els if e.TYPE == "source")
-    if net > 1e-9 * (1.0 + sum(abs(e.m) for e in els if e.TYPE == "source")):
-        return body
-    for k in np.nonzero(body)[0]:                       # through-flow: free-stream fluid in the region
-        cells = order[starts[k]:starts[k + 1]]
-        pick = rng.choice(cells, size=min(PASS_SAMPLES, cells.size), replace=False)
-        z = x[pick % cols] + 1j * y[pick // cols]
-        came, _ = trace_ends(els, z, box, width, -1.0)
-        goes, _ = trace_ends(els, z, box, width, 1.0)
-        known = (came != STOPPED) & (goes != STOPPED)
-        far = known & ((came == FAR) | (goes == FAR))
-        if known.any() and far.sum() > PASS_SHARE * known.sum():
-            body[k] = False
     return body
 
 

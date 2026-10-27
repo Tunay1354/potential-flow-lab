@@ -209,6 +209,26 @@ sadece genel teknikler öğrenildi: döngünün tamamını derlemek, trail buffe
     - Ek: zoom yapılmış görünümde (ör. silindirin sadece üstü) cisim doğru doluyor: tüm sahnenin durma
       noktaları / dividing streamline'ları bir kez hesaplanıp görünümde yerel olarak yeniden izleniyor, uzak
       kutu sahneye göre; dolgu görünümün kenarına kadar (önceden yarım pikselde altındaki çizgi seçiliyordu)
+14d. ✅ **Solid bodies: zoom'dan bağımsız kural + düzeltmeler** (27 Ekim, kullanıcı geri bildirimi)
+    - Plot settings taşması: V∞'suz sahnede Cp kutusunun yazısı "— needs V_ref" ile uzuyor, panel içeriği
+      panelden genişleyip sağ taraf (slider uçları, handle'lar, yazı) kesiliyordu. Not artık kutunun altında
+      küçük satır ("set V_ref…" linki); içerik genişlerse panel de genişliyor
+    - Yeni kural (`stagnation.open_elements`): free stream'in İÇİNDEN geçtiği source / doublet cisim yapmaz
+      (gerçek bir cisim free stream'i yutamaz). Her source / doublet etrafındaki küçük halkadan streamline'lar
+      iki yöne izlenir; free stream bir sink / doublet'e giriyorsa (ya da net çıkışı olmayan bir grubun
+      fluid'i uzağa gidiyorsa) o grup cisim değildir. Sahneye bağlı, görünüme bağlı değil → her zoom'da aynı.
+      Eski bölge bazlı "%25" kuralı kalktı
+    - Örnek: lifting cylinder'da vortex doublet'in merkezinden ayrılınca (vortex doublet'teki akışı −15.6°
+      döndürüyor) zoom in'de yanlış dolgu vardı, artık yok; durum çubuğunda uyarı: "The flow at the doublet …
+      goes at −15.59° … For a lifting cylinder put the vortex at the doublet's center." (δ ≠ α uyarısı artık
+      doublet'teki gerçek akışa göre: duvar image'ları vb. dahil)
+    - Sector flow da free stream sayılıyor: köşe akışındaki source'un half-body'si dolu
+    - Kontrol: 21 preset + 8 ek sahne, her biri 3–7 görünümde (tam, 3× uzak, pan, 4× ve 12× zoom) sahne
+      ölçeğinde izlenen referans haritayla karşılaştırıldı: 135 görünümde 274 311 hücreden 3'ü farklı
+      (hepsi cisim kenarında)
+    - Hata düzeltmesi (bu kontrolde bulundu): "Source in a 90° corner" sahnesinde bazı zoom'larda derlenmiş
+      tracer hızı tam 0 olan noktaya (iki duvarın köşesi) basınca ZeroDivisionError veriyordu → o görünümde
+      stagnation point / çizgiler hesaplanmıyordu
 15. ▶ **Paket S — Surface pressure paneli**: cisimlerin yüzeyi Cp'ye göre renkli, dock panelde Cp – θ grafiği
     (silindirde analitik eğri), yüzey integraliyle lift / drag ↔ Kutta–Joukowski / d'Alembert, surface Cp CSV
 16. ☐ **Paket V — Komut satırı + otomatik doğrulama**: pencere açmadan figür / CSV export, `--verify`: verification

@@ -12,8 +12,8 @@ from typing import Sequence
 import numpy as np
 
 from .base import FlowElement, Issue
-from .field import coincident_singularities
-from .images import build_image_system
+from .field import coincident_singularities, complex_velocity, singular_points
+from .images import build_image_system, resolve
 
 
 @dataclass(frozen=True)
@@ -99,24 +99,59 @@ ALIGN_TOL_DEG = 0.01
 
 
 def _doublet_alignment(elements) -> list[SceneIssue]:
-    """A warning for every doublet whose axis is not along the free stream: uniform flow + doublet is
-    the flow past a cylinder only for δ = α (allowed, but rarely what is meant)."""
-    fs = sum((e.freestream_velocity() or 0j) for e in elements if e.enabled)
-    if abs(fs) == 0:
+    """A warning for every doublet whose axis is not along the flow AT the doublet: uniform flow +
+    doublet is the flow past a cylinder only for δ = α (allowed, but rarely what is meant). Other
+    elements turn the flow there too (e.g. a vortex beside the doublet, not at its center): then the
+    free stream also goes through the doublet and there is no closed body (stagnation.open_elements)."""
+    act = [e for e in elements if e.enabled]
+    fs = complex(sum((e.freestream_velocity() or 0j) for e in act))
+    if abs(fs) == 0 and not any(e.TYPE == "sector" for e in act):
         return []
-    alpha = np.degrees(np.angle(fs))
+    try:
+        flows = resolve(act)
+    except Exception:                                   # noqa: BLE001 - an invalid scene: other checks say why
+        return []
+    sing = np.array(singular_points(act), dtype=complex)
     out = []
     for i, e in enumerate(elements):
         if not e.enabled or e.TYPE != "doublet" or e.mu == 0:
             continue
+        local = _flow_at(flows, sing, e.z0)
+        if local is None:
+            continue
+        angle = float(np.degrees(np.angle(local)))
         axis = e.delta + (180.0 if e.mu < 0 else 0.0)
-        off = (axis - alpha + 180.0) % 360.0 - 180.0
-        if abs(off) > ALIGN_TOL_DEG:
-            out.append(SceneIssue(i, Issue("warning", f"The doublet axis (δ = {e.delta:.4g}°) is not along the "
-                                                      f"uniform flow (α = {alpha:.4g}°): this is not the flow "
-                                                      f"past a cylinder — part of the free stream goes through "
-                                                      f"the doublet. For a cylinder set δ = {alpha:.4g}°.")))
+        off = (axis - angle + 180.0) % 360.0 - 180.0
+        if abs(off) <= ALIGN_TOL_DEG:
+            continue
+        if abs(fs) > 0 and abs(local - fs) <= 1e-6 * abs(fs):           # only the uniform flow there
+            text = (f"The doublet axis (δ = {e.delta:.4g}°) is not along the uniform flow (α = {angle:.4g}°): "
+                    f"this is not the flow past a cylinder — part of the free stream goes through the doublet. "
+                    f"For a cylinder set δ = {angle:.4g}°.")
+        else:
+            text = (f"The flow at the doublet (made by the other elements) goes at {angle:.4g}°, but the doublet "
+                    f"axis is δ = {e.delta:.4g}°: part of the free stream goes through the doublet, so it makes "
+                    f"no closed body.")
+            if any(x.TYPE == "vortex" and min(abs(q - e.z0) for q in x.singular_points()) > 1e-9 * (1.0 + abs(e.z0))
+                   for x in act):
+                text += " For a lifting cylinder put the vortex at the doublet's center."
+        out.append(SceneIssue(i, Issue("warning", text)))
     return out
+
+
+def _flow_at(flows, sing, p) -> complex | None:
+    """Velocity u + i v at the point p made by everything EXCEPT the singular points at p (the doublet
+    itself, a vortex at its center): the mean of w over a small ring round p — the terms 1/(z − p)^k
+    of those average to zero, the rest is analytic there (mean value property). None if 0."""
+    near = np.abs(sing - p)
+    near = near[near > 1e-9 * (1.0 + abs(p))]
+    r = 1e-3 * (min(1.0, float(near.min())) if near.size else 1.0)
+    ring = p + r * np.exp(2j * np.pi * (np.arange(32) + 0.5) / 32)
+    with np.errstate(all="ignore"):
+        w = complex(np.mean(complex_velocity(flows, ring)))
+    if not np.isfinite(w) or abs(w) < 1e-12:
+        return None
+    return complex(np.conj(w))
 
 
 def scene_is_valid(elements) -> bool:

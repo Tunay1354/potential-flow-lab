@@ -250,3 +250,66 @@ def test_body_is_right_when_zoomed_into_it(view):
     z = (gx + 1j * gy).ravel()
     far = np.abs(np.abs(z) - 1.0) > 0.01 * (x1 - x0) + 0.002
     assert np.array_equal(m.contains(z)[far], (np.abs(z) < 1.0)[far])
+
+
+# a lifting-cylinder scene with the doublet and the vortex moved apart (user's screenshot, 27 Oct)
+OFF_CENTER = [Uniform(), Doublet(mu=1.0, x0=0.3672, y0=-0.268), Vortex(Gamma=-2.0, x0=-0.7522, y0=0.113)]
+
+
+@pytest.mark.parametrize("els, opened", [
+    ([Uniform(), Doublet(mu=1.0), Vortex(Gamma=-2.0)], set()),                    # lifting cylinder
+    ([Uniform(), Doublet(mu=1.0), Vortex(Gamma=-15.0)], set()),                   # spinning fast
+    (OFF_CENTER, {1}),                                                            # the vortex turns the flow
+    ([Uniform(alpha=30.0), Doublet(mu=1.0)], {1}),                                # δ ≠ α
+    ([Uniform(), Source(m=2.0, x0=-1), Source(m=-2.0, x0=1)], set()),             # Rankine oval
+    ([Uniform(), Source(m=2.0, x0=-1, y0=-0.5), Source(m=-2.0, x0=1, y0=0.5)], {1, 2}),   # pair across
+    ([Uniform(), Source(m=2.0, x0=-1), Source(m=-1.0, x0=1)], set()),             # more out than in
+    ([Uniform(), Source(m=-2.0)], {1}),                                           # a sink swallows the stream
+])
+def test_elements_the_free_stream_passes_through(els, opened):
+    from physics.stagnation import open_elements
+    assert set(open_elements(els)) == opened
+
+
+@pytest.mark.parametrize("view", [((-4.0, 4.0), (-3.0, 3.0)), ((-1.83, 1.72), (-1.02, 0.81)),
+                                  ((-1.25, 1.39), (-0.86, 0.50)), ((0.0, 0.7), (-0.6, -0.1))])
+def test_off_center_vortex_makes_no_body_at_any_zoom(view):
+    """Zoomed in, this scene was filled (most of the view's region was closed loops round the doublet)
+    and zoomed out it was not: free-stream fluid goes through the doublet, so no zoom shows a body."""
+    c = StreamlineCache(tuple(OFF_CENTER))
+    c.update(((-4.0, 4.0), (-3.0, 3.0)))
+    res = c.update(view, force=True)
+    (x0, x1), (y0, y1) = view
+    m = body_map(OFF_CENTER, (x0, x1, y0, y1), (200, 300), res.dividing)
+    assert m is None or not m.mask.any()
+
+
+def test_off_center_vortex_warning_names_the_flow_at_the_doublet():
+    from physics.validation import check_scene
+    (w,) = [s for s in check_scene(OFF_CENTER) if s.severity == "warning"]
+    assert w.index == 1 and "-15.59°" in w.message and "vortex at the doublet's center" in w.message
+    ground = [__import__("physics").SymmetryWall(xw=0.0, yw=0.0, theta_w=0.0, side=0), Uniform(),
+              Doublet(mu=1.0, x0=0.0, y0=1.5)]                       # the wall's image keeps it along
+    assert not [s for s in check_scene(ground) if s.severity == "warning"]
+
+
+def test_source_in_a_corner_flow_is_a_half_body():
+    """A sector flow is a free stream too: the source's fluid is a half-body, as in a uniform flow."""
+    from physics import SectorFlow
+    els = [SectorFlow(V=1.0, x0=0.0, y0=0.0, theta1=0.0, theta2=90.0), Source(m=2.0, x0=1.0, y0=1.0)]
+    box = (-0.6, 3.4, -0.6, 3.0)
+    m = body_map(els, box, (240, 270), _dividing(els, box))
+    z = np.array([1.05 + 1.0j, 3.0 + 0.3j, 2.0 + 2.0j, 0.3 + 1.0j, 3.0 + 0.05j])
+    assert m.contains(z).tolist() == [True, True, False, False, False]
+
+
+def test_zoom_into_a_source_in_a_wall_corner_does_not_crash():
+    """A traced line stepping exactly onto the corner of two walls (velocity 0) raised
+    ZeroDivisionError in the compiled tracer: no stagnation points / streamlines for that view."""
+    from physics import SymmetryWall
+    from physics.stagnation import flow_features
+    els = [SymmetryWall(xw=0.0, yw=0.0, theta_w=0.0, side=0), SymmetryWall(xw=0.0, yw=0.0, theta_w=90.0, side=1),
+           Source(m=2.0, x0=1.0, y0=1.0)]
+    for x0, x1, y0, y1 in ((0.645, 1.895, -0.181, 0.944), (-0.276, 0.974, 0.258, 1.383), (0.9, 2.15, 0.013, 1.138)):
+        W, H = x1 - x0, y1 - y0
+        flow_features(els, (x0 - W, x1 + W, y0 - H, y1 + H), scale=max(W, H))
