@@ -12,10 +12,10 @@ Kinds of points
   "flow"    in the open flow
   "wall"    on a symmetry wall or a side of a sector flow
   "vertex"  the vertex of a sector flow (corner flow, n > 1)
-  "body"    on the border of a body: with a free stream, the fluid that does not come from far
-            upstream (inside a cylinder, a Rankine body, or the ring of fluid that turns with a
-            fast-spinning cylinder) is the body; points with fluid of both kinds around them lie on
-            the body surface / dividing streamline.
+  "body"    on the border of a body: with a free stream, fluid whose streamline starts at a source or
+            a doublet or turns round one (inside a cylinder or a Rankine body, see trace_origin) is
+            the body; points with body fluid and other fluid around them lie on the body surface /
+            dividing streamline. (Fluid turning round a free vortex is no body.)
 Points with only body fluid around them (e.g. the second root inside the cylinder when
 Γ > 4πV∞a) are not physical and are not returned.
 
@@ -203,16 +203,59 @@ def _tracer(els, scale):
     return StreamlineField(els, scale / 80.0)
 
 
-def comes_from_far_upstream(els, z, region, scale=None) -> np.ndarray:
-    """True where the streamline through z, followed BACKWARDS, reaches the far field (a box 3×
-    the region). With a free stream, False marks fluid that belongs to a body."""
+# where the fluid at a point comes from (the streamline through it, followed backwards)
+FAR, LOOP, BODY, STOPPED = 0, 1, 2, 3
+MASS_TYPES = ("source", "doublet")            # elements that make bodies (a vortex alone does not)
+
+
+def trace_origin(elements, z, region, scale=None) -> np.ndarray:
+    """For every point z, where its streamline comes from, followed BACKWARDS:
+        FAR   the far field (a box 3× the region): fluid of the free stream
+        BODY  it starts at a source or a doublet, or turns in a closed loop round one: fluid of a
+              body (inside a cylinder or a Rankine oval / half-body; with a fast-spinning cylinder
+              also the ring of fluid that turns with it)
+        LOOP  any other closed loop (e.g. round a free vortex in a uniform flow): real flow, no body
+        STOPPED the line stopped anywhere else (e.g. next to a stagnation point, where the flow is
+              too slow to follow): unknown
+    This is THE definition of a body (stagnation point kinds, which dividing lines are drawn,
+    bodies.py)."""
+    els = active(elements)
     z = np.atleast_1d(np.asarray(z, complex))
+    out = np.full(z.size, STOPPED, dtype=np.int8)
     if z.size == 0:
-        return np.zeros(0, bool)
+        return out
     x0, x1, y0, y1 = region
     tracer = _tracer(els, scale or max(x1 - x0, y1 - y0))
-    _lines, _closed, left = tracer.free_trace(z, -1.0, _far_field_box(region))
-    return np.asarray(left, bool)
+    lines, closed, left = tracer.free_trace(z, -1.0, _far_field_box(region))
+    left, closed = np.asarray(left, bool), np.asarray(closed, bool)
+    out[left] = FAR
+    out[~left & closed] = LOOP
+    mass = np.array([p for e in els if e.TYPE in MASS_TYPES for p in e.singular_points()], dtype=complex)
+    if not mass.size:
+        return out
+    reach = 4.0 * tracer.r_sing                         # lines stop r_sing before a singular point
+    for k in np.nonzero(~left)[0]:
+        ln = lines[k]
+        if closed[k]:
+            if len(ln) > 2 and _encloses(ln, mass).any():
+                out[k] = BODY
+        else:
+            end = ln[-1] if len(ln) else z[k]
+            if np.min(np.abs(mass - end)) < reach:
+                out[k] = BODY
+    return out
+
+
+def _encloses(ring, pts) -> np.ndarray:
+    """True for the points inside the closed polyline `ring` (complex), even-odd rule."""
+    a, b = ring, np.roll(ring, -1)
+    inside = np.zeros(pts.size, bool)
+    for k, p in enumerate(pts):
+        up = (a.imag > p.imag) != (b.imag > p.imag)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            x = a.real + (p.imag - a.imag) * (b.real - a.real) / (b.imag - a.imag)
+        inside[k] = np.count_nonzero(up & (p.real < x)) % 2 == 1
+    return inside
 
 
 def _probe_radius(p, others, sing, L):
@@ -237,10 +280,12 @@ def _classify_bodies(els, points, region, L):
         if ring.size == 0:
             out.append(p)
             continue
-        free = comes_from_far_upstream(els, ring, region, L)
-        if not free.any():
+        origin = trace_origin(els, ring, region, L)
+        body = origin == BODY
+        known = origin != STOPPED
+        if known.any() and body[known].all():
             continue                                        # inside a body: not physical
-        if free.all() or p.kind == "wall":
+        if not body.any() or p.kind == "wall":
             out.append(p)
         else:
             out.append(StagnationPoint(p.z, "body"))
@@ -324,12 +369,12 @@ def flow_features(elements, region, dividing: bool = True, scale: float | None =
         signs = np.array(signs)
         if has_stream:
             # leave out branches that run INTO a body: the start and both points beside it are body
-            # fluid. A branch along the body surface (e.g. the cylinder surface) has free-stream
-            # fluid on one side and is kept.
+            # fluid. A branch along the body surface (e.g. the cylinder surface) has other fluid on
+            # one side and is kept.
             u = (starts - p.z) / r
             probes = np.concatenate([starts, starts + 0.3 * r * 1j * u, starts - 0.3 * r * 1j * u])
-            free = comes_from_far_upstream(els, probes, region, L).reshape(3, -1)
-            keep = free.any(axis=0)
+            origin = trace_origin(els, probes, region, L).reshape(3, -1)
+            keep = ((origin == FAR) | (origin == LOOP)).any(axis=0)
             starts, signs = starts[keep], signs[keep]
             if not starts.size:
                 continue

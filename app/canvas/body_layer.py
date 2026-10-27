@@ -17,7 +17,7 @@ from PySide6.QtCore import QRectF, Qt, QTimer
 from PySide6.QtGui import QBrush, QColor, QPainterPath, QPen
 from PySide6.QtWidgets import QGraphicsPathItem
 
-from physics.bodies import body_mask
+from physics.bodies import body_map, surface_pieces
 
 from .contours import filled_paths, mix
 from .layer import PlotLayer
@@ -38,8 +38,7 @@ class BodyLayer(PlotLayer):
             item.setPen(QPen(Qt.NoPen))
         self.edge = self.add_item(pg.PlotCurveItem(connect="finite"), 2.52)
         self.raster = None                     # without contourpy: a pixel image instead of the shapes
-        self.mask = None                       # bool (rows, cols) of mask_box; None = no bodies
-        self.mask_box = None
+        self.map = None                        # physics.bodies.BodyMap of the view; None = no bodies
         self.lines = []                        # dividing streamlines of the drawn scene
         self.changed = []                      # callbacks: the bodies changed (particles)
         self._timer = QTimer(plot)
@@ -90,36 +89,36 @@ class BodyLayer(PlotLayer):
         self.update()
         self.visibility_changed()
 
+    @property
+    def mask(self):
+        """Bool picture of mask_box (True = body), None when there is none."""
+        return None if self.map is None else self.map.mask
+
+    @property
+    def mask_box(self):
+        return None if self.map is None else self.map.box
+
     def contains(self, z) -> np.ndarray:
         """True for the points (complex array) inside a body (as drawn)."""
         z = np.asarray(z, complex)
-        if self.mask is None or not self.on:
+        if self.map is None or not self.on:
             return np.zeros(z.shape, bool)
-        x0, x1, y0, y1 = self.mask_box
-        rows, cols = self.mask.shape
-        with np.errstate(invalid="ignore"):
-            i = np.floor((z.real - x0) / (x1 - x0) * cols)
-            j = np.floor((z.imag - y0) / (y1 - y0) * rows)
-        ok = (i >= 0) & (i < cols) & (j >= 0) & (j < rows)
-        out = np.zeros(z.shape, bool)
-        out[ok] = self.mask[j[ok].astype(np.int64), i[ok].astype(np.int64)]
-        return out
+        return self.map.contains(z)
 
     # ------------------------------------------------------------------ computing, drawing
     def update(self):
         self._timer.stop()
         if self.canvas.is_dragging():
             return                                   # (a new result follows the release)
-        mask = None
+        bmap = None
         if self.on and self.lines:
             (x0, x1), (y0, y1) = self.canvas.view()
             size = self.vb.size()
             cols, rows = int(max(size.width(), 2)), int(max(size.height(), 2))
-            self.mask_box = (x0, x1, y0, y1)
-            mask = body_mask(self.canvas.elements, self.mask_box, (rows, cols), self.lines)
-            if mask is not None and not mask.any():
-                mask = None
-        self.mask = mask
+            bmap = body_map(self.canvas.elements, (x0, x1, y0, y1), (rows, cols), self.lines)
+            if bmap is not None and bmap.count == 0:
+                bmap = None
+        self.map = bmap
         self._draw()
         for callback in self.changed:
             callback()
@@ -129,20 +128,21 @@ class BodyLayer(PlotLayer):
         if self.raster is not None:
             self.plot.removeItem(self.raster)
             self.raster = None
-        if self.mask is None:
+        mask = self.mask
+        if mask is None:
             self.fill.setPath(empty)
             self.hatch.setPath(empty)
             self.edge.setData([], [])
             return
         x0, x1, y0, y1 = self.mask_box
-        rows, cols = self.mask.shape
+        rows, cols = mask.shape
         x = x0 + (np.arange(cols) + 0.5) * (x1 - x0) / cols
         y = y0 + (np.arange(rows) + 0.5) * (y1 - y0) / rows
-        paths = filled_paths(x, y, self.mask.astype(float), [0.0, 0.5, 1.0])
+        paths = filled_paths(x, y, mask.astype(float), [0.0, 0.5, 1.0])
         if paths is None:                                      # no contourpy: one pixel image
             c = QColor(self.theme["body_fill"])
             rgba = np.zeros((rows, cols, 4), np.uint8)
-            rgba[self.mask] = (c.red(), c.green(), c.blue(), 255)
+            rgba[mask] = (c.red(), c.green(), c.blue(), 255)
             self.raster = pg.ImageItem(np.ascontiguousarray(rgba.transpose(1, 0, 2)))
             self.raster.setRect(QRectF(x0, y0, x1 - x0, y1 - y0))
             self.add_item(self.raster, 2.5)
@@ -156,23 +156,9 @@ class BodyLayer(PlotLayer):
         self.visibility_changed()
 
     def _surface(self) -> np.ndarray:
-        """The parts of the dividing streamlines with a body on one side (and free stream on the
-        other), NaN rows between the parts."""
-        x0, x1, y0, y1 = self.mask_box
-        rows, cols = self.mask.shape
-        probe = 3.0 * (x1 - x0) / cols                       # 3 cells to each side
+        """The surfaces (the parts of the dividing streamlines with a body on one side), NaN rows
+        between the parts."""
         out = []
-        for xy in self.lines:
-            if len(xy) < 2:
-                continue
-            z = xy[:, 0] + 1j * xy[:, 1]
-            t = np.gradient(z)
-            n = 1j * t / np.where(np.abs(t) > 0, np.abs(t), 1.0)
-            a, b = self.contains(z + probe * n), self.contains(z - probe * n)
-            keep = a != b
-            if not keep.any():
-                continue
-            pts = np.where(keep[:, None], xy, np.nan)
-            out.append(pts)
-            out.append(np.full((1, 2), np.nan))
+        for _body, xy in surface_pieces(self.map, self.lines):
+            out += [xy, np.full((1, 2), np.nan)]
         return np.vstack(out) if out else np.zeros((0, 2))
