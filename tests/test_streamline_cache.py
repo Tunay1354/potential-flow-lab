@@ -293,3 +293,21 @@ def test_dividing_line_seeds_do_not_pile_up():
         assert z.size == 1 + len(c._seeds)
         gaps = np.abs(z[:, None] - z[None, :]) + np.eye(z.size) * 1e9
         assert gaps.min() > 0.2 * f.d
+
+
+@pytest.mark.parametrize("scene, zoom", [
+    ([Uniform(), Source(m=0.02)], ((-0.02, 0.01), (-0.01, 0.01))),                 # point 0.003 from the source
+    ([Uniform(), Doublet(mu=1.0), Vortex(Gamma=-4 * np.pi + 0.3)], ((-0.3, 0.3), (-1.2, -0.8))),   # close pair
+])
+def test_stagnation_points_are_searched_again_after_a_big_zoom(scene, zoom):
+    """Searched at the scale of the whole view, a point that only shows at a finer scale was missing
+    after zooming in (the view stayed inside the searched region, so nothing was searched again)."""
+    from physics.stagnation import find_stagnation_points
+    c = StreamlineCache(scene)
+    c.update(((-4.0, 4.0), (-3.0, 3.0)))
+    res = c.update(zoom)
+    (x0, x1), (y0, y1) = zoom
+    shown = [p for p in res.stagnation if x0 <= p.x <= x1 and y0 <= p.y <= y1]
+    true = find_stagnation_points(scene, (x0, x1, y0, y1), scale=max(x1 - x0, y1 - y0))
+    assert len(shown) == len(true) >= 1
+    assert c.update(zoom) is None                                      # (then nothing new until it changes)

@@ -33,6 +33,7 @@ class StreamlineCache:
     # end, which leaves gaps in spreading flows (e.g. around a source) -> off for now.
     COARSE_LEVELS = 0
     MAX_DOMAIN_FACTOR = 40.0           # start again when a level grew this much larger than the view
+    FEATURES_ZOOM = 2.5                # stagnation points searched again after zooming in this much
 
     def __init__(self, elements: Sequence[FlowElement], density: float = 1.0, use_kernel: bool = True):
         self.elements = list(elements)
@@ -42,6 +43,7 @@ class StreamlineCache:
         self.level: int | None = None
         self.v_min: float | None = None
         self.features = None                       # stagnation points + dividing streamlines (FlowFeatures)
+        self.features_scale = 0.0                  # size of the view they were searched for
         self.with_features = True
 
     def _choose_level(self, view, current: int | None) -> int:
@@ -78,7 +80,9 @@ class StreamlineCache:
         around = (x0 - o * W, x1 + o * W, y0 - o * H, y1 + o * H)
         f = self.fields.get(L)
         t = self.TRIGGER
-        if f is not None and f.contains((x0 - t * W, x1 + t * W, y0 - t * H, y1 + t * H)) and L == previous:
+        stale = self.with_features and self._features_stale(visible)
+        if f is not None and f.contains((x0 - t * W, x1 + t * W, y0 - t * H, y1 + t * H)) and L == previous \
+                and not stale:
             return self._with_features(f.result(arrow_density)) if force else None
         if f is not None and f.domain is not None:
             a0, a1, b0, b1 = f.domain
@@ -86,7 +90,7 @@ class StreamlineCache:
             if grown > self.MAX_DOMAIN_FACTOR * W * H:          # panned far away: start again
                 self.fields.clear()
         changed = L != previous
-        if self.with_features and (self.features is None or not _inside(visible, self.features.region)):
+        if stale:
             self._update_features(visible, cancelled)
             changed = True
         for region in (visible, around) if margin else (visible,):
@@ -102,6 +106,15 @@ class StreamlineCache:
         f = self.fields.get(L)
         res = f.result(arrow_density) if f is not None and f.domain is not None else StreamlineSet()
         return self._with_features(res)
+
+    def _features_stale(self, visible) -> bool:
+        """The stagnation points must be searched again: the view left their region, or it is much
+        smaller than the view they were searched for (a point found only at a finer scale — next to a
+        weak source, two points close together — would stay missing after a big zoom in)."""
+        if self.features is None or not _inside(visible, self.features.region):
+            return True
+        x0, x1, y0, y1 = visible
+        return max(x1 - x0, y1 - y0) < self.features_scale / self.FEATURES_ZOOM
 
     def _with_features(self, res: StreamlineSet) -> StreamlineSet:
         if self.features is not None:
@@ -121,6 +134,7 @@ class StreamlineCache:
         if cancelled is not None and cancelled():
             raise Cancelled()
         self.features = flow_features(self.elements, region, scale=max(W, H))
+        self.features_scale = max(W, H)
         d_view = view_spacing(self.elements, (x0, x1), (y0, y1), self.density)
         seeds = []
         stag = np.array([p.z for p in self.features.points], dtype=complex)
