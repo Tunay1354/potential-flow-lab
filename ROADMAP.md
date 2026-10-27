@@ -159,6 +159,13 @@ sadece genel teknikler öğrenildi: döngünün tamamını derlemek, trail buffe
     - ✅ Üst barda üç görünüm düğmesi: Static · Particles · Pulses (View menüsünde de, kısayol atanabilir).
       Plot settings'te iki ayrı bölüm: Particles (Count, Speed, Trail length) ve Pulses (Speed, Pulse length,
       Spacing); ayarlar sahneyle kaydedilir, görünüm modu kaydedilmez
+    - ✅ Solid bodies katmanı (27 Ekim, Layers → "Solid bodies (filled)", varsayılan kapalı): cismin içi
+      (silindir, Rankine oval / half-body) kum rengi + hafif tarama ile dolu, yüzeyi koyu çizgi; içerideki
+      streamline / ok / particle / pulse görünmez, particle'lar cismin içinde doğmaz. Cisim = geriye doğru
+      izlenen streamline'ı source / doublet'ten başlayan akışkan (uzaktan gelmeyen, kapalı döngü de olmayan);
+      dividing streamline'lar ekran ızgarasında sınır, bölgeler birkaç izle sınıflanır. Serbest akış yoksa
+      cisim yok; serbest vortex'in etrafındaki kapalı döngüler cisim sayılmaz. Bilinen sınır: Γ > 4πV∞R'de
+      silindirle birlikte dönen halka da cisim gibi dolar (aralarında dividing streamline yok)
     - Sonraya: GIF / MP4 kaydı
 15. ☐ **Paket S — Surface pressure paneli**: cisimlerin yüzeyi Cp'ye göre renkli, dock panelde Cp – θ grafiği
     (silindirde analitik eğri), yüzey integraliyle lift / drag ↔ Kutta–Joukowski / d'Alembert, surface Cp CSV

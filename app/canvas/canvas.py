@@ -23,6 +23,7 @@ from .field_layer import KEYS as FIELD_KEYS
 from .field_layer import FieldLayer
 from .interaction import DRAG_OPACITY, MOUSE_MODES, PlotInteraction, PlotViewBox
 from .animation_layer import STATIC_CACHE, ParticleLayer, PulseLayer
+from .body_layer import BodyLayer
 from .settings import PlotSettings
 from .stagnation_layer import StagnationLayer
 from .streamline_layer import StreamlineLayer
@@ -41,6 +42,7 @@ LAYERS = (
     ("cp", "Pressure coefficient Cp (color bands)", False),
     ("markers", "Element markers", True),
     ("walls", "Walls", True),
+    ("bodies", "Solid bodies (filled)", False),
 )
 
 
@@ -105,8 +107,10 @@ class PlotCanvas(QWidget):
         self.fields = self.add_layer(FieldLayer(self.plot, self.vb))
         self.fields.legend.clicked = self.cp_reference_requested.emit
         self.element_layer = self.add_layer(ElementLayer(self.plot, self.vb))
+        self.bodies = self.add_layer(BodyLayer(self.plot, self.vb))
         self.particles = self.add_layer(ParticleLayer(self.plot, self.vb))      # animation styles
         self.pulses = self.add_layer(PulseLayer(self.plot, self.vb))
+        self.bodies.changed += [self.particles.bodies_changed, self.pulses.bodies_changed]
         self.interaction = PlotInteraction(self)
 
         self.bar.message.connect(self.message)
@@ -160,6 +164,8 @@ class PlotCanvas(QWidget):
         self.layers[key] = on
         if key in FIELD_KEYS:
             self.fields.schedule(force=True, now=True)
+        elif key == "bodies":
+            self.bodies.refresh()
         elif key == "stagnation" and not on:
             self.stagnation.select(None)
         else:
@@ -342,6 +348,8 @@ class PlotCanvas(QWidget):
         """A streamline result was drawn (ms = None: a partial result, more follows)."""
         self.last_result = result
         self.stagnation.set_result(result)
+        if ms is not None or result.dividing:
+            self.bodies.set_result(result)
         self.element_layer.view_changed()            # walls follow if the view moved meanwhile
         if ms is not None:
             self.computed.emit(self._lines_in_view(result), ms)

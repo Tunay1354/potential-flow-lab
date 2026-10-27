@@ -50,6 +50,7 @@ class Particles:
         self.sing = np.zeros(0, complex)
         self.box = None                          # view (x0, x1, y0, y1)
         self.v_typ = 0.0                         # typical speed of the view
+        self.excluded = None                     # inside(z): no particles there (set_excluded)
 
     # ------------------------------------------------------------------ scene and view
     def set_scene(self, elements):
@@ -60,6 +61,21 @@ class Particles:
         self.sing = np.array(singular_points(self.els), dtype=complex)
         if self.box is not None:
             self.v_typ = self._typical_speed()
+
+    def set_excluded(self, inside):
+        """inside(z) -> bool array: regions where no particle may be (the solid bodies as drawn), or
+        None. Particles there now start again elsewhere."""
+        self.excluded = inside
+        if inside is not None and self.box is not None and self.pos.size:
+            bad = inside(self.pos)
+            if bad.any():
+                self._respawn(bad)
+
+    def _respawn(self, which):
+        self.pos[which] = self._spawn(int(which.sum()))
+        self.fresh[which] = True
+        with np.errstate(all="ignore"):
+            self.speed[which] = np.abs(complex_velocity(self.flows, self.pos[which])) if self.flows else 0.0
 
     def set_view(self, box, restart: bool = False):
         """The visible region (x0, x1, y0, y1). restart = scatter every particle again."""
@@ -108,6 +124,10 @@ class Particles:
                                     x0, x1, y0, y1, LIFETIME_S)
         else:
             self._step_numpy(dt, dt_real, width)
+        if self.excluded is not None:                    # restarted inside a body: somewhere else
+            bad = self.fresh & self.excluded(self.pos)
+            if bad.any():
+                self._respawn(bad)
 
     # ------------------------------------------------------------------ helpers
     def _typical_speed(self) -> float:
@@ -115,6 +135,8 @@ class Particles:
 
     def _usable(self, z):
         ok = fluid_mask(self.els, z)
+        if self.excluded is not None:
+            ok &= ~self.excluded(z)
         if self.sing.size:
             x0, x1 = self.box[:2]
             ok &= np.min(np.abs(z[:, None] - self.sing[None, :]), axis=1) >= (x1 - x0) / GUARD_ACROSS

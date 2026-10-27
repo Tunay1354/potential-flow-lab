@@ -307,6 +307,11 @@ class ParticleLayer(AnimatedLayer):
     def set_count(self, n: int):
         self.particles.set_count(n)
 
+    def bodies_changed(self):
+        """The solid bodies changed (BodyLayer): no particles inside them."""
+        bodies = self.canvas.bodies
+        self.particles.set_excluded(bodies.contains if bodies.mask is not None else None)
+
     # ------------------------------------------------------------------ one frame
     def render(self, image, dt):
         p = self.particles
@@ -403,6 +408,7 @@ class PulseLayer(AnimatedLayer):
         near = (np.maximum(ax, bx) > -m) & (np.minimum(ax, bx) < w + m) & \
                (np.maximum(ay, by) > -m) & (np.minimum(ay, by) < h + m)
         near &= np.hypot(bx - ax, by - ay) <= MAX_STEP_PX * self.plot.devicePixelRatioF()
+        near[near] &= ~self.canvas.bodies.contains(0.5 * (a[near] + b[near]))
         idx = np.nonzero(near)[0]
         self._px = (ax[idx], ay[idx], bx[idx], by[idx], tau[idx] / self.period, self._band(speed[idx]))
 
@@ -412,6 +418,9 @@ class PulseLayer(AnimatedLayer):
             self._update_speed()
             self._colors()
             self._px_key = None
+
+    def bodies_changed(self):
+        self._px_key = None                   # (pieces inside a body are not drawn)
 
     def view_changed(self):
         if self.animated:

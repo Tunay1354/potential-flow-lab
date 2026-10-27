@@ -708,3 +708,43 @@ def draw_segments(img, ax, ay, bx, by, color_index, palette, radius, alpha, keep
                 img[j, i, 1] = int(cg * a + img[j, i, 1] * inv + 0.5)
                 img[j, i, 2] = int(cr * a + img[j, i, 2] * inv + 0.5)
                 img[j, i, 3] = int(255.0 * a + img[j, i, 3] * inv + 0.5)
+
+
+@njit(**QUICK)
+def label_regions(free):
+    """Connected regions (4-neighbour) of the True cells of a 2-D bool array. Returns (labels, n):
+    labels 1 … n, 0 for False cells. A barrier drawn as an 8-connected line separates regions."""
+    rows, cols = free.shape
+    labels = np.zeros((rows, cols), np.int32)
+    stack = np.empty(rows * cols, np.int64)
+    n = 0
+    for j0 in range(rows):
+        for i0 in range(cols):
+            if not free[j0, i0] or labels[j0, i0] != 0:
+                continue
+            n += 1
+            labels[j0, i0] = n
+            top = 0
+            stack[0] = j0 * cols + i0
+            top = 1
+            while top > 0:
+                top -= 1
+                k = stack[top]
+                j, i = k // cols, k % cols
+                if j > 0 and free[j - 1, i] and labels[j - 1, i] == 0:
+                    labels[j - 1, i] = n
+                    stack[top] = k - cols
+                    top += 1
+                if j < rows - 1 and free[j + 1, i] and labels[j + 1, i] == 0:
+                    labels[j + 1, i] = n
+                    stack[top] = k + cols
+                    top += 1
+                if i > 0 and free[j, i - 1] and labels[j, i - 1] == 0:
+                    labels[j, i - 1] = n
+                    stack[top] = k - 1
+                    top += 1
+                if i < cols - 1 and free[j, i + 1] and labels[j, i + 1] == 0:
+                    labels[j, i + 1] = n
+                    stack[top] = k + 1
+                    top += 1
+    return labels, n
