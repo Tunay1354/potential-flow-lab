@@ -49,6 +49,9 @@ class _Job(QRunnable):
         self.fn()
 
 
+ANIMATED_ALPHA = 0.35                         # streamline opacity under the animated particles
+
+
 class StreamlineLayer(PlotLayer):
     FADES_WHILE_DRAGGING = True
     CULL_MARGIN = 0.3                         # lines handed to the plot: the view + 30 % on every side
@@ -122,8 +125,9 @@ class StreamlineLayer(PlotLayer):
 
     def visibility_changed(self):
         on = self.canvas.layers["streamlines"]
-        for item in self.items():
+        for item in self.line_items:
             item.setVisible(on)
+        self.arrow_item.setVisible(on and not self.canvas.animated)      # particles show the direction
 
     def shutdown(self):
         """Cancel and wait for the background computation."""
@@ -132,10 +136,12 @@ class StreamlineLayer(PlotLayer):
 
     # ------------------------------------------------------------------ settings
     def set_line_pens(self):
+        """Pens of the opacity levels; faint while animating (the particles are the main thing then)."""
         n = len(self.line_items)
+        faint = ANIMATED_ALPHA if self.canvas.animated else 1.0
         for k, item in enumerate(self.line_items):
             color = QColor(self.theme["streamline"])
-            color.setAlphaF(color.alphaF() * (n - k) / n)
+            color.setAlphaF(color.alphaF() * faint * (n - k) / n)
             item.setPen(pg.mkPen(color, width=self.canvas.settings.line_width))
 
     def restart(self):

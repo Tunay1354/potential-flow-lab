@@ -35,6 +35,9 @@ class PlotLayer:
 
     def add_item(self, item, z: float):
         item.setZValue(z)
+        if self.canvas is not None and self.canvas.static_cache:
+            from .particle_layer import STATIC_CACHE
+            item.setCacheMode(STATIC_CACHE)                 # animating: drawn once, then copied
         self.plot.addItem(item)
         return item
 

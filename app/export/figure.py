@@ -101,6 +101,9 @@ def render_figure(canvas, path: str, fmt: str, scale: float = 2.0, background: s
     mirror: axes on all four sides (centered plot area), see mirrored_axes."""
     fmt = fmt.lower()
     theme_before = canvas.theme
+    cached = getattr(canvas, "static_cache", False)
+    if cached:
+        canvas.set_static_cache(False)                     # animating: draw the items, not screen pictures
     if light and canvas.theme["name"] != "light":
         canvas.apply_theme(LIGHT)                          # print colors; the screen theme comes back
     try:
@@ -109,6 +112,8 @@ def render_figure(canvas, path: str, fmt: str, scale: float = 2.0, background: s
     finally:
         if canvas.theme is not theme_before:
             canvas.apply_theme(theme_before)
+        if cached:
+            canvas.set_static_cache(True)
 
 
 def _render(canvas, path, fmt, scale, background):

@@ -13,6 +13,7 @@ class CanvasBar(QWidget):
     """Bar above the plot: Static/Animated, mouse mode (Select · Move · Pan), Fit view, Export."""
     message = Signal(str)
     mode_selected = Signal(str)               # "select", "move" or "pan" (clicked by the user)
+    animated_selected = Signal(bool)          # Static (False) / Animated (True) clicked
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -24,7 +25,8 @@ class CanvasBar(QWidget):
         lay.setSpacing(8)
 
         self.btn_static = self._tool("Static", "Streamlines with direction arrows", checkable=True)
-        self.btn_anim = self._tool("Animated", "Particles moving with the flow", checkable=True)
+        self.btn_anim = self._tool("Animated", "Particles moving with the flow, colored by speed   [Space: pause]",
+                                   checkable=True)
         self.btn_static.setChecked(True)
         mode = QButtonGroup(self)
         mode.setExclusive(True)
@@ -61,9 +63,11 @@ class CanvasBar(QWidget):
         self.btn_export.setObjectName("Export")
         lay.addWidget(self.btn_export)
 
-        for b in (self.btn_anim,):
-            b.clicked.connect(lambda _=False, b=b: self.message.emit(
-                f"Prototype: “{b.text()}” is not connected yet."))
+        self.btn_static.clicked.connect(lambda: self.animated_selected.emit(False))
+        self.btn_anim.clicked.connect(lambda: self.animated_selected.emit(True))
+
+    def set_animated(self, on: bool):
+        (self.btn_anim if on else self.btn_static).setChecked(True)
 
     def set_mode(self, mode: str):
         self.mode_buttons[mode].setChecked(True)

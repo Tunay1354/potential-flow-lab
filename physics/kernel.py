@@ -591,3 +591,109 @@ def fade_cut(xy, offs, cut0, cut1, d, levels, taper_ratio):
             npc += 1
     po[npc] = n
     return pts[:n], po[:npc + 1], plev[:npc], boxes[:npc]
+
+
+# ---------------------------------------------------------------------- tracer particles (animation)
+@njit(**QUICK)
+def seed_random(seed):
+    np.random.seed(seed)
+
+
+@njit(**JIT)
+def _spawn_point(F, R, sing, guard, x0, x1, y0, y1):
+    """A random point of the box in the fluid, away from singular points (16 tries)."""
+    z = complex(x0 + (x1 - x0) * np.random.random(), y0 + (y1 - y0) * np.random.random())
+    for _ in range(16):
+        if _fluid(z, R) and (sing.size == 0 or _min_dist(z, sing) >= guard):
+            break
+        z = complex(x0 + (x1 - x0) * np.random.random(), y0 + (y1 - y0) * np.random.random())
+    return z
+
+
+@njit(**JIT)
+def advect_particles(pos, age, speed, fresh, F, R, W, sing, guard, dt, age_dt, max_step, max_sub,
+                     x0, x1, y0, y1, max_age):
+    """Move every particle by dt (midpoint RK2, split into sub-steps no longer than max_step, at most
+    max_sub of them). A particle starts again at a random point (fresh = True) when it leaves the box,
+    the fluid, comes within `guard` of a singular point, crosses a plate, would need more sub-steps than
+    allowed (next to a singular point), or is older than max_age (ages grow by age_dt)."""
+    for i in range(pos.size):
+        z = pos[i]
+        v = _w(z, F).conjugate()
+        travel = abs(v) * dt
+        ok = math.isfinite(travel) and travel <= max_step * max_sub
+        if ok:
+            n = min(max(int(math.ceil(travel / max_step)), 1), max_sub)
+            h = dt / n
+            k2 = v
+            for k in range(n):
+                k1 = v if k == 0 else _w(z, F).conjugate()
+                k2 = _w(z + 0.5 * h * k1, F).conjugate()
+                z_new = z + h * k2
+                if _crossed(z, z_new, W):
+                    ok = False
+                    break
+                z = z_new
+            v = k2
+        age[i] += age_dt
+        if ok:
+            ok = (_isfinite_c(z) and x0 <= z.real <= x1 and y0 <= z.imag <= y1 and _fluid(z, R)
+                  and (sing.size == 0 or _min_dist(z, sing) >= guard) and age[i] <= max_age)
+        if ok:
+            pos[i] = z
+            speed[i] = abs(v)
+            fresh[i] = False
+        else:
+            z = _spawn_point(F, R, sing, guard, x0, x1, y0, y1)
+            pos[i] = z
+            age[i] = 0.0
+            speed[i] = abs(_w(z, F))
+            fresh[i] = True
+
+
+@njit(**QUICK)
+def fade_bytes(buf, keep):
+    """Trail picture: every byte × keep / 256, rounded DOWN (so faint pixels really reach 0; Qt's
+    rounding would leave ghost trails). keep = 0 … 256."""
+    for i in range(buf.size):
+        buf[i] = (buf[i] * keep) >> 8
+
+
+@njit(**QUICK)
+def draw_segments(img, ax, ay, bx, by, color_index, palette, radius):
+    """Antialiased lines of half-width `radius` with round ends into a premultiplied BGRA picture
+    img (rows, columns, 4) uint8. Line k goes from (ax, ay) to (bx, by) in pixels (row = y) and has
+    the color palette[color_index[k]] = (r, g, b, alpha 0…1); index < 0: not drawn."""
+    rows, cols = img.shape[0], img.shape[1]
+    for k in range(ax.size):
+        ci = color_index[k]
+        if ci < 0:
+            continue
+        x0, y0, x1, y1 = ax[k], ay[k], bx[k], by[k]
+        if not (math.isfinite(x0) and math.isfinite(y0) and math.isfinite(x1) and math.isfinite(y1)):
+            continue
+        cr, cg, cb, ca = palette[ci, 0], palette[ci, 1], palette[ci, 2], palette[ci, 3]
+        dx, dy = x1 - x0, y1 - y0
+        L2 = dx * dx + dy * dy
+        i0 = max(int(math.floor(min(x0, x1) - radius - 1.0)), 0)
+        i1 = min(int(math.ceil(max(x0, x1) + radius + 1.0)), cols - 1)
+        j0 = max(int(math.floor(min(y0, y1) - radius - 1.0)), 0)
+        j1 = min(int(math.ceil(max(y0, y1) + radius + 1.0)), rows - 1)
+        for j in range(j0, j1 + 1):
+            py = j + 0.5
+            for i in range(i0, i1 + 1):
+                px = i + 0.5
+                t = 0.0
+                if L2 > 0.0:
+                    t = ((px - x0) * dx + (py - y0) * dy) / L2
+                    t = min(max(t, 0.0), 1.0)
+                qx, qy = x0 + t * dx - px, y0 + t * dy - py
+                cov = radius + 0.5 - math.sqrt(qx * qx + qy * qy)
+                if cov <= 0.0:
+                    continue
+                a = ca * min(cov, 1.0)
+                inv = 1.0 - a
+                img[j, i, 0] = int(cb * a + img[j, i, 0] * inv + 0.5)
+                img[j, i, 1] = int(cg * a + img[j, i, 1] * inv + 0.5)
+                img[j, i, 2] = int(cr * a + img[j, i, 2] * inv + 0.5)
+                img[j, i, 3] = int(255.0 * a + img[j, i, 3] * inv + 0.5)

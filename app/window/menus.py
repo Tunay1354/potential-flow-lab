@@ -120,12 +120,21 @@ class MenusMixin:
             a.toggled.connect(lambda checked, k=key: self.settings_panel.layer_boxes[k].setChecked(checked))
             self.layer_actions[key] = a
         mode = QActionGroup(self)
-        for text, on in [("Static streamlines", True), ("Animated particles", False)]:
+        self.view_mode_actions = {}
+        for animated, text in ((False, "Static streamlines"), (True, "Animated particles")):
             a = m.addAction(text)
             a.setCheckable(True)
-            a.setChecked(on)
-            a.setEnabled(on)
+            a.setChecked(not animated)
+            a.triggered.connect(lambda _=False, on=animated: self.canvas.set_animated(on))
             mode.addAction(a)
+            self.view_mode_actions[animated] = a
+        self.act_pause = m.addAction("Pause animation")
+        self.act_pause.setCheckable(True)
+        self.act_pause.setShortcut("Space")
+        self.act_pause.setEnabled(False)
+        self.act_pause.triggered.connect(self._toggle_pause)
+        self.canvas.animated_changed.connect(self._animated_changed)
+        self.canvas.paused_changed.connect(self.act_pause.setChecked)
         m.addSeparator()
         self.act_fit = m.addAction("Fit view")
         self.act_fit.setShortcut("F")
@@ -248,6 +257,8 @@ class MenusMixin:
                 ("edit.redo", self.act_redo, "Redo", "Edit"),
                 ("edit.duplicate", self.act_dup, "Duplicate selected element", "Edit"),
                 ("view.fit", self.act_fit, "Fit view", "View"),
+                ("view.animated", self.view_mode_actions[True], "Animated particles", "View"),
+                ("view.pause", self.act_pause, "Pause / continue the animation", "View"),
                 ("mode.select", self.mode_actions["select"], "Mouse mode: Select", "Plot"),
                 ("mode.move", self.mode_actions["move"], "Mouse mode: Move elements", "Plot"),
                 ("mode.pan", self.mode_actions["pan"], "Mouse mode: Pan", "Plot")):
@@ -256,6 +267,14 @@ class MenusMixin:
             sc.register(f"add.{key}", act, f"Add {spec_for(key).name.lower()}…", "Add element", default="")
         sc.listeners.append(self._shortcuts_changed)
         sc.load()
+
+    def _animated_changed(self, on: bool):
+        self.view_mode_actions[on].setChecked(True)
+        self.act_pause.setEnabled(on)
+
+    def _toggle_pause(self):
+        paused = self.canvas.toggle_pause()
+        self.flash("Animation paused — press Space to continue." if paused else "")
 
     def _shortcuts_changed(self):
         self.canvas.bar.set_shortcut_hints({m: self.shortcuts.first_key(f"mode.{m}") for m in self.mode_actions})

@@ -46,7 +46,8 @@ EXTENSION = ".pflow"
 
 # plot settings stored with a scene: name -> type
 SETTINGS = {"density": float, "line_width": float, "show_arrows": bool, "arrow_density": float,
-            "field_quality": float, "cp_reference": float}
+            "field_quality": float, "cp_reference": float, "particles": float, "anim_speed": float, "trail": float}
+ZERO_ALLOWED = {"trail"}            # settings that may be 0 (the others must be > 0)
 
 # MIGRATIONS[n] converts the dict of a version-n file into version n + 1
 MIGRATIONS: dict[int, Callable[[dict], dict]] = {}
@@ -194,7 +195,8 @@ def from_data(data, name: str = "the file") -> SceneDocument:
             warnings.append(f"Unknown plot setting “{key}” was ignored.")
         elif kind is bool and isinstance(value, bool):
             settings[key] = value
-        elif kind is float and _is_number(value) and math.isfinite(value) and value > 0:
+        elif kind is float and _is_number(value) and math.isfinite(value) and (
+                value > 0 or (value == 0 and key in ZERO_ALLOWED)):
             settings[key] = float(value)
         else:
             warnings.append(f"Plot setting “{key}” has an invalid value and was ignored.")

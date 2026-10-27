@@ -11,7 +11,7 @@ import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QColor, QPainter, QPen
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QGraphicsItem, QLabel, QVBoxLayout, QWidget
 
 from physics.field import reference_speed
 
@@ -22,6 +22,7 @@ from .element_layer import ElementLayer
 from .field_layer import KEYS as FIELD_KEYS
 from .field_layer import FieldLayer
 from .interaction import DRAG_OPACITY, MOUSE_MODES, PlotInteraction, PlotViewBox
+from .particle_layer import STATIC_CACHE, ParticleLayer
 from .settings import PlotSettings
 from .stagnation_layer import StagnationLayer
 from .streamline_layer import StreamlineLayer
@@ -54,6 +55,8 @@ class PlotCanvas(QWidget):
     element_dropped = Signal(str, object)   # palette drag: element type, (x, y) or None (no position)
     mode_changed = Signal(str)          # mouse mode: "select", "move", "pan"
     cp_reference_requested = Signal()   # the "Set V_ref" note of the Cp legend was clicked
+    animated_changed = Signal(bool)     # Static / Animated
+    paused_changed = Signal(bool)
     message = Signal(str)               # a short note for the status bar
 
     def __init__(self, theme: dict, elements: list, parent=None):
@@ -64,6 +67,8 @@ class PlotCanvas(QWidget):
         self.layers = {key: on for key, _label, on in LAYERS}
         self.selected = -1                       # index of the selected element (highlighted)
         self.live_drag = LIVE_DRAG_DEFAULT       # streamlines follow a dragged element (program setting)
+        self.animated = False                    # Animated: particles over faint streamlines
+        self.static_cache = False                # plot items cached as pictures (while animating)
         self.last_result = None                  # the drawn StreamlineSet (File → Export data)
 
         # the plot card: a thin ink frame (painted in paintEvent) around bar, plot and title block
@@ -99,11 +104,13 @@ class PlotCanvas(QWidget):
         self.fields = self.add_layer(FieldLayer(self.plot, self.vb))
         self.fields.legend.clicked = self.cp_reference_requested.emit
         self.element_layer = self.add_layer(ElementLayer(self.plot, self.vb))
+        self.particles = self.add_layer(ParticleLayer(self.plot, self.vb))
         self.interaction = PlotInteraction(self)
 
         self.bar.message.connect(self.message)
         self.bar.btn_fit.clicked.connect(self.fit_view)
         self.bar.mode_selected.connect(self.set_mode)
+        self.bar.animated_selected.connect(self.set_animated)
         rng = LAYOUT["plot_initial_range"]
         self.plot.setRange(xRange=rng["x"], yRange=rng["y"], padding=0)
         self.vb.sigRangeChanged.connect(self._range_changed)
@@ -160,11 +167,60 @@ class PlotCanvas(QWidget):
         for layer in self._layers:
             layer.visibility_changed()
 
+    # ------------------------------------------------------------------ animation
+    def set_animated(self, on: bool):
+        """Animated: tracer particles over faint streamlines (no arrows); Static: streamlines + arrows."""
+        on = bool(on)
+        if on == self.animated:
+            return
+        self.animated = on
+        self.bar.set_animated(on)
+        self.particles.set_animated(on)
+        self.streamlines.set_line_pens()
+        self.apply_visibility()
+        if not on and self.particles.paused:
+            self.set_paused(False)
+        self.animated_changed.emit(on)
+
+    def set_paused(self, on: bool):
+        self.particles.set_paused(on)
+        self.paused_changed.emit(bool(on))
+
+    def toggle_pause(self) -> bool:
+        """Space: pause / continue the animation (nothing in Static mode). Returns the new state."""
+        if not self.animated:
+            return False
+        self.set_paused(not self.particles.paused)
+        return self.particles.paused
+
+    def set_static_cache(self, on: bool):
+        """Keep every plot item (except the particle trails) as a picture: a frame of the animation
+        then only repaints the trails."""
+        self.static_cache = bool(on)
+        mode = STATIC_CACHE if on else QGraphicsItem.NoCache
+        for item in self.vb.addedItems:
+            if item is not self.particles.trail:
+                item.setCacheMode(mode)
+
+    def set_particles(self, count: int):
+        self.settings.particles = int(count)
+        self.particles.set_count(count)
+
+    def set_animation_speed(self, slider: int):
+        self.settings.anim_speed = int(slider)
+        self.particles.speed_slider = int(slider)
+
+    def set_trail(self, slider: int):
+        self.settings.trail = int(slider)
+        self.particles.trail_slider = int(slider)
+
     # ------------------------------------------------------------------ plot settings
     def apply_settings(self, settings: PlotSettings):
         """Settings of an opened scene (the scene itself follows, which computes everything)."""
         self.settings = settings
         self.streamlines.set_line_pens()
+        self.particles.set_count(settings.particles)
+        self.particles.speed_slider, self.particles.trail_slider = settings.anim_speed, settings.trail
 
     def set_density(self, density: float):
         self.settings.density = density

@@ -138,10 +138,21 @@ sadece genel teknikler öğrenildi: döngünün tamamını derlemek, trail buffe
       görünen bölgenin çizgileri arka planda yeniden hesaplanır (en yeni konum önce); bırakınca her şey tam
       hesaplanır, Esc eski çizgileri geri getirir. Ölçüm (2 çekirdekli test makinesi, yazılımsal çizim):
       saniyede ~27–33 çizgi güncellemesi, pencere ~26–32 fps (canlı kapalıyken ~39 fps)
-13. ☐ **Ara kontrol — deneme exe'si**: PyInstaller + Numba + contourpy temiz Windows'ta açılıyor mu (erken görmek için)
-14. ☐ **Faz 4b — Animasyon** [5]: particle'lar Numba'da (RK2 + sub-step), trail buffer (her kare soluklaşır, yeni
-    noktalar üstüne), hıza göre renk, rastgele yaş başlangıcı, zoom'dan bağımsız animasyon hızı; renderer ayrı
-    (ileride OpenGL'e geçiş kolay); (isteğe bağlı) cismin içindeki çizgileri gizleme / cismi doldurma
+13. ⏸ **Ara kontrol — deneme exe'si**: 27 Ekim'de Faz 5'e bırakıldı (sadece erken risk kontrolüydü; Numba
+    exe'de çalışmazsa program NumPy yoluyla yine çalışır)
+14. ✅ **Faz 4b — Animasyon** [5] (stil A: particle'lar)
+    - Static / Animated (üst bar ve View menüsü); Animated'da streamline'lar soluk, oklar gizli
+    - Particle'lar Numba'da (RK2 + ara adımlar, ~0.2–0.7 ms / kare); görünümden / akışkandan çıkan, tekil noktaya
+      yaklaşan, plakayı geçecek olan veya ömrü dolan yeniden doğar (ömürler kaydırılmış: hepsi birden değil)
+    - Hıza göre renk: pastel mavi (yavaş) → kırmızı (hızlı), ölçek ≈ 2 × görünümün tipik hızı, sağ üstte lejant
+      (|V| / Cp bantları açıksa onların lejantı)
+    - İz: tek bir resim her karede biraz soluklaşır (aşağı yuvarlayan tam sayı: hayalet iz kalmaz), adımlar
+      üstüne Numba'da antialiased çizgi olarak çizilir; çok uzun adım (tekil nokta dibi) çizilmez
+    - Animasyon sırasında diğer tüm plot öğeleri resim olarak önbellekte (DeviceCoordinateCache): bir kare
+      ~2–3 ms, ~60 fps (test makinesinde); export sırasında önbellek kapanır (keskin çıktı)
+    - Ayarlar: Particles / Speed / Trail length (sahneyle kaydedilir); Space = Pause (kısayol değiştirilebilir)
+    - Sürüklerken particle'lar yeni akışta akmaya devam eder
+    - Sonraya: stil B (streamline üstünde kayan darbeler), GIF / MP4 kaydı
 15. ☐ **Paket S — Surface pressure paneli**: cisimlerin yüzeyi Cp'ye göre renkli, dock panelde Cp – θ grafiği
     (silindirde analitik eğri), yüzey integraliyle lift / drag ↔ Kutta–Joukowski / d'Alembert, surface Cp CSV
 16. ☐ **Paket V — Komut satırı + otomatik doğrulama**: pencere açmadan figür / CSV export, `--verify`: verification
