@@ -42,6 +42,8 @@ class ParticleLayer(AnimatedLayer):
         if self.animated:
             self.particles.set_scene(self.canvas.elements)
             self._colors()
+            if not any(e.enabled for e in self.canvas.shown_elements()):   # New / nothing left: no old trails
+                self._clear()
 
     def view_changed(self):
         if self.animated:                     # (the picture is carried over by the next frame)

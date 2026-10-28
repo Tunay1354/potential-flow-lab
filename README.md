@@ -117,6 +117,7 @@ Exe (Faz 5): `pyinstaller packaging/potential_flow_lab.spec` → `dist/Potential
 
 | Klasör / dosya | İçerik |
 |---|---|
+| `CLAUDE.md` | Projeyi devralacak bir AI asistan için özet: proje, çalışma tercihleri, mimari, dersler, şu anki durum |
 | `main.py` | Programı başlatır (`python main.py sahne.pflow` dosyayı da açar); `--verify`, `--figure`, `--data` ile komut satırı |
 | `app/cli/` | Komut satırı: `__init__.py` (seçenekler), `headless.py` (ekranda görünmeyen plot, görünüme göre boyut), `report.py` (doğrulama raporu: HTML, Markdown, CSV, figürler; komut satırı ve Help menüsü ortak) |
 | `app_info.py` | Program adı ve sürümü |

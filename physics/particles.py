@@ -110,6 +110,8 @@ class Particles:
     def step(self, dt_real: float, speed: float = 1.0):
         """Advance by dt_real seconds of real time (scaled by time_scale)."""
         if self.box is None or not self.flows or self.pos.size == 0:
+            self.prev = self.pos.copy()                  # no flow: no step to draw (the trails fade out)
+            self.fresh[:] = True
             return
         dt = dt_real * self.time_scale(speed)
         if not dt > 0:

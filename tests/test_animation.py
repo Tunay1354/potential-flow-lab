@@ -426,3 +426,25 @@ def test_big_zoom_starts_the_trails_again(win, qapp):
     img = cv.particles._picture()                             # (the next frame's picture, before drawing)
     a = np.frombuffer(img.bits(), np.uint8).reshape(img.height(), img.bytesPerLine() // 4, 4)[..., 3]
     assert a.max() == 0
+
+
+def test_new_page_clears_the_particle_trails(win, qapp):
+    """File → New while particles run: no trails left on the empty page (they were redrawn every frame)."""
+    cv = win.canvas
+    cv.bar.btn_particles.click()
+    _frames(qapp, 30)
+    assert _trail_alpha(cv) > 100
+    win.model.mark_clean()
+    win.new_scene()
+    _frames(qapp, 20)
+    assert _trail_alpha(cv) == 0
+
+
+def test_trails_fade_out_when_every_element_is_switched_off(win, qapp):
+    cv = win.canvas
+    cv.bar.btn_particles.click()
+    _frames(qapp, 30)
+    for i in range(len(win.elements)):
+        win.model.set_enabled(i, False)
+    _frames(qapp, 20)
+    assert _trail_alpha(cv) == 0

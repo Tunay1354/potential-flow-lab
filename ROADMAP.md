@@ -342,6 +342,10 @@ bırakıldı (kullanıcı kararı).
     - Testler: `tests/test_recovery.py` (kopya / kaydedince silinme / undo / normal kapanış / çalışan oturum
       sorulmuyor / gerçekten düşen bir süreçten geri getirme / Not now / Discard); testler artık kullanıcının
       veri klasörüne değil Qt'nin test klasörüne yazıyor
+    - Düzeltme (28 Ekim): Particles açıkken New / her şey silinince ya da gizlenince eski izler sahnede
+      kalıyordu (akış yokken son adımlar her karede yeniden çiziliyordu) — artık resim temizleniyor
+    - `CLAUDE.md`: başka bir hesaptaki Claude'un projeyi devralabilmesi için özet (tercihler, mimari, dersler,
+      durum); her pakette "Current status" güncellenecek
 19. ☐ **Faz 6 — Kunduz rehber** [7]: ilk açılışta atlanabilir tanıtım turu, Help yanındaki yeri, açma / kapama
     ayarı, animasyon modunda akışla süzülüp kaybolması ve geri dönmesi (karar: adı, turun dili)
 20. ☐ **Optimizasyon (+ Paket E2)**: ölçüm → iyileştirme: açılış ve ilk Numba derleme süresi, sürükleme, zoom /
