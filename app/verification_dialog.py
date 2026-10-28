@@ -61,6 +61,8 @@ class _Checks(QRunnable):
                 self.signals.step.emit(k, label)
                 out += job()
         except Exception as exc:                                     # noqa: BLE001 - shown in the dialog
+            import logging
+            logging.getLogger("pflab").exception("verification failed")
             self.signals.failed.emit(f"{type(exc).__name__}: {exc}")
             return
         self.signals.done.emit(out)

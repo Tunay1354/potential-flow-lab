@@ -315,9 +315,20 @@ sağlamlık (hata yakalama, kurtarma) → son özellik (kunduz) → optimizasyon
 kontrolü → en son kodla kapsamlı rastgele test → paketleme → rapor → son kontrol → demo. Exe bilerek sona
 bırakıldı (kullanıcı kararı).
 
-17. ☐ **Beklenmeyen hata yakalayıcı + log dosyası**: yakalanmamış bir hata programı kapatmasın / sessizce
-    kaybolmasın — pencere "beklenmeyen hata, ayrıntılar şu dosyada" desin, program açık kalsın; arka plan
-    hesaplarındaki hatalar da; log dosyası programın veri klasöründe (Help'ten açılabilir)
+17. ✅ **Beklenmeyen hata yakalayıcı + log dosyası** (28 Ekim)
+    - `app/errors.py`: yakalanmamış her hata (buton, çizim, arka plan hesabı, başka thread) log'a traceback'iyle
+      yazılır ve "Unexpected error" penceresi çıkar: ne olduğu, Show details, Copy details (sürümlerle), Open log
+      folder, Continue — program açık kalır. Aynı hata (aynı yer) bir kez gösterilir, tekrarları sadece
+      sayılır (çizimde her karede tekrarlayan bir hata pencere yağdırmaz); pencere açıkken gelen başka hata
+      kapanınca gösterilir
+    - Log: programın veri klasöründe `logs/potential-flow-lab.log` (3 × 1 MB): açılışta sürümler (program,
+      Python, işletim sistemi, PySide6, NumPy, Numba, exe mi), açılan / kaydedilen dosyalar, Qt uyarıları,
+      field layer / verification hataları. Help → Open log folder
+    - Exe'de konsol yok: print / stderr log'a gider (yoksa ilk print'te program düşerdi)
+    - Tam çökme (süreç ölür): faulthandler yığını `logs/crash.txt`'e yazar, sonraki açılış log'a aktarır
+      (`previous_crash()` — madde 18'de "geri getir?" için); normal kapanışta dosya silinir
+    - Testler: `tests/test_errors.py` (slot'ta, thread'de, çizimde hata; tekrar; sıraya alma; konsolsuz;
+      gerçek segfault ile çökme dosyası)
 18. ☐ **Otomatik kaydetme / çökme sonrası geri getirme**: kaydedilmemiş sahne birkaç saniyede bir arka planda
     yedeklenir; program beklenmedik kapanırsa bir sonraki açılışta "kaydedilmemiş sahne bulundu — geri getir?"
 19. ☐ **Faz 6 — Kunduz rehber** [7]: ilk açılışta atlanabilir tanıtım turu, Help yanındaki yeri, açma / kapama

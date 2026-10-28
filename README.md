@@ -71,6 +71,13 @@ Güncelleme geldiğinde: GitHub Desktop'ta **Fetch origin → Pull origin**.
 İlk açılışta streamline motoru bir kez derlenir (birkaç saniye, durum çubuğunda yazar); animasyon ve
 Solid bodies çekirdekleri hemen ardından arka planda hazırlanır. Sonraki açılışlarda hepsi hazır gelir.
 
+### Bir hata olursa
+
+Yakalanmamış bir hata programı kapatmaz: "Unexpected error" penceresi çıkar (ayrıntılar, Copy details, Open log
+folder), program açık kalır, sahne kaybolmaz. Her hata traceback'iyle log dosyasına yazılır:
+**Help → Open log folder** → `potential-flow-lab.log` (en çok 3 × 1 MB). Program tamamen çökerse (derlenmiş
+kodda) yığın `crash.txt`'e yazılır ve bir sonraki açılışta log'a aktarılır. Sorun bildirirken log dosyasını gönder.
+
 ### Komut satırı (pencere açmadan)
 
 ```
@@ -118,6 +125,7 @@ Exe (Faz 5): `pyinstaller packaging/potential_flow_lab.spec` → `dist/Potential
 | `app/chrome/` | Pencerenin "çizim kağıdı" görünümü: `style.py` (font, renk), `header.py` (logo, tahta şerit, cetvel + menüler), `cards.py` (panel kartları, title block), `palette.py` (element paleti) |
 | `app/panels.py`, `app/dialogs.py` | Elements / Plot settings panelleri; parametre penceresi (alanlar `app/element_specs.py`'den otomatik) |
 | `app/surface_panel.py` | Surface pressure paneli: Cp grafiği, kuvvetler, CSV |
+| `app/errors.py` | Beklenmeyen hatalar: log dosyası, hata penceresi (program açık kalır), çökme dosyası |
 | `app/verification_dialog.py` | Help → Run verification…: raporu arka planda üretir, check ağacı ve "nasıl hesaplandı" paneli |
 | `app/theme.py` | Renkler (açık / koyu), fontlar, boyutlar, marker'lar |
 | `app/geometry.py` | Duvarların çizim geometrisi (köşelerde sadece akışkana bakan kısım çizilir) |

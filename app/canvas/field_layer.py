@@ -167,6 +167,8 @@ class FieldLayer(PlotLayer):
         try:
             self.update(cv.elements, cv.view(), cv.layers, s.field_quality, s.cp_reference, s.density)
         except Exception as exc:                     # never let a field layer break the window
+            import logging
+            logging.getLogger("pflab").exception("field layers could not be drawn")
             self.hide_all()
             cv.message.emit(f"Field layers could not be drawn: {exc}")
             return

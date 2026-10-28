@@ -11,6 +11,7 @@ from physics import ELEMENT_TYPES
 
 from ..chrome import DropIndicator, ElementPalette
 from ..dialogs import dispose
+from ..errors import open_log_folder
 from ..element_specs import spec_for, toolbar_types
 from ..icons import make_element_icon
 from ..canvas import LAYERS
@@ -206,6 +207,10 @@ class MenusMixin:
         verify.triggered.connect(self.run_verification)
         m.addAction("Keyboard shortcuts…").triggered.connect(self.edit_shortcuts)
         m.addSeparator()
+        logs = m.addAction("Open log folder")
+        logs.setToolTip("The log file: start-up information and every unexpected error (send it if something "
+                        "goes wrong)")
+        logs.triggered.connect(open_log_folder)
         m.addAction("About").triggered.connect(self._show_about)
 
     def _rebuild_elements_menu(self):
