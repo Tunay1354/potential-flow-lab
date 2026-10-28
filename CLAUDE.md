@@ -68,10 +68,11 @@ python main.py scene.pflow --figure out.png --data out.csv   # export without a 
 - At a triple zero of w (source in a 90° walled corner) the stagnation point is only defined to ~5e-6.
 
 ## Current status (keep this section up to date)
-- Done up to ROADMAP item 18 (error log + error window; autosave / recovery), 28 Oct 2026.
-- **Next: item 19 — beaver guide (Faz 6)**: skippable intro tour on first start, its place next to Help,
-  on / off setting, floating away with the flow in animation mode. Waiting for his decisions: the beaver's
-  **name** and the tour **language** (TR or EN).
+- Done up to ROADMAP item 18, and item 19 stage 1 (the beaver `app/beaver/`: pixel art, speech bubble,
+  behaviour in Static / Particles / Pulses, zoom / pan / mode rules), 28 Oct 2026.
+- **Next: item 19 stage 2 — the intro tour** on first start (skippable; same bubble; **English**). The name
+  "Psi" is a placeholder (he will rename it). He finds the side / swimming poses still a bit odd — to be
+  retouched later (poses are shapes in `app/beaver/art.py`). All beaver text is English (`lines.py`).
 - Then: 20 optimization (+ E2), 21 code cleanup, 22 text / visual review with him, 23 exhaustive random-scene and
   GUI test, 24 exe (deliberately last; fallback: source zip + install notes, or demo from his laptop),
   25 report + user guide, 26 final check against the assignment, 27 demo rehearsal.

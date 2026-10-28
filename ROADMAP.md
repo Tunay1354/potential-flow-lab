@@ -346,8 +346,31 @@ bırakıldı (kullanıcı kararı).
       kalıyordu (akış yokken son adımlar her karede yeniden çiziliyordu) — artık resim temizleniyor
     - `CLAUDE.md`: başka bir hesaptaki Claude'un projeyi devralabilmesi için özet (tercihler, mimari, dersler,
       durum); her pakette "Current status" güncellenecek
-19. ☐ **Faz 6 — Kunduz rehber** [7]: ilk açılışta atlanabilir tanıtım turu, Help yanındaki yeri, açma / kapama
-    ayarı, animasyon modunda akışla süzülüp kaybolması ve geri dönmesi (karar: adı, turun dili)
+19. ▶ **Faz 6 — Kunduz rehber** [7]
+    - ✅ Aşama 1 (28 Ekim): karakter ve etkileşimler (`app/beaver/`). Görünüm: kullanıcının Gemini taslaklarından
+      esinlenen ama baştan çizilmiş piksel kunduz, kırmızı bandana (uçları 3 karede rüzgarda oynuyor); pozlar
+      koddan üretiliyor (raf, önden, yandan + 2 adım yürüme, tutulunca, cama vurma, akışta yüzme + kürek, düşme,
+      girdap) → her açı / boyut keskin, 125 % ölçekte bile tam piksel. Konuşma: piksel çerçeveli balon, Pixelify
+      Sans, harf harf yazma + imleç; metinler İngilizce (`lines.py`)
+    - Davranış: rafta göz kırpar, 3 dk işlem yoksa uyur (Zzz), dokununca uyanır; ensesinden tutulup taşınır
+      (sarkaç gibi sallanır). Static: cam şakası → zıplayıp cetvelde yürüyerek eve. Particles: tracer (RK4,
+      particle'larla aynı zaman ölçeği, Space ile durur), yönüne bakar, en çok 30° eğilir; görünümden çıkınca
+      sağdan yürüyerek döner; sadece vortex → 2 tur sonra başı döner, zıplar; vortex + sink → dönerek küçülür,
+      yutulur; stagnation point → durur, espri, zıplar; solid body / duvar arkası → bırakılamaz. Pulses: en
+      yakın streamline'a basar, pulse layer'ın kendi zamanlamasıyla her pulse çarpınca düşer, line boyunca
+      itilir, kenarda BONK; 16 s'den fazla kalırsa kendisi kaçar
+    - Zoom / pan / mod değişimi: Static'te ekrana (cama) sabit; Particles / Pulses'ta veriye sabit (plotla
+      birlikte hareket), görünüm dışında kalırsa "you zoomed me out" → eve. Mod değişince: akıştan cama, camdan
+      akışa ("Splash!"), akıştan line'a. Yeni / boş sahne → eve. Pencere boyutu değişince yerinde kalır
+    - Program olaylarına tepki: hata çıkınca, kaydedince (10 dk'da bir), Run verification sonunda; rafta çift
+      tıklayınca "fun fact"; ilk açılışta bir kez kendini tanıtır
+    - Kısıtlar / güvenlik: sadece kendi piksellerine tıklanır (maske), tekerlek plota iletilir, seçimi bozmaz,
+      export'ta görünmez, View → Beaver ile kapanır (hatırlanır); rafta beklerken zamanlayıcı yavaş (120 ms)
+    - Testler: `tests/test_beaver.py` (21 test: sanat, maske, sürükle-bırak, cam + zoom, akış + çıkış, zoom ile
+      görünüm dışı, vortex / drain, stagnation, solid body, pulse itmesi, mod değişimi, yeni sahne, aç / kapa,
+      export'ta yok, balon, olaylar, tekerlek)
+    - ☐ Aşama 2: ilk açılışta atlanabilir tanıtım turu (aynı balon ve İngilizce); sonra isim (Psi geçici) ve
+      yan / akış pozlarının rötuşu (kullanıcı: "yan görünüşler hâlâ biraz garip, sonra düzeltiriz")
 20. ☐ **Optimizasyon (+ Paket E2)**: ölçüm → iyileştirme: açılış ve ilk Numba derleme süresi, sürükleme, zoom /
     pan, animasyon (gerekirse "Use graphics card (OpenGL)", açılamazsa normal çizim), Solid bodies, Surface
     pressure, export süreleri; ölçümler `scripts/` altında, önce / sonra sayılarıyla

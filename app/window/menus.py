@@ -183,6 +183,11 @@ class MenusMixin:
             a.setChecked(pal is self.theme)
             a.triggered.connect(lambda _=False, p=pal: self.apply_theme(p))
             tg.addAction(a)
+        self.act_beaver = m.addAction("Beaver")
+        self.act_beaver.setCheckable(True)
+        self.act_beaver.setChecked(True)
+        self.act_beaver.setToolTip("The pixel beaver on the ruler: drag him onto the plot")
+        self.act_beaver.toggled.connect(self.set_beaver)
 
     def _build_presets_menu(self, m):
         """Scene files in the presets folder, one section per group folder."""

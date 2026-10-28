@@ -160,8 +160,8 @@ LAYOUT = {
     "plank_height": 58,             # wooden header with logo and name
     "ruler_height": 38,             # ruler under it that carries the menus
     "logo_px": 36,
-    # free space right of the Help menu: the beaver mascot will hang there later (head over the
-    # ruler's top edge, paws on the ruler, body behind it) — see ROADMAP, Faz 6
+    # free space right of the Help menu: the beaver mascot sits there (app/beaver: head over the
+    # ruler's top edge, paws on the ruler)
     "beaver_perch_px": 120,
     "gap": 16,                      # paper visible between the header, panels, plot and status bar
     "paper_grid_px": 24,

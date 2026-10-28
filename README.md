@@ -71,6 +71,21 @@ Güncelleme geldiğinde: GitHub Desktop'ta **Fetch origin → Pull origin**.
 İlk açılışta streamline motoru bir kez derlenir (birkaç saniye, durum çubuğunda yazar); animasyon ve
 Solid bodies çekirdekleri hemen ardından arka planda hazırlanır. Sonraki açılışlarda hepsi hazır gelir.
 
+### Kunduz (Psi — isim geçici)
+
+Cetvelde Help'in sağında duran piksel kunduz. Mouse ile tutup plota bırakılır; ne yapacağı görünüm moduna bağlı:
+- **Static**: plotun önünde cam var — cama yapışır, tıklatır, espri yapar, rafına döner (ekrana sabit: zoom /
+  pan arkadaki plotu oynatır)
+- **Particles**: bırakıldığı yerden akışla gider (particle'larla aynı hız ayarı, Space ile durur); görünümden
+  çıkınca cetvelde sağdan yürüyerek döner. Sadece vortex: döner, başı döner, zıplar; vortex + sink: dönerek
+  küçülür, yutulur; stagnation point'te durur; solid body'ye / duvarın arkasına bırakılamaz
+- **Pulses**: en yakın streamline'a basar; her pulse çarpınca düşer ve line boyunca itilir; kenarda "BONK",
+  söylenir, döner
+
+Particles / Pulses'ta plota (veriye) bağlıdır: zoom / pan ile birlikte hareket eder, görünümden çıkarsa eve döner.
+Konuşmalar İngilizce, piksel fontla harf harf yazılır (Pixelify Sans, `assets/fonts/pixelify-sans`, OFL). Export
+edilen figür ve animasyonlarda görünmez; tekerlek üstündeyken de plotu zoom'lar. **View → Beaver** ile kapatılır.
+
 ### Bir hata olursa
 
 Yakalanmamış bir hata programı kapatmaz: "Unexpected error" penceresi çıkar (ayrıntılar, Copy details, Open log
@@ -132,6 +147,7 @@ Exe (Faz 5): `pyinstaller packaging/potential_flow_lab.spec` → `dist/Potential
 | `app/panels.py`, `app/dialogs.py` | Elements / Plot settings panelleri; parametre penceresi (alanlar `app/element_specs.py`'den otomatik) |
 | `app/surface_panel.py` | Surface pressure paneli: Cp grafiği, kuvvetler, CSV |
 | `app/errors.py` | Beklenmeyen hatalar: log dosyası, hata penceresi (program açık kalır), çökme dosyası |
+| `app/beaver/` | Kunduz: `art.py` (koddan çizilen piksel art, her poz / açı keskin), `bubble.py` (piksel konuşma balonu), `lines.py` (İngilizce metinler), `beaver.py` (davranış: raf, sürükleme, cam, akış, pulse, eve dönüş) |
 | `app/recovery.py` | Otomatik kopya ve çökme sonrası sahneyi geri getirme |
 | `app/verification_dialog.py` | Help → Run verification…: raporu arka planda üretir, check ağacı ve "nasıl hesaplandı" paneli |
 | `app/theme.py` | Renkler (açık / koyu), fontlar, boyutlar, marker'lar |

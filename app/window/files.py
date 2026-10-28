@@ -100,6 +100,8 @@ class FilesMixin:
         self._update_title()
         self.flash(f"Saved {os.path.basename(path)}")
         logging.getLogger("pflab").info("saved %s", path)
+        if getattr(self, "beaver", None) is not None:
+            self.beaver.on_saved()
         return True
 
     def _document(self) -> SceneDocument:

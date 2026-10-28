@@ -23,6 +23,7 @@ from model import SceneModel, preview_change
 from physics import ELEMENT_TYPES
 from physics.warmup import warm_up_in_background
 
+from .beaver import Beaver, BeaverSprite
 from .canvas import LIVE_DRAG_DEFAULT, PlotCanvas
 from .recovery import SessionRecovery
 from .chrome import HeaderBar, load_fonts, paint_paper_grid, tint_title_bar
@@ -101,6 +102,14 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         self.model.subscribe(self._on_model_changed)
         self._on_model_changed(None)
         self.restore_layout()                          # the panels as the user left them last time
+        # the beaver mascot (app/beaver): on the ruler next to Help; View → Beaver switches him off
+        self.beaver = Beaver(self)
+        on = QSettings().value("beaver/enabled", True, bool)
+        self.act_beaver.setChecked(on)
+        self.beaver.set_enabled(on)
+        if on and not QSettings().value("beaver/greeted", False, bool):
+            QSettings().setValue("beaver/greeted", True)
+            QTimer.singleShot(1500, self, self.beaver.greet)
 
     def menuBar(self) -> QMenuBar:
         """The menus live on the ruler of the header (not in Qt's own menu bar)."""
@@ -261,6 +270,8 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
             if obj is tree.viewport():
                 if tree.itemAt(event.position().toPoint()) is None:
                     QTimer.singleShot(0, self, lambda: self.select_element(-1))
+            elif isinstance(obj, BeaverSprite):
+                pass                                                          # grabbing the beaver
             elif (self.canvas.plot.isAncestorOf(obj) or obj is self.canvas.plot       # the plot decides
                   or isinstance(obj, QMenuBar) or self.menuBar().isAncestorOf(obj)
                   or (isinstance(obj, QAbstractButton) and obj in (ep.btn_edit, ep.btn_dup, ep.btn_del))):
@@ -367,6 +378,7 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         if self._verification is not None:
             self._verification.shutdown()
         self.recovery.close()                    # closed normally: no copy to restore next time
+        self.beaver.shutdown()
         super().closeEvent(event)
 
     def apply_theme(self, theme):
@@ -384,6 +396,8 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         self.surface_panel.apply_theme(theme)
         if getattr(self, "_verification", None) is not None:
             self._verification.apply_theme(theme)
+        if getattr(self, "beaver", None) is not None:
+            self.beaver.set_theme(theme)
         for w in QApplication.topLevelWidgets():
             if w.isVisible() and w.windowType() in (Qt.Window, Qt.Dialog):
                 tint_title_bar(w, theme)
@@ -403,6 +417,12 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
 
     def paintEvent(self, _event):
         paint_paper_grid(self, self.theme)
+
+    def set_beaver(self, on: bool):
+        """View → Beaver: show / hide the mascot (remembered)."""
+        QSettings().setValue("beaver/enabled", bool(on))
+        if getattr(self, "beaver", None) is not None:
+            self.beaver.set_enabled(on)
 
     def run_verification(self):
         """Help → Run verification…: the verification report, made in the background (one dialog, kept)."""

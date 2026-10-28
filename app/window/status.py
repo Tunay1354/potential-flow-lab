@@ -87,6 +87,9 @@ class StatusMixin:
         def who(s):                                    # number in the element list
             return f"[{s.index + 1}] " if s.index is not None else ""
         self.issue_label.setToolTip("Click to read them" if issues else "No problems found.")
+        if errors and not getattr(self, "_had_errors", False) and getattr(self, "beaver", None) is not None:
+            self.beaver.on_error()
+        self._had_errors = bool(errors)
         if errors:
             more = f"   (+{len(errors) - 1} more: click the status bar)" if len(errors) > 1 else ""
             self.canvas.set_banner(f"✖ Not physically consistent — {who(errors[0])}{errors[0].message}{more}")

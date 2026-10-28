@@ -260,6 +260,9 @@ class VerificationDialog(QDialog):
         self._worker = None
         self._set_busy(False)
         self._set_result(rp.summary(self.report), self.report.ok)
+        beaver = getattr(self.parent(), "beaver", None)
+        if beaver is not None:
+            beaver.on_verified(sum(c.ok for c in self.report.checks), len(self.report.checks))
         self._show_item(self.tree.currentItem())
 
     def _drop_canvas(self):
