@@ -208,7 +208,10 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         self._update_cp_available()
 
     def _update_cp_available(self):
-        self.settings_panel.set_cp_available(self.canvas.cp_reference() is not None)
+        """The "needs a reference speed V_ref" notes: only when there is something to compute (an empty
+        page has no V∞ either, but nothing is missing there)."""
+        empty = not any(e.enabled for e in self.elements)
+        self.settings_panel.set_cp_available(empty or self.canvas.cp_reference() is not None)
 
     def _show_cp_reference(self):
         if not self.dock_settings.isVisible():

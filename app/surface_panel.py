@@ -231,10 +231,11 @@ class SurfacePanel(QScrollArea):
         surf = self.current()
         layer = self.layer
         v_ref = layer._v_ref() if layer is not None else None
-        model = self.c_axis.model()
-        for i, (key, _text) in enumerate(AXES):        # θ only for closed bodies, nothing but s for walls
+        model, view = self.c_axis.model(), self.c_axis.view()
+        for i, (key, _text) in enumerate(AXES):        # θ only for closed bodies, nothing but s for walls:
             ok = surf is None or (surf.kind == "body" and (key != "theta" or surf.closed)) or key == "s"
-            model.item(i).setEnabled(bool(ok))
+            model.item(i).setEnabled(bool(ok))         # the others are not in the list at all (a choice
+            view.setRowHidden(i, not ok)               # that does nothing when clicked only confuses)
         axis = self._axis_for(surf)
         self.c_axis.blockSignals(True)
         self.c_axis.setCurrentIndex(self.c_axis.findData(axis))

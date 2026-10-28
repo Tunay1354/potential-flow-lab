@@ -130,7 +130,8 @@ class SurfaceLayer(PlotLayer):
         for c in self.curves + self.wall_curves:
             c.setVisible(on)
         # without a reference speed: the same note card as the Cp color bands (click: Cp reference)
-        self.legend.setVisible(on and (self._v_ref() is None or bool(self.surfaces())))
+        missing = self._v_ref() is None and self._has_elements()           # (an empty page: nothing missing)
+        self.legend.setVisible(on and (missing or (bool(self.surfaces()) and self._v_ref() is not None)))
 
     def shutdown(self):
         self._wall_timer.stop()
@@ -193,6 +194,9 @@ class SurfaceLayer(PlotLayer):
             self.redraw()
 
     # ------------------------------------------------------------------ drawing
+    def _has_elements(self) -> bool:
+        return self.canvas is not None and any(e.enabled for e in self.canvas.elements)
+
     def _v_ref(self):
         return self.canvas.cp_reference() if self.canvas is not None else None
 

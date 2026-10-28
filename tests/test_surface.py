@@ -292,3 +292,32 @@ def test_surface_layer_says_when_it_needs_a_reference_speed(win, qapp):
     assert sp.c_cp_ref.currentIndex() == 1
     qapp.processEvents()
     assert sp.v_ref_notes["surface"].isHidden() and lay.legend.note is None
+
+
+def test_empty_page_needs_no_reference_speed(win, qapp):
+    """An empty page has no V∞ either, but nothing is missing there: no note under the switches and no
+    note card on the plot (the Cp color bands never showed one there)."""
+    w = win
+    sp, lay = w.settings_panel, w.canvas.surfaces
+    sp.layer_boxes["cp"].setChecked(True)
+    sp.layer_boxes["surface"].setChecked(True)
+    w.load_scene([], ((-4.0, 4.0), (-3.0, 3.0)))
+    _settle(w, qapp)
+    assert sp.v_ref_notes["cp"].isHidden() and sp.v_ref_notes["surface"].isHidden()
+    assert not lay.legend.isVisible()
+
+
+def test_axis_choices_that_do_not_fit_are_not_offered(win, qapp):
+    """θ is only for closed bodies: for an open body it is not in the list (it was there but did
+    nothing when clicked); a wall only has s."""
+    w = win
+    w.dock_surface.show()
+    sp = w.surface_panel
+    w.load_scene([Uniform(), Source(m=2.0)], ((-2.0, 6.0), (-2.5, 2.5)))
+    _settle(w, qapp)
+    shown = [sp.c_axis.itemData(i) for i in range(sp.c_axis.count()) if not sp.c_axis.view().isRowHidden(i)]
+    assert shown == ["s", "x"]
+    w.load_scene([Uniform(), Doublet(mu=1.0)], ((-3.0, 3.0), (-2.0, 2.0)))
+    _settle(w, qapp)
+    shown = [sp.c_axis.itemData(i) for i in range(sp.c_axis.count()) if not sp.c_axis.view().isRowHidden(i)]
+    assert shown == ["theta", "s", "x"]

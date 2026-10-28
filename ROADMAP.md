@@ -278,6 +278,8 @@ sadece genel teknikler öğrenildi: döngünün tamamını derlemek, trail buffe
       akış kanalı geçiyor, ~2 ızgara hücresi): yüzeyler artık iki ayrı çizgi (önceden ikisinin etrafından tek
       çizgi + kırıntılar). Izgara iki yanı da cisim görünce çizginin yanından streamline geriye izleniyor;
       parçalar durma noktalarından birleştiriliyor; uzun ince kanal "kıymık" sayılıp doldurulmuyor
+    - Boş sayfada V_ref notu / kartı çıkmıyor (eksik bir şey yok); "Along" listesinde o yüzeye uymayan seçenek
+      (açık cisimde θ, duvarda θ ve x) hiç görünmüyor
 16. ▶ **Paket V — Komut satırı + otomatik doğrulama**: pencere açmadan figür / CSV export, `--verify`: verification
     case'ler ve analitik çözümlerle karşılaştırma tablosu (Markdown + CSV) ve rapor figürleri
 17. ☐ **Dye rake** (isteğe bağlı): çizilen rake'ten pulse'lı boya → streakline; taşınır, döndürülür, kaydedilir
