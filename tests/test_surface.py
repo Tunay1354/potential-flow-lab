@@ -250,3 +250,45 @@ def test_plot_background_is_not_cached(win):
     from PySide6.QtWidgets import QGraphicsView
     assert win.canvas.plot.cacheMode() == QGraphicsView.CacheNone
     assert win.surface_panel.graph.cacheMode() == QGraphicsView.CacheNone
+
+
+def test_two_half_bodies_with_a_thin_channel_between_are_two_surfaces():
+    """User's scene (28 Oct): two sources close together; a hair of free stream (≈ 0.03 wide, about two
+    cells of the body grid) runs between their half-bodies. The surfaces must be two outlines — not one
+    around both, not scraps — and the channel walls are surfaces of both."""
+    els = [Uniform(), Doublet(mu=1.0), Vortex(Gamma=-2.0), Source(m=1.0, x0=-1.512, y0=1.068),
+           Vortex(Gamma=1.0, x0=-1.845, y0=1.174), Source(m=1.0, x0=-0.65, y0=1.188)]
+    a, b = body_surfaces(els)
+    assert not a.closed and not b.closed
+    # at x = 0.5 the channel lies between the lower wall of A and the upper wall of B
+    def ys(s, x):
+        z = s.z[np.abs(s.z.real - x) < 0.01]
+        return np.sort(z.imag)
+    ya, yb = ys(a, 0.5), ys(b, 0.5)
+    assert ya.min() > yb.max() and ya.min() - yb.max() < 0.08
+    assert ya.max() > 2.0 and yb.min() < 1.2
+
+
+def test_two_touching_sources_are_one_body():
+    """Side by side without free stream between them: their fluid touches along a streamline inside
+    one solid; the surface is the outline of both together."""
+    els = [Uniform(), Source(m=1.0, x0=-1.0), Source(m=1.0, x0=0.5, y0=0.2)]
+    (s,) = body_surfaces(els)
+    assert not s.closed and s.z.imag.max() > 0.8 and s.z.imag.min() < -0.8
+
+
+def test_surface_layer_says_when_it_needs_a_reference_speed(win, qapp):
+    """Like the Cp color bands: a note under the layer switch and a note card on the plot whose click
+    opens Computation → Cp reference."""
+    w = win
+    w.settings_panel.layer_boxes["surface"].setChecked(True)
+    w.load_scene([SymmetryWall(xw=0.0, yw=0.0, theta_w=0.0, side=0), Source(m=2.0, x0=0.0, y0=1.0)],
+                 ((-4.0, 4.0), (-1.0, 5.0)))
+    _settle(w, qapp)
+    sp, lay = w.settings_panel, w.canvas.surfaces
+    assert not sp.v_ref_notes["surface"].isHidden() and not sp.v_ref_notes["cp"].isHidden()
+    assert lay.legend.isVisible() and lay.legend.note is not None
+    lay.legend.clicked()
+    assert sp.c_cp_ref.currentIndex() == 1
+    qapp.processEvents()
+    assert sp.v_ref_notes["surface"].isHidden() and lay.legend.note is None

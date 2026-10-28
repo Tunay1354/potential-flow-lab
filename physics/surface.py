@@ -3,10 +3,12 @@ surface.py — pressure on the surfaces of a scene (Paket S): the surfaces of th
 walls, Cp along them, and the force on a closed body from the pressure integral.
 
 Surfaces
-  * bodies (bodies.find_bodies, found once for the whole scene, independent of the view): a closed
-    body (cylinder, Rankine oval …) has one closed surface, counter-clockwise (body on the left); an
-    open body (Rankine half-body) has a surface that ends where the search region ends (its body goes
-    on to x → ∞ downstream).
+  * bodies (found once for the whole scene, independent of the view): the parts of the dividing
+    streamlines with body fluid on one side and other fluid on the other, joined into outlines (through
+    the stagnation points). A thin channel of free stream between two bodies, too thin for the grid of
+    cells, is told by tracing the streamlines just beside the line. A closed body (cylinder, Rankine
+    oval …) has one closed surface, counter-clockwise (body on the left); an open body (Rankine
+    half-body) has a surface that ends where the search region ends (its body goes on downstream).
   * walls: symmetry walls and the two sides of a sector flow, only where fluid touches them, over the
     view (they are infinite).
 The points are spaced evenly along the surface and the velocity is evaluated exactly there (on the
@@ -29,10 +31,10 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from .bodies import find_bodies
 from .field import active, complex_velocity, fluid_mask, reference_speed, singular_points
 from .images import resolve
-from .stagnation import bodies_box, body_size, flow_features, has_free_stream
+from .bodies import PROBE_CELLS, body_map
+from .stagnation import BODY, _encloses, bodies_box, body_size, flow_features, has_free_stream, trace_ends
 
 POINTS_PER_SIZE = 240           # surface points per body size (cylinder radius, half-body width …)
 MAX_POINTS = 4000
@@ -88,7 +90,14 @@ class Force:
 
 # ---------------------------------------------------------------------- bodies
 def body_surfaces(elements) -> list[Surface]:
-    """The surfaces of all bodies of the scene (whole scene: does not depend on the view)."""
+    """The surfaces of all bodies of the scene (whole scene: does not depend on the view).
+
+    The parts of the dividing streamlines with a body on one side (bodies.surface_pieces, body on the
+    left) are joined end to start into outlines; next to a stagnation point a part stops a little short
+    of it, so two parts that both end there are joined through the point. Parts of the same body region
+    go together first (where two bodies meet at one stagnation point — a thin channel of free stream
+    between two half-bodies — each keeps its own outline). One outline = one body: closed (a cylinder,
+    an oval) or open (a half-body; it ends where the search region ends)."""
     els = active(elements)
     if not has_free_stream(els):
         return []
@@ -104,39 +113,199 @@ def body_surfaces(elements) -> list[Surface]:
     L = max(x1 - x0, y1 - y0)
     scale = min(L, 8.0 * max(sizes))            # tracer step ≪ the bodies, stagnation search over the box
     feats = flow_features(els, box, scale=scale)
-    bodies = find_bodies(els, feats.dividing, box, cells=600, inner=feats.inner)
+    cells = 700
+    shape = (max(8, int(round(cells * (y1 - y0) / L))), max(8, int(round(cells * (x1 - x0) / L))))
+    bmap = body_map(els, box, shape, list(feats.dividing) + list(feats.inner))
+    if bmap is None or bmap.count == 0:
+        return []
+    cell = L / cells
+    pieces = _surface_parts(els, bmap, list(feats.dividing), box, scale, cell)
+    if not pieces:
+        return []
+    stag = np.array([p.z for p in feats.points], dtype=complex)
+    outlines = _outlines(pieces, stag, 4.0 * cell, 0.04 * L + 6.0 * cell)
     flows = resolve(els)
     sing = singular_points(els)
     fs = complex(sum((e.freestream_velocity() or 0j) for e in els))
     walls = any(e.fluid_region(np.zeros(1, complex)) is not None for e in els)
-    out = []
     size = min(sizes)
-    for b in sorted(bodies, key=_first_x):
-        chains = [c[:, 0] + 1j * c[:, 1] for c in b.surface]
-        for z in chains:
-            if z.size < 4:
-                continue
-            z = _resample(z, b.closed, size / POINTS_PER_SIZE)
-            surf = Surface("body", "", z, _arc(z), _velocity(flows, z), closed=bool(b.closed), inside=list(b.singular))
-            surf.gamma = float(sum(e.Gamma for e in els if e.TYPE == "vortex"
-                                   and any(_same(p, q) for p in e.singular_points() for q in b.singular)))
-            if b.closed:
-                surf.center = _centroid(z)
-                others = [p for p in sing if not any(_same(p, q) for q in b.singular)]
-                if walls:
-                    surf.note = "Walls take part in the flow (ground effect): no closed-form value to compare with."
-                elif abs(fs) == 0:
-                    surf.note = "No uniform flow: no Kutta–Joukowski value to compare with."
-                elif others:
-                    surf.note = ("Other elements outside the body also push on it: the Kutta–Joukowski "
-                                 "value holds for a body alone in a uniform stream.")
-                else:
-                    surf.alone = True
+    out = []
+    for z, closed in sorted(outlines, key=lambda o: float(np.min(o[0].real))):
+        if z.size < 4 or np.sum(np.abs(np.diff(z))) < max(16.0 * cell, 0.5 * min(sizes)):
+            continue                                    # a scrap (a wedge next to a stagnation point)
+        z = _resample(z, closed, size / POINTS_PER_SIZE)
+        inside = [complex(p) for p in sing if closed and _encloses(z, np.array([p]))[0]]
+        surf = Surface("body", "", z, _arc(z), _velocity(flows, z), closed=closed, inside=inside)
+        surf.gamma = float(sum(e.Gamma for e in els if e.TYPE == "vortex"
+                               and any(_same(p, q) for p in e.singular_points() for q in inside)))
+        if closed:
+            surf.center = _centroid(z)
+            others = [p for p in sing if not any(_same(p, q) for q in inside)]
+            if walls:
+                surf.note = "Walls take part in the flow (ground effect): no closed-form value to compare with."
+            elif abs(fs) == 0:
+                surf.note = "No uniform flow: no Kutta–Joukowski value to compare with."
+            elif others:
+                surf.note = ("Other elements outside the body also push on it: the Kutta–Joukowski "
+                             "value holds for a body alone in a uniform stream.")
             else:
-                surf.note = "Open body (it goes on downstream without end): no closed surface, no force."
-            out.append(surf)
+                surf.alone = True
+        else:
+            surf.note = "Open body (it goes on downstream without end): no closed surface, no force."
+        out.append(surf)
     for k, srf in enumerate(out, 1):
         srf.name = f"Body {k}" + ("" if srf.closed else " (open)")
+    return out
+
+
+SIDE_SAMPLES = 80               # side tests along a dividing streamline (at most)
+MIN_GAP = 1e-3                  # … not where another dividing streamline is closer (× the search region)
+
+
+def _surface_parts(els, bmap, lines, box, scale, cell):
+    """The parts of the dividing streamlines that are a body surface, with the body on their left:
+    [(body region, points)]. Each side of a line is looked up in the body map a few cells away; where
+    BOTH sides are body of two different regions, the map cannot tell a thin channel of free stream
+    between two bodies (two half-bodies close together: a hair of free stream runs between them, which
+    no grid of cells resolves) from two bodies that touch (two sources side by side). There the sides
+    are tested by tracing the streamline just beside the line back to where it starts
+    (stagnation.trace_ends): a point less than half way to the next dividing streamline, traced with
+    steps much shorter than that (its streamline passes close to a stagnation point)."""
+    x0, x1, y0, y1 = box
+    L = max(x1 - x0, y1 - y0)
+    probe = PROBE_CELLS * cell
+    zs = [ln[:, 0] + 1j * ln[:, 1] for ln in lines]
+    flags = []
+    ask = []                                         # (line, point, left id, right id, normal): traced
+    ambiguous = {}                                   # line -> all its points with body of two regions
+    for li, z in enumerate(zs):
+        if z.size < 2:
+            flags.append(np.zeros(0, int))
+            continue
+        t = np.gradient(z)
+        n = 1j * t / np.where(np.abs(t) > 0, np.abs(t), 1.0)              # left normal
+        left, right = bmap.body_at(z + probe * n), bmap.body_at(z - probe * n)
+        f = np.where((left > 0) & (right == 0), left, np.where((right > 0) & (left == 0), -right, 0))
+        both = np.nonzero((left > 0) & (right > 0) & (left != right))[0]
+        if both.size:
+            ambiguous[li] = both
+            for k in both[np.unique(np.linspace(0, both.size - 1, min(SIDE_SAMPLES, both.size)).astype(int))]:
+                ask.append((li, int(k), int(left[k]), int(right[k]), n[k]))
+        flags.append(f.astype(int))
+    if ask:
+        every = [z[::max(1, z.size // 300)] for z in zs]
+        probes, eps_all, keep = [], [], []
+        for q, (li, k, _l, _r, nk) in enumerate(ask):
+            others = np.concatenate([w for lj, w in enumerate(every) if lj != li] or [np.zeros(0, complex)])
+            gap = float(np.min(np.abs(others - zs[li][k]))) if others.size else L
+            if gap < MIN_GAP * L:
+                continue                       # where the lines meet (a stagnation point): the neighbours tell
+            eps = float(np.clip(0.3 * gap, 1e-4 * L, 4e-3 * L))
+            probes += [zs[li][k] + eps * nk, zs[li][k] - eps * nk]
+            eps_all += [eps, eps]
+            keep.append(q)
+        if probes:
+            probes, eps_all = np.array(probes), np.array(eps_all)
+            kinds = np.empty(probes.size, np.int8)
+            level = np.round(np.log2(np.minimum(40.0 * eps_all, scale))).astype(int)   # tracer ≈ 40 × offset
+            for lev in np.unique(level):
+                sel = level == lev
+                kinds[sel] = trace_ends(els, probes[sel], box, float(2.0 ** lev), -1.0)[0]
+            body = (kinds == BODY).reshape(-1, 2)
+            decided = {}                                      # line -> [(point, flag)]
+            for q, b in zip(keep, body):
+                li, k, lid, rid, _n = ask[q]
+                decided.setdefault(li, []).append((k, lid if b[0] and not b[1] else -rid if b[1] and not b[0] else 0))
+            for li, items in decided.items():                 # each ambiguous point: its nearest test
+                f = flags[li]
+                ks = np.array([k for k, _v in items])
+                vs = np.array([v for _k, v in items])
+                amb = ambiguous[li]
+                f[amb] = vs[np.abs(amb[:, None] - ks[None, :]).argmin(axis=1)]
+    out = []
+    for z, f in zip(zs, flags):
+        if not f.size:
+            continue
+        k = 0
+        while k < z.size:
+            if f[k] == 0:
+                k += 1
+                continue
+            j = k
+            while j + 1 < z.size and f[j + 1] == f[k]:
+                j += 1
+            if j > k:
+                out.append((abs(int(f[k])), z[k:j + 1] if f[k] > 0 else z[k:j + 1][::-1]))
+            k = j + 1
+    return _drop_repeats(out, 2.0 * probe)
+
+
+def _drop_repeats(pieces, tol):
+    """A surface traced from both of its stagnation points is there twice: keep the longer copy."""
+    pieces = sorted(pieces, key=lambda p: -np.sum(np.abs(np.diff(p[1]))))
+    kept = []
+    for b, z in pieces:
+        sub = z[::max(1, z.size // 200)]
+        if any(kb == b and np.median(np.min(np.abs(sub[:, None] - w[None, ::max(1, w.size // 400)]), axis=1)) < tol
+               for kb, w in kept):
+            continue
+        kept.append((b, z))
+    return kept
+
+
+def _outlines(pieces, stag, tol, reach):
+    """Join pieces (body number, points with the body on the left) end to start into outlines:
+    [(points, closed)]. A link from the end of a piece to the start of another (or of itself: a closed
+    outline) is possible when they are less than `tol` apart, or both within `reach` of one stagnation
+    point (then the point is put between them). Cheapest links first; a link inside one body region costs
+    less than one between two regions (that only joins the regions of one body split by a branch)."""
+    n = len(pieces)
+    links = []
+    for i, (bi, zi) in enumerate(pieces):
+        e = zi[-1]
+        for j, (bj, zj) in enumerate(pieces):
+            st = zj[0]
+            d = abs(e - st)
+            via = None
+            if d > tol or bi != bj:          # two regions meet only at a stagnation point (not at the
+                                             # far end of a thin channel, where their surfaces are close)
+                if not stag.size:
+                    continue
+                ds = np.abs(stag - e) + np.abs(stag - st)
+                k = int(np.argmin(ds))
+                if abs(stag[k] - e) > reach or abs(stag[k] - st) > reach:
+                    continue
+                via, d = stag[k], float(ds[k])
+            cost = d + (0.0 if bi == bj else 2.0 * reach)
+            links.append((cost, i, j, via))
+    links.sort(key=lambda t: t[0])
+    nxt, prev = {}, {}
+    for _cost, i, j, via in links:
+        if i in nxt or j in prev:
+            continue
+        nxt[i], prev[j] = (j, via), i
+    out, seen = [], set()
+    starts = [i for i in range(n) if i not in prev] + list(range(n))     # open outlines first
+    for s0 in starts:
+        if s0 in seen:
+            continue
+        parts, i, closed = [], s0, False
+        while True:
+            seen.add(i)
+            parts.append(pieces[i][1])
+            if i not in nxt:
+                break
+            j, via = nxt[i]
+            if via is not None:
+                parts.append(np.array([via]))
+            if j == s0:
+                closed = True
+                break
+            if j in seen:
+                break
+            i = j
+        z = np.concatenate(parts)
+        out.append((z, closed))
     return out
 
 

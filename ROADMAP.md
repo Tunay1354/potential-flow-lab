@@ -273,6 +273,11 @@ sadece genel teknikler öğrenildi: döngünün tamamını derlemek, trail buffe
       olarak ya da yanına ikinci sütun olarak taşınabiliyor (nested docks), yeri hatırlanıyor, açılışta kendiliğinden
       açılmıyor (katmanla ya da View → Panels); 125 % ölçekte plot'un sağ kenarında çıkan ikinci koyu çizgi
       (önbelleğe alınmış arka planın boyanmayan son piksel sütunu) — arka plan önbelleği kapalı
+    - Surface pressure kutusunun altında da Cp'deki gibi "needs a reference speed V_ref: set V_ref…" notu, plot'ta
+      da aynı tıklanabilir not kartı (V∞ yoksa); birbirine çok yakın iki half-body (aralarından ince bir serbest
+      akış kanalı geçiyor, ~2 ızgara hücresi): yüzeyler artık iki ayrı çizgi (önceden ikisinin etrafından tek
+      çizgi + kırıntılar). Izgara iki yanı da cisim görünce çizginin yanından streamline geriye izleniyor;
+      parçalar durma noktalarından birleştiriliyor; uzun ince kanal "kıymık" sayılıp doldurulmuyor
 16. ▶ **Paket V — Komut satırı + otomatik doğrulama**: pencere açmadan figür / CSV export, `--verify`: verification
     case'ler ve analitik çözümlerle karşılaştırma tablosu (Markdown + CSV) ve rapor figürleri
 17. ☐ **Dye rake** (isteğe bağlı): çizilen rake'ten pulse'lı boya → streakline; taşınır, döndürülür, kaydedilir

@@ -123,6 +123,7 @@ class PlotCanvas(QWidget):
         self.element_layer = self.add_layer(ElementLayer(self.plot, self.vb))
         self.bodies = self.add_layer(BodyLayer(self.plot, self.vb))
         self.surfaces = self.add_layer(SurfaceLayer(self.plot, self.vb))           # Cp on body surfaces, walls
+        self.surfaces.legend.clicked = self.cp_reference_requested.emit
         self.particles = self.add_layer(ParticleLayer(self.plot, self.vb))      # animation styles
         self.pulses = self.add_layer(PulseLayer(self.plot, self.vb))
         self.bodies.changed += [self.particles.bodies_changed, self.pulses.bodies_changed,

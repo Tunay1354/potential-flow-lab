@@ -162,6 +162,7 @@ def body_map(elements, box, shape, dividing, rng=None, hint: BodyMap | None = No
 
 SLIVER_SHARE = 5e-4             # regions up to this share of the cells (at least MIN_CELLS) …
 SLIVER_REACH = 2                 # … with body on most sides within this many cells become body
+SLIVER_LENGTH = 30               # … and at most this long (cells), away from the border
 
 
 def _absorb_slivers(labels, n, body):
@@ -184,6 +185,11 @@ def _absorb_slivers(labels, n, body):
     for k in small:
         cells = order[starts[k]:starts[k + 1]]
         r, c = cells // cols, cells % cols
+        # only a compact wedge: a long thin channel of free stream between two bodies (it may be just as
+        # few cells) is real and stays (two half-bodies close together, 28 Oct)
+        if max(np.ptp(r), np.ptp(c)) > SLIVER_LENGTH or r.min() == 0 or c.min() == 0 \
+                or r.max() == rows - 1 or c.max() == cols - 1:
+            continue
         near = []
         for dr, dc in offsets:
             rr, cc = r + dr, c + dc

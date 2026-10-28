@@ -13,6 +13,9 @@ from .chrome import button_font, themed_combo
 from .icons import make_element_icon
 
 
+NEEDS_V_REF = ("cp", "surface")      # layers that show Cp: a note under them when there is no V∞
+
+
 def element_icon(element, theme, size=48):
     """Toolbar-style icon of an element instance (sink: inward arrows, clockwise vortex: mirrored)."""
     negative = getattr(element, "is_sink", False) or (element.TYPE == "vortex" and element.Gamma < 0)
@@ -225,23 +228,26 @@ class SettingsPanel(QScrollArea):
         g = QGroupBox("LAYERS")
         v = QVBoxLayout(g)
         self.layer_boxes = {}
+        self.v_ref_notes = {}                  # layer key -> "needs a reference speed V_ref" note
         for key, text, on in LAYERS:
             c = QCheckBox(text)
             c.setChecked(on)
             c.toggled.connect(lambda checked, k=key: self.layer_changed.emit(k, checked))
             v.addWidget(c)
             self.layer_boxes[key] = c
-            if key == "cp":
+            if key in NEEDS_V_REF:
                 # under the box, not in its text: a longer text would make the panel wider than it is
                 # (everything on the right — slider ends, text — was cut off then)
-                note = self.cp_note = QLabel('needs a reference speed V_ref: <a href="vref">set V_ref…</a>')
+                note = QLabel('needs a reference speed V_ref: <a href="vref">set V_ref…</a>')
                 note.setObjectName("LayerNote")
                 note.setWordWrap(True)
                 note.setTextFormat(Qt.RichText)
                 note.linkActivated.connect(lambda _link: self.show_cp_reference())
                 note.setVisible(False)
                 v.addWidget(note)
-                self.cp_needs_reference = False
+                self.v_ref_notes[key] = note
+        self.cp_note = self.v_ref_notes["cp"]
+        self.cp_needs_reference = False
         self._add_section("layers", "Layers", g, lay)
 
         # --- the animations: Particles, Pulses ---------------------------------
@@ -364,11 +370,13 @@ class SettingsPanel(QScrollArea):
             w.blockSignals(False)
 
     def set_cp_available(self, available: bool):
-        """The Cp layer needs a reference speed (V∞ of a uniform flow, or a custom V_ref)."""
+        """The Cp layers (color bands, surface pressure) need a reference speed (V∞ of a uniform flow,
+        or a custom V_ref)."""
         self.cp_needs_reference = not available
-        self.cp_note.setVisible(not available)
-        self.layer_boxes["cp"].setToolTip("" if available else "This scene has no uniform flow (V∞): set a "
-                                          "custom V_ref in Computation → Cp reference")
+        for key, note in self.v_ref_notes.items():           # Cp bands and Cp on surfaces alike
+            note.setVisible(not available)
+            self.layer_boxes[key].setToolTip("" if available else "This scene has no uniform flow (V∞): set a "
+                                             "custom V_ref in Computation → Cp reference")
 
     def show_cp_reference(self):
         """Bring the V_ref field into view: Computation section shown, 'Custom' chosen, field focused."""

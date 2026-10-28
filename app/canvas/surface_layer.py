@@ -129,7 +129,8 @@ class SurfaceLayer(PlotLayer):
         on = self.on
         for c in self.curves + self.wall_curves:
             c.setVisible(on)
-        self.legend.setVisible(on and bool(self.surfaces()) and self._v_ref() is not None)
+        # without a reference speed: the same note card as the Cp color bands (click: Cp reference)
+        self.legend.setVisible(on and (self._v_ref() is None or bool(self.surfaces())))
 
     def shutdown(self):
         self._wall_timer.stop()
@@ -229,7 +230,10 @@ class SurfaceLayer(PlotLayer):
                     curve.setData(seg.real, seg.imag, pen=pen)
                 else:
                     curve.setData([], [], pen=pen)
-        if surfaces and v_ref:
+        if not v_ref:
+            self.legend.set_note("Cp surface", "Cp = 1 − (V / V∞)² needs a reference speed. This scene has "
+                                 "no uniform flow (V∞).", "Set V_ref in Computation  →")
+        elif surfaces:
             edges, band_colors = self.legend_bands(colors)
             self.legend.set_bands("Cp surface", edges, band_colors)
         self.visibility_changed()
