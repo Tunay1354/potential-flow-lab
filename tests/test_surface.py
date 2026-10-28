@@ -174,7 +174,7 @@ def test_no_reference_speed_and_the_link(win, qapp):
     sp.info.linkActivated.emit("vref")
     assert w.settings_panel.c_cp_ref.currentIndex() == 1
     qapp.processEvents()
-    assert "Cp min" in sp.info.text()
+    assert "Lowest Cp" in sp.info.text()
 
 
 def test_surface_csv(win, qapp, tmp_path):
@@ -207,3 +207,46 @@ def test_panel_does_not_make_the_window_too_wide(win, qapp):
     w.dock_surface.show()
     qapp.processEvents()
     assert w.minimumSizeHint().width() <= 1536 / 1.0
+
+
+def test_hover_keeps_the_graph_still_and_follows_the_curve_under_the_mouse(win, qapp):
+    """The hover dot used to stretch the auto range (the graph jumped at the peaks); along x the
+    upper and lower surface have the same x and the ring jumped between them."""
+    from PySide6.QtCore import QPointF
+    w = win
+    w.settings_panel.layer_boxes["surface"].setChecked(True)
+    w.load_scene([Uniform(), Doublet(mu=1.0), Vortex(Gamma=-2.0)], ((-3.0, 3.0), (-2.0, 2.0)))
+    _settle(w, qapp)
+    sp, lay = w.surface_panel, w.canvas.surfaces
+    sp.c_axis.setCurrentIndex(sp.c_axis.findData("x"))
+    sp._axis_chosen(0)
+    vb = sp.graph.getPlotItem().getViewBox()
+    before = vb.viewRange()
+    surf, x, cp = sp._shown
+    upper = surf.z.imag > 0
+    for xm in np.linspace(0.2, 1.8, 40):
+        k = np.nanargmin(np.where(upper, np.abs(x - xm), np.inf))
+        sp._hover(vb.mapViewToScene(QPointF(xm, cp[k] + 0.05)))
+        assert lay.marker.getData()[1][0] > 0                    # still on the upper surface
+    assert np.allclose(vb.viewRange(), before)
+
+
+def test_panel_fits_under_other_panels_and_starts_hidden(win, qapp):
+    """It scrolls when short (so it can stand under / beside the other panels on the right), docks
+    may nest (a second column), and it never opens by itself at the start — only with its layer."""
+    from PySide6.QtWidgets import QMainWindow
+    w = win
+    assert w.surface_panel.minimumSizeHint().height() <= 200
+    assert w.dockOptions() & QMainWindow.AllowNestedDocks
+    w.dock_surface.show()
+    w.save_layout()
+    w.restore_layout()
+    assert not w.dock_surface.isVisible()
+
+
+def test_plot_background_is_not_cached(win):
+    """A cached background left the last device pixel column unpainted at 125 % (a second dark line
+    beside the plot card's right frame, depending on the plot width)."""
+    from PySide6.QtWidgets import QGraphicsView
+    assert win.canvas.plot.cacheMode() == QGraphicsView.CacheNone
+    assert win.surface_panel.graph.cacheMode() == QGraphicsView.CacheNone

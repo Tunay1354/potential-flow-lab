@@ -23,13 +23,14 @@ def win(qapp):
 def test_panels_only_beside_the_plot(win):
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QDockWidget, QMainWindow
-    for d in (win.dock_elements, win.dock_settings):
+    for d in (win.dock_elements, win.dock_settings, win.dock_surface):
         assert d.allowedAreas() == Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea
         assert not d.features() & QDockWidget.DockWidgetFloatable
         assert d.features() & QDockWidget.DockWidgetMovable
-        assert win.dockWidgetArea(d) == Qt.RightDockWidgetArea
+    assert win.dockWidgetArea(win.dock_elements) == win.dockWidgetArea(win.dock_settings) == Qt.RightDockWidgetArea
+    assert win.dockWidgetArea(win.dock_surface) == Qt.LeftDockWidgetArea           # opens left of the plot
     assert not win.dockOptions() & QMainWindow.AllowTabbedDocks        # never stacked as tabs
-    assert not win.dockOptions() & QMainWindow.AllowNestedDocks         # one column per side
+    assert win.dockOptions() & QMainWindow.AllowNestedDocks             # 28 Oct: a second column is allowed
 
 
 def test_drop_indicator_in_wood_color(win, qapp):

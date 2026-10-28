@@ -74,7 +74,8 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         self.setCentralWidget(self.desk)
 
         # side panels: only left or right of the plot, stacked; no floating, no tabs
-        self.setDockOptions(QMainWindow.AnimatedDocks)
+        # left or right of the plot; nested: a panel can also stand beside another (a second column)
+        self.setDockOptions(QMainWindow.AnimatedDocks | QMainWindow.AllowNestedDocks)
         self.elements_panel = ElementsPanel(self.theme)
         self.dock_elements = self._dock("Elements", self.elements_panel)
         self.dock_elements.widget().setMinimumHeight(LAYOUT["elements_panel_min_height"])

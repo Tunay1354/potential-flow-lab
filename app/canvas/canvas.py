@@ -10,8 +10,8 @@ what the mouse does is in interaction.py.
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import Signal
-from PySide6.QtGui import QColor, QPainter, QPen
-from PySide6.QtWidgets import QGraphicsItem, QLabel, QVBoxLayout, QWidget
+from PySide6.QtGui import QColor, QPainter, QPalette, QPen
+from PySide6.QtWidgets import QGraphicsItem, QGraphicsView, QLabel, QVBoxLayout, QWidget
 
 from physics.field import reference_speed
 
@@ -91,6 +91,11 @@ class PlotCanvas(QWidget):
         lay.addWidget(self.banner)
         pg.setConfigOptions(antialias=True)
         self.plot = pg.PlotWidget(viewBox=PlotViewBox())
+        # no cached background: at a fractional display scale (125 %) the cached picture (logical
+        # pixels) left the last device pixel column unpainted — a dark line beside the right frame,
+        # depending on the plot's width (e.g. with a side panel open). The viewport fills itself too.
+        self.plot.setCacheMode(QGraphicsView.CacheNone)
+        self.plot.viewport().setAutoFillBackground(True)
         self.plot.setAspectLocked(True)          # circles must look like circles
         self.plot.setMenuEnabled(False)
         self.plot.hideButtons()
@@ -456,6 +461,10 @@ class PlotCanvas(QWidget):
         self.update()                                # frame color
         self.bar.apply_theme(t)
         self.plot.setBackground(t["plot_bg"])
+        pal = self.plot.viewport().palette()
+        pal.setColor(QPalette.Window, QColor(t["plot_bg"]))
+        pal.setColor(QPalette.Base, QColor(t["plot_bg"]))
+        self.plot.viewport().setPalette(pal)
         pi = self.plot.getPlotItem()
         tick_font = font("mono", FONT["plot_label_size_pt"] - 1)
         for name in ("left", "bottom"):

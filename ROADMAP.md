@@ -66,7 +66,7 @@ Teslim: yaklaşık 26 Kasım 2026 (rapor + user guide + canlı demo).
      "İleri" butonu ileride header ahşap rengi olacak
 7. ✅ **Paket D — Panel sistemi** [4] (27 Ekim'de kapsam güncellendi)
    - Paneller sadece plot'un solunda veya sağında, alt alta (üste / alta konamaz, yüzen pencere yok,
-     sekme olarak üst üste binmez); sürüklerken yer gösteren bant temanın ahşap renginde
+     sekme olarak üst üste binmez); 28 Ekim'den beri bir tarafta yan yana ikinci sütun da olabilir; sürüklerken yer gösteren bant temanın ahşap renginde
    - ADD paleti başlığından tutulup bütün olarak plot'un soluna / sağına taşınır (boyutu değişmez)
    - Plot settings bölümleri (View range, Streamlines, Layers, Animation, Computation): başlığa sağ tık
      veya View → Panels → Plot settings sections ile gizlenir / geri gelir (başlıkta "n HIDDEN")
@@ -266,6 +266,13 @@ sadece genel teknikler öğrenildi: döngünün tamamını derlemek, trail buffe
     - CSV: panelde Export CSV… ve File → Export data → "Surface pressure" (yüzey, x, y, s, θ, x akış boyunca,
       u, v, |V|, Cp); V∞ yoksa panel Cp reference'a link veriyor
     - `find_bodies` artık bitişik cisim bölgelerini tek cisim sayıyor, içe giden dalları sınır olarak alıyor
+    - Düzeltmeler (28 Ekim, kullanıcı geri bildirimi): grafikte gezinirken tepe noktalarında grafik zıplamıyor
+      (eksen aralıkları sabit, nokta aralığa dahil değil); "x along the flow"da halka üst / alt yüzey arasında
+      atlamıyor (ekranda fareye en yakın nokta); sayılar bölümlü ve kısa satırlı (CP ON THE SURFACE / FORCE PER
+      UNIT SPAN, değerler N/m, teori ve fark % altında küçük); panel kaydırılabilir → sağdaki sütuna alt / üst
+      olarak ya da yanına ikinci sütun olarak taşınabiliyor (nested docks), yeri hatırlanıyor, açılışta kendiliğinden
+      açılmıyor (katmanla ya da View → Panels); 125 % ölçekte plot'un sağ kenarında çıkan ikinci koyu çizgi
+      (önbelleğe alınmış arka planın boyanmayan son piksel sütunu) — arka plan önbelleği kapalı
 16. ▶ **Paket V — Komut satırı + otomatik doğrulama**: pencere açmadan figür / CSV export, `--verify`: verification
     case'ler ve analitik çözümlerle karşılaştırma tablosu (Markdown + CSV) ve rapor figürleri
 17. ☐ **Dye rake** (isteğe bağlı): çizilen rake'ten pulse'lı boya → streakline; taşınır, döndürülür, kaydedilir

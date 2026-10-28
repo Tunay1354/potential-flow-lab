@@ -10,9 +10,9 @@ Cp = 1 − (2 sin θ − Γ/(2πaV∞))² is drawn too (dashed).
 """
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QSettings, Qt, Signal
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel, QPushButton,
-                               QSizePolicy, QVBoxLayout, QWidget)
+from PySide6.QtCore import QSettings, QSize, Qt, Signal
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QGraphicsView, QHBoxLayout, QLabel,
+                               QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget)
 
 from physics.surface import cylinder_cp, free_stream_angle, pressure_force, rotate_to_theta0
 
@@ -24,9 +24,11 @@ AXES = (("theta", "θ  round the center"),
         ("x", "x  along the flow"))
 GRAPH_BINS = 48
 RHO_DEFAULT = 1.225              # kg/m³, air at sea level
+GRAPH_PX = 210                   # graph height: graph and numbers fit a 1080-p screen at 125 % unscrolled
 
 
-class SurfacePanel(QWidget):
+class SurfacePanel(QScrollArea):
+    """Scrolls when the panel is short: so it also fits under the other panels on the right."""
     export_requested = Signal()              # "Export CSV…" (the window asks where and writes it)
     cp_reference_requested = Signal()        # "set V_ref…" link
 
@@ -35,8 +37,14 @@ class SurfacePanel(QWidget):
         self.theme = theme
         self.layer = None                    # the plot's SurfaceLayer (set_layer)
         self.elements = []
-        self._shown = None                   # (surface as plotted, x values) for the hover ring
-        lay = QVBoxLayout(self)
+        self._shown = None                   # (surface as plotted, x values, Cp) for the hover ring
+        self.setWidgetResizable(True)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        body = QWidget()
+        body.setObjectName("DockBody")
+        body.setAttribute(Qt.WA_StyledBackground, True)
+        self.setWidget(body)
+        lay = QVBoxLayout(body)
         lay.setContentsMargins(10, 4, 10, 10)
         lay.setSpacing(6)
 
@@ -58,27 +66,35 @@ class SurfacePanel(QWidget):
         row.addWidget(self.c_axis, 1)
         lay.addLayout(row)
 
-        self.graph = pg.PlotWidget()
-        self.graph.setMenuEnabled(False)
-        self.graph.hideButtons()
-        self.graph.setMinimumHeight(240)
-        self.graph.setMouseEnabled(x=False, y=False)
-        self.curves = [pg.PlotCurveItem(connect="finite") for _ in range(GRAPH_BINS)]
-        for c in self.curves:
-            self.graph.addItem(c)
-        self.exact = pg.PlotCurveItem()
-        self.graph.addItem(self.exact)
-        self.dot = pg.ScatterPlotItem(size=8)
-        self.graph.addItem(self.dot)
-        self.zero = pg.InfiniteLine(pos=0.0, angle=0)
-        self.graph.addItem(self.zero)
-        self.graph.scene().sigMouseMoved.connect(self._hover)
-        lay.addWidget(self.graph, 1)
         self.c_suction = QCheckBox("Suction up  (−Cp up)")
         self.c_suction.setToolTip("Cp axis reversed, as usual in aerodynamics: suction (Cp < 0) on top")
         self.c_suction.setChecked(True)
         self.c_suction.toggled.connect(self._draw)
         lay.addWidget(self.c_suction)
+        self.graph = pg.PlotWidget()
+        self.graph.setCacheMode(QGraphicsView.CacheNone)        # see PlotCanvas: no unpainted pixel column
+        self.graph.setMenuEnabled(False)
+        self.graph.hideButtons()
+        self.graph.setMinimumHeight(GRAPH_PX)
+        self.graph.setMaximumHeight(GRAPH_PX)
+        self.graph.setMouseEnabled(x=False, y=False)
+        self.graph.getPlotItem().getViewBox().disableAutoRange()   # ranges set in _draw: the hover dot never moves them
+        self.curves = [pg.PlotCurveItem(connect="finite") for _ in range(GRAPH_BINS)]
+        for c in self.curves:
+            self.graph.addItem(c)
+        self.exact = pg.PlotCurveItem()
+        self.graph.addItem(self.exact, ignoreBounds=True)
+        self.dot = pg.ScatterPlotItem(size=9)
+        self.dot.setZValue(10)
+        self.graph.addItem(self.dot, ignoreBounds=True)
+        self.zero = pg.InfiniteLine(pos=0.0, angle=0)
+        self.graph.addItem(self.zero, ignoreBounds=True)
+        self.graph.scene().sigMouseMoved.connect(self._hover)
+        lay.addWidget(self.graph)
+        self.key = QLabel("")                # what the lines are (under the graph)
+        self.key.setObjectName("LayerNote")
+        self.key.setWordWrap(True)
+        lay.addWidget(self.key)
 
         self.info = QLabel("")
         self.info.setWordWrap(True)
@@ -106,7 +122,15 @@ class SurfacePanel(QWidget):
         self.btn_export.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         row.addWidget(self.btn_export)
         lay.addLayout(row)
+        lay.addStretch(1)
         self.apply_theme(theme)
+
+    def minimumSizeHint(self) -> QSize:
+        """As wide as the content plus the vertical scrollbar (as the Plot settings panel), and only a
+        little high: the rest scrolls (the panel fits in a column under other panels)."""
+        body = self.widget().minimumSizeHint().width()
+        bar = self.verticalScrollBar().sizeHint().width()
+        return QSize(body + bar + 2 * self.frameWidth(), 160)
 
     # ------------------------------------------------------------------ wiring
     def set_layer(self, layer):
@@ -117,15 +141,19 @@ class SurfacePanel(QWidget):
         self.elements = elements
 
     def leaveEvent(self, event):
+        self._hide_marker()
+        super().leaveEvent(event)
+
+    def _hide_marker(self):
         if self.layer is not None:
             self.layer.show_marker(None)
         self.dot.setData([], [])
-        super().leaveEvent(event)
 
     # ------------------------------------------------------------------ appearance
     def apply_theme(self, theme):
         self.theme = t = theme
         self.graph.setBackground(t["plot_bg"])
+        _fill_viewport(self.graph, t["plot_bg"])
         pi = self.graph.getPlotItem()
         tick = font("mono", FONT["plot_label_size_pt"] - 1)
         style = {"color": t["plot_axis"], "font-size": f"{FONT['plot_label_size_pt'] - 1}pt",
@@ -246,60 +274,92 @@ class SurfacePanel(QWidget):
             pi.invertY(self.c_suction.isChecked())
             if axis == "theta":
                 pi.getAxis("bottom").setTicks([[(v, f"{v:g}") for v in range(0, 361, 90)]])
-                pi.setXRange(0, 360, padding=0.02)
+                x0, x1 = 0.0, 360.0
             else:
                 pi.getAxis("bottom").setTicks(None)
-                pi.enableAutoRange(axis="x")
-            pi.enableAutoRange(axis="y")
+                x0, x1 = float(np.nanmin(x)), float(np.nanmax(x))
+            ys = cp[np.isfinite(cp)]
+            if exact is not None:
+                ys = np.concatenate([ys, exact[np.isfinite(exact)]])
+            y0, y1 = (float(ys.min()), float(ys.max())) if ys.size else (-1.0, 1.0)
+            y0, y1 = min(y0, 0.0), max(y1, 1.0)                     # Cp = 0 and 1 always in view
+            # fixed ranges (not auto): the hover dot must never change them
+            pi.getViewBox().setRange(xRange=(x0, x1), yRange=(y0, y1), padding=0.04)
+            key = "Colored: Cp on the surface (colors as on the plot)."
+            if exact is not None:
+                key += "  Dashed: analytic Cp = 1 − (2 sin θ − Γ/2πaV∞)²."
+            self.key.setText(key)
+        else:
+            self.key.setText("")
         self._update_info()
 
     def _update_info(self):
+        """The numbers under the graph, in short sections (each line fits a narrow panel):
+            CP ON THE SURFACE   lowest Cp and where
+            FORCE (per unit span, from the pressure integral)
+              Lift L′ … N/m      and below it, small: the theory's value and the difference
+              Drag D′ … N/m
+              Γ inside the body
+            notes (why there is no comparison, …)"""
         t = self.theme
         layer = self.layer
         surf = self.current()
         v_ref = layer._v_ref() if layer is not None else None
-        muted = t["text_muted"]
+        muted, good = t["text_muted"], t["el_sector"]
         link = f'<a href="vref" style="color:{t["accent"]}">set V_ref…</a>'
         if layer is None:
-            text = ""
-        elif not v_ref and layer.surfaces():
-            text = f"Cp needs a reference speed: this scene has no uniform flow (V∞). {link}"
-        elif surf is None:
-            text = ("Computing the body surfaces…" if layer.computing else
-                    f'<span style="color:{muted}">No surfaces here. Solid bodies appear with a uniform '
-                    f"(or sector) flow and a source or doublet; symmetry walls and sector flows have walls.</span>")
+            self.info.setText("")
+            return
+        if not v_ref and layer.surfaces():
+            self.info.setText(f"Cp needs a reference speed: this scene has no uniform flow (V∞).<br>{link}")
+            return
+        if surf is None:
+            self.info.setText("Computing the body surfaces…" if layer.computing else
+                              f'<span style="color:{muted}">No surfaces here. Solid bodies come with a uniform '
+                              f"(or sector) flow and a source or doublet; walls are surfaces too.</span>")
+            return
+        alpha = free_stream_angle(self.elements)
+        cp = surf.cp(v_ref)
+        k = int(np.nanargmin(cp))
+        if surf.closed:
+            where = f"at θ = {surf.theta(alpha)[k]:.0f}°"
         else:
-            cp = surf.cp(v_ref)
-            k = int(np.nanargmin(cp))
-            rows = [("Cp min", f"<b>{_num(cp[k])}</b>  at ({_num(surf.z[k].real, 3)}, {_num(surf.z[k].imag, 3)})")]
-            force = pressure_force(surf, self.elements, v_ref)
+            where = f"at ({_num(surf.z[k].real, 3)}, {_num(surf.z[k].imag, 3)})"
+        rows = [_head("Cp on the surface", t),
+                _row("Lowest Cp", f"<b>{_num(cp[k], 4)}</b>&nbsp;&nbsp;{where}")]
+        if surf.kind == "wall":                          # (a body: 1, at its stagnation point)
+            rows.append(_row("Highest Cp", f"<b>{_num(np.nanmax(cp), 4)}</b>"))
+        force = pressure_force(surf, self.elements, v_ref)
+        notes = []
+        if force is not None:
             rho = self.s_rho.value()
-            if force is not None:
-                if surf.gamma:
-                    rows.append(("Γ inside", f"{_num(surf.gamma)} m²/s"))
-                pairs = ((("Lift  L′/ρ", force.lift, force.kj_lift, "Kutta–Joukowski  −V∞Γ"),
-                          ("Drag  D′/ρ", force.drag, 0.0 if surf.alone else None, "d'Alembert"))
-                         if force.lift is not None else
-                         (("F′x/ρ", force.fx, None, ""), ("F′y/ρ", force.fy, None, "")))
-                scale = max(abs(force.fx), abs(force.fy), abs(force.kj_lift or 0.0), 1e-12)
-                for name, value, theory, theory_name in pairs:
-                    shown = 0.0 if abs(value) < 1e-5 * scale else value
-                    rows.append((name, f"<b>{_num(shown)}</b> m³/s²   ({_num(shown * rho)} N/m)"))
-                    if theory is not None:
-                        diff = abs(value - theory) / scale * 100.0
-                        rows.append((f'<span style="color:{muted}">{theory_name}</span>',
-                                     f'<span style="color:{muted}">{_num(theory)}   (difference {diff:.2g} %)</span>'))
-            cells = "".join(f'<tr><td style="padding-right:8px">{a}</td><td>{b}</td></tr>' for a, b in rows)
-            text = f"<table cellspacing='0' cellpadding='1'>{cells}</table>"
-            notes = []
-            if force is not None:
-                notes.append("Force = pressure integral −∮ p n ds, per unit span.")
-            if surf.note:
-                notes.append(surf.note)
-            if self.exact.xData is not None and len(self.exact.xData):
-                notes.append("Dashed: analytic Cp = 1 − (2 sin θ − Γ/(2πaV∞))² of the cylinder.")
-            if notes:
-                text += f'<div style="color:{muted}">{" ".join(notes)}</div>'
+            rows.append(_head("Force per unit span", t, "from the pressure integral −∮ p n ds"))
+            scale = max(abs(force.fx), abs(force.fy), abs(force.kj_lift or 0.0), 1e-12)
+            if force.lift is not None:
+                items = (("Lift L′", force.lift, force.kj_lift, "Kutta–Joukowski −ρV∞Γ"),
+                         ("Drag D′", force.drag, 0.0 if surf.alone else None, "d'Alembert"))
+            else:
+                items = (("Force F′x", force.fx, None, ""), ("Force F′y", force.fy, None, ""))
+            for name, value, theory, theory_name in items:
+                value = 0.0 if abs(value) < 1e-5 * scale else value
+                rows.append(_row(name, f"<b>{_num(value * rho, 4)}</b> N/m"))
+                if theory is not None:
+                    diff = abs(value - theory) / scale * 100.0
+                    mark = f'<span style="color:{good}">✓</span> ' if diff < 1.0 else ""
+                    rows.append(_row("", f'<span style="color:{muted}">{theory_name}: {_num(theory * rho, 4)} N/m'
+                                         f"<br>{mark}difference {diff:.2g} %</span>", small=True))
+            if surf.gamma:
+                rows.append(_row("Γ inside", f"{_num(surf.gamma, 4)} m²/s"))
+            a, b = (force.lift, force.drag) if force.lift is not None else (force.fx, force.fy)
+            names = ("L′/ρ", "D′/ρ") if force.lift is not None else ("F′x/ρ", "F′y/ρ")
+            a, b = (0.0 if abs(v) < 1e-5 * scale else v for v in (a, b))
+            notes.append(f"With ρ = {_num(rho, 4)} kg/m³ (set below). Without ρ: {names[0]} = {_num(a)}, "
+                         f"{names[1]} = {_num(b)} m³/s².")
+        if surf.note:
+            notes.append(surf.note)
+        text = "<table cellspacing='0' cellpadding='0' width='100%'>" + "".join(rows) + "</table>"
+        if notes:
+            text += "".join(f'<p style="color:{muted}; margin-top:6px">{n}</p>' for n in notes)
         self.info.setText(text)
 
     # ------------------------------------------------------------------ hover
@@ -307,15 +367,32 @@ class SurfacePanel(QWidget):
         if self._shown is None or self.layer is None:
             return
         vb = self.graph.getPlotItem().getViewBox()
-        if not self.graph.sceneBoundingRect().contains(pos):
+        if not vb.sceneBoundingRect().contains(pos):
+            self._hide_marker()
             return
         p = vb.mapSceneToView(pos)
         surf, x, cp = self._shown
         if not len(x):
             return
-        k = int(np.nanargmin(np.abs(x - p.x())))
+        # the point nearest to the mouse ON THE SCREEN (x and Cp in pixels): along x alone the upper and
+        # lower surface (same x) took turns and the ring jumped between them
+        pw, ph = vb.viewPixelSize()
+        d = ((x - p.x()) / max(pw, 1e-300)) ** 2 + ((cp - p.y()) / max(ph, 1e-300)) ** 2
+        k = int(np.nanargmin(d))
         self.dot.setData([x[k]], [cp[k]])
         self.layer.show_marker(complex(surf.z[k]))
+
+
+def _fill_viewport(view, color):
+    """The view's own pixels in the plot color, also the last device pixel column at a fractional
+    display scale (125 %), which the view's background drawing can leave out."""
+    from PySide6.QtGui import QColor, QPalette
+    vp = view.viewport()
+    pal = vp.palette()
+    pal.setColor(QPalette.Window, QColor(color))
+    pal.setColor(QPalette.Base, QColor(color))
+    vp.setPalette(pal)
+    vp.setAutoFillBackground(True)
 
 
 def _scene_v_inf(elements):
@@ -323,9 +400,25 @@ def _scene_v_inf(elements):
     return reference_speed(elements)
 
 
+def _head(title, theme, sub="") -> str:
+    """A section title row: small capitals in the accent color over a thin rule (as the panel titles)."""
+    sub = f'<br><span style="color:{theme["text_muted"]}; font-size:8pt">{sub}</span>' if sub else ""
+    return (f'<tr><td colspan="2" style="padding-top:8px; padding-bottom:3px; border-bottom:1px solid '
+            f'{theme["border_soft"]}"><span style="color:{theme["accent"]}; font-weight:600; '
+            f'letter-spacing:1px">{title.upper()}</span>{sub}</td></tr>')
+
+
+def _row(name, value, small=False) -> str:
+    size = "font-size:8.5pt; " if small else ""
+    return (f'<tr><td style="padding:2px 10px 2px 0; white-space:nowrap; vertical-align:top">{name}</td>'
+            f'<td style="padding:2px 0; {size}vertical-align:top">{value}</td></tr>')
+
+
 def _num(v, digits: int = 5) -> str:
     """A number for the panel: `digits` significant digits, a real minus sign, no "−0"."""
     if abs(v) < 1e-12:
         return "0"
     text = f"{v:.{digits}g}" if digits != 3 else f"{v:.3f}"
+    if "e" in text:
+        text = f"{v:.2e}"
     return text.replace("-", "−")

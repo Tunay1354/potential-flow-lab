@@ -104,6 +104,7 @@ class LayoutMixin:
                 self._default_dock_layout()                 # never restore a forbidden place
             for d in self._docks():
                 self._place_dock_card(d)
+        self.dock_surface.hide()             # its place is kept; it opens with its layer (or View → Panels)
         self.set_palette_side(str(s.value("layout/palette_side", "left")))
         hidden = str(s.value("layout/hidden_sections", "") or "").split(",")
         for key in self.settings_panel.sections:
