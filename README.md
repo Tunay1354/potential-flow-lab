@@ -62,6 +62,7 @@ status bar'da ✖ görünür (ayrıntı için üzerine gel). Hatalar listedeki n
 python main.py                  # arayüzü aç
 pytest                          # fizik testlerini çalıştır
 python scripts/verify_physics.py   # analitik vs. sayısal doğrulama tablosu
+python main.py --verify         # tüm doğrulama raporu → verification/ (Markdown + CSV + figürler)
 ```
 Güncelleme geldiğinde: GitHub Desktop'ta **Fetch origin → Pull origin**.
 `requirements.txt` / `requirements-dev.txt` değiştiyse `pip install -r requirements-dev.txt` komutunu tekrar
@@ -69,6 +70,27 @@ Güncelleme geldiğinde: GitHub Desktop'ta **Fetch origin → Pull origin**.
 
 İlk açılışta streamline motoru bir kez derlenir (birkaç saniye, durum çubuğunda yazar); animasyon ve
 Solid bodies çekirdekleri hemen ardından arka planda hazırlanır. Sonraki açılışlarda hepsi hazır gelir.
+
+### Komut satırı (pencere açmadan)
+
+```
+python main.py --verify [--out KLASÖR] [--no-figures]
+python main.py sahne.pflow --figure sekil.png [--data veri.csv] [seçenekler]
+python main.py --help           # tüm seçenekler
+```
+- `--verify`: üç bölümlük rapor — (1) analitik formüller (hız, flux, circulation, kuvvet, duvarlar, sector
+  flow; round-off'a kadar), (2) ödevin 9 verification sahnesi: programın çizdiği / bulduğu şeyler teoriyle
+  (streamline açıları, stagnation point konumu, yüzey r = a, Cp, basınç integralinden L′ ve D′ — Kutta–Joukowski
+  ve d'Alembert), kaydet → tekrar aç (aynı elementler, aynı streamline'lar) ve sahnenin figürü, (3) sayısal
+  yöntemlerin doğruluğu (çizgiler boyunca ψ, Newton ile durma noktası, izlenen yüzeylerin şekli, birkaç Γ için
+  kaldırma). Her satırın kendi toleransı var; hepsi tutarsa çıkış kodu 0, tutmayan satırlar konsola da yazılır.
+  Çıktı: `verification.md` (figürlerle), `verification.csv` (section, case, quantity, analytic, numerical,
+  error, tolerance, ok), `figures/*.png`. Süre ≈ 10 s.
+- `--figure` (.png / .svg / .pdf) ve `--data` (CSV, File → Export data ile aynı tablolar): `--view X0 X1 Y0 Y1`,
+  `--layers +bodies,+surface,-markers` (ya da işaretsiz liste: sadece bunlar), `--width / --height` (plot alanı,
+  piksel), `--scale 1–4`, `--background white|paper|transparent`, `--dark`, `--vref V`, `--tables
+  elements,stagnation,streamlines,field,surface`, `--grid N`, `--separator , ; tab`. Hata (dosya yok, bilinmeyen
+  katman…) → çıkış kodu 2.
 
 Exe (Faz 5): `pyinstaller packaging/potential_flow_lab.spec` → `dist/Potential Flow Lab/`.
 
@@ -79,7 +101,8 @@ Exe (Faz 5): `pyinstaller packaging/potential_flow_lab.spec` → `dist/Potential
 
 | Klasör / dosya | İçerik |
 |---|---|
-| `main.py` | Programı başlatır (`python main.py sahne.pflow` dosyayı da açar) |
+| `main.py` | Programı başlatır (`python main.py sahne.pflow` dosyayı da açar); `--verify`, `--figure`, `--data` ile komut satırı |
+| `app/cli/` | Komut satırı: `__init__.py` (seçenekler), `headless.py` (ekranda görünmeyen plot, görünüme göre boyut), `report.py` (`--verify` raporu: Markdown, CSV, figürler) |
 | `app_info.py` | Program adı ve sürümü |
 | `app/paths.py` | Programın dosyalarının yeri (kaynak klasör veya exe) |
 | `packaging/` | Exe yapımı (PyInstaller spec) |
@@ -112,7 +135,8 @@ Exe (Faz 5): `pyinstaller packaging/potential_flow_lab.spec` → `dist/Potential
 | `physics/particles.py` | Animasyon fiziği: tracer particle'lar, streamline boyunca yolculuk süresi (pulse'lar) |
 | `physics/kernel.py` | Numba ile derlenmiş hız alanı ve integrator (aynı matematik, ~10× hızlı, arayüzü bekletmez) |
 | `physics/diagnostics.py` | Flux, circulation, yüzey kuvvetleri (L′, D′) ölçümleri |
-| `physics/verification.py` | Analitik çözümlerle karşılaştırma tablosu (rapor, testler, ileride `--verify`) |
+| `physics/verification.py` | Analitik çözümlerle karşılaştırma tablosu (rapor, testler, `--verify`) |
+| `physics/program_checks.py` | Programın sayısal sonuçlarının kontrolü: çizilen streamline'lar, durma noktası araması, izlenen yüzeyler, Cp, basınç integrali (`--verify`) |
 | `tests/` | Otomatik doğrulama testleri (`pytest`) |
 | `scripts/verify_physics.py` | Doğrulama tablosunu yazdırır (`physics/verification.py`) |
 | `scripts/streamline_quality.py` | Streamline resminin kalite ölçümü (aralık düzgünlüğü, kesik uçlar, süre) |

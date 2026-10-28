@@ -1,7 +1,9 @@
 """
 verification.py — the physics checked against the analytic solutions of the course: a table of
 (case, quantity, analytic value, numerical value, |error|) for the report (scripts/verify_physics.py,
-later the command line --verify) and for the tests (tests/test_verification.py).
+the command line `--verify`) and for the tests (tests/test_verification.py). The velocity formulas
+are exact to round-off; physics/program_checks.py adds what the program computes numerically (drawn
+streamlines, stagnation point search, body surfaces, surface pressure), each with its own tolerance.
 """
 from __future__ import annotations
 
@@ -23,6 +25,8 @@ class Check:
     quantity: str
     analytic: float
     numerical: float
+    tolerance: float = TOLERANCE      # largest |error| accepted for this row (numerical methods: larger)
+    section: str = "Analytic formulas"
 
     @property
     def error(self) -> float:
@@ -30,7 +34,7 @@ class Check:
 
     @property
     def ok(self) -> bool:
-        return self.error < TOLERANCE
+        return bool(self.error < self.tolerance)
 
 
 def _max_vn(els, wall, half=8.0, n=801):

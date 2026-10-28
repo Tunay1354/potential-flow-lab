@@ -280,15 +280,31 @@ sadece genel teknikler öğrenildi: döngünün tamamını derlemek, trail buffe
       parçalar durma noktalarından birleştiriliyor; uzun ince kanal "kıymık" sayılıp doldurulmuyor
     - Boş sayfada V_ref notu / kartı çıkmıyor (eksik bir şey yok); "Along" listesinde o yüzeye uymayan seçenek
       (açık cisimde θ, duvarda θ ve x) hiç görünmüyor
-16. ▶ **Paket V — Komut satırı + otomatik doğrulama**: pencere açmadan figür / CSV export, `--verify`: verification
-    case'ler ve analitik çözümlerle karşılaştırma tablosu (Markdown + CSV) ve rapor figürleri
+16. ✅ **Paket V — Komut satırı + otomatik doğrulama** (28 Ekim)
+    - `python main.py --verify [--out DIR] [--no-figures]`: `verification.md` (figürlerle) + `verification.csv` +
+      `figures/*.png`, ~10 s, hepsi tutarsa çıkış kodu 0. Üç bölüm: (1) analitik formüller (34 satır, 1e-9),
+      (2) ödevin 9 verification sahnesi — programın çizdiği streamline'lar (uniform: α açısında düz, source / sink:
+      radyal ve yönü, vortex: daire ve dönüş yönü), Newton'la bulunan durma noktaları sin θ = Γ/(4πV∞a)'da,
+      izlenen yüzey r = a, üzerinde Cp, basınç integralinden L′ (Kutta–Joukowski) ve D′ (d'Alembert), duvardan
+      geçiş yok ve duvardaki durma noktası; her sahne kaydedilip tekrar açılıyor (verification case 5: aynı
+      elementler, başlık / görünüm / ayarlar, aynı streamline'lar bit bit), (3) sayısal yöntemlerin doğruluğu —
+      çizilen çizgiler boyunca ψ (çizgi aralığının %0.2–0.3'ü), half-body burnu, Rankine oval √3, Γ = −4πV∞a çift
+      kök, köşedeki çift sıfır, silindir alanı π, half-body şekli, Γ = −2 / −6 / −15 / 3 için kaldırma. Ölçülen:
+      102 / 102 OK (lifting cylinder L′ = 2.4502 N/m vs 2.45, durma noktası 1e-16 m, |r − a| ≤ 8e-4, Cp ≤ 1.5e-3)
+    - `python main.py sahne.pflow --figure x.png|svg|pdf --data x.csv`: File → Export ile aynı çıktı; görünüm,
+      katmanlar (+/−), plot alanı boyutu, ölçek, arka plan, koyu tema, V_ref, tablolar, ayraç seçilebiliyor;
+      hatalarda çıkış kodu 2. Plot ekranda hiç görünmüyor (Linux'ta ekran yoksa Qt offscreen)
+    - `physics/program_checks.py` (Qt'siz), `app/cli/` (seçenekler, headless plot, rapor), `tests/test_cli.py`
+    - Faz 5 için not: GUI exe'si konsolsuz (console=False) → komut satırı için ayrı küçük bir konsol exe'si
+      (aynı klasörde, ör. `pflab-cli.exe`) gerekecek
 17. ☐ **Dye rake** (isteğe bağlı): çizilen rake'ten pulse'lı boya → streakline; taşınır, döndürülür, kaydedilir
 18. ☐ **Paket E2 — Performans + ekran kartı** (isteğe bağlı): animasyon çalışırken profiling, gerekirse
     "Use graphics card (OpenGL)" seçeneği (açılamazsa normal çizime döner)
 19. ☐ **Faz 6 — Kunduz rehber ve cilalama** [7]: ilk açılışta atlanabilir tanıtım turu, Help yanındaki yeri,
     açma / kapama ayarı, animasyon modunda akışla süzülüp kaybolması ve geri dönmesi
 20. ☐ **Faz 5 — Paketleme**: Python gerektirmeyen Windows 10/11 exe (zip içinde klasör), GitHub Releases,
-    isteğe bağlı kurulum dosyası (Inno Setup), Numba önbelleği, .pflow dosyasına çift tıklayınca açılma
+    isteğe bağlı kurulum dosyası (Inno Setup), Numba önbelleği, .pflow dosyasına çift tıklayınca açılma,
+    komut satırı için konsol exe'si (`--verify`, `--figure`, `--data`)
 21. ☐ **Faz 3 — Rapor ve user guide**: malzemenin çoğu Paket V'den (figürler, tablolar, doğrulama), sector
     kuralının yazılı açıklaması, 4–6 sayfa rapor, user guide
 22. ☐ **Demo provası**
