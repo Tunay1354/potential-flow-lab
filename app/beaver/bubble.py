@@ -14,6 +14,7 @@ from PySide6.QtWidgets import QWidget
 CPS = 38.0                       # characters per second
 HOLD_S = 1.6                     # shown this long after the last character …
 HOLD_PER_CHAR_S = 0.035          # … plus this per character
+READ_S, READ_PER_CHAR_S = 0.7, 0.03   # never replaced by another line before this (time to read it)
 FONT_FAMILY = "Pixelify Sans"
 FONT_PX = 15
 PAD = 9                          # text margin inside the frame (logical px)
@@ -49,6 +50,10 @@ class SpeechBubble(QWidget):
     @property
     def typing(self) -> bool:
         return self.shown < len(self.text)
+
+    def busy(self) -> bool:
+        """Still typing, or typed but not yet readable (a new line would cut it off)."""
+        return bool(self.text) and (self.typing or self.after < READ_S + READ_PER_CHAR_S * len(self.text))
 
     def set_theme(self, theme: dict):
         self.colors = {"paper": QColor(theme["panel_bg"]), "ink": QColor(theme["ink"]),

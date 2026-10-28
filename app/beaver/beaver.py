@@ -36,7 +36,7 @@ from physics.particles import time_scale, typical_speed
 
 from . import art
 from .bubble import SpeechBubble
-from .lines import Picker
+from .lines import PRIORITY, Picker
 
 ACTIVE_MS, IDLE_MS = 33, 120          # timer: while something happens / sitting on the ruler
 WALK_PX_S = 270.0                     # walking speed on the ruler
@@ -45,6 +45,13 @@ SLEEP_AFTER_S = 180.0
 HEAD_TOP = 15.0                       # art px from the canvas centre up to the top of the head (front / perch)
 STAG_FRACTION = 0.03                  # slower than this × the typical speed = at a stagnation point
 LAPS_DIZZY = 2.0
+FLOW_BORED_S = 25.0                   # the longest ride before he has had enough
+SLOW_CROSS_S = 18.0                   # crossing the view would take longer than this: "slow"
+FAST_CROSS_S = 2.5                    # … shorter than this: "too fast"
+PULSE_SLOW_S = 2.0                    # pulses further apart (in time) than this are "slow": he runs off …
+PULSE_DODGE_S = 0.6                   # … when the next one is still at least this far away
+RUN_FRACTION_S = 0.22                 # running: this part of the view width per second
+PAUSED_LEAVE_S = 8.0
 
 
 class BeaverSprite(QWidget):
@@ -136,6 +143,7 @@ class Beaver(QObject):
         self.asleep = False
         self.said = {}                  # key -> clock of the last time (cool-downs)
         self.data = {}                  # per-state values
+        self.waiting = None             # (priority, key, fmt): a line that waits for the current one
         self._flows_key = None
         self._flows = None
         self._vtyp = (None, 0.0)
@@ -157,6 +165,7 @@ class Beaver(QObject):
         if not self.enabled:
             self.sprite.hide()
             self.bubble.clear()
+            self.waiting = None
             self.timer.stop()
             self._go("perch")
         else:
@@ -170,16 +179,32 @@ class Beaver(QObject):
         self.bubble.set_theme(theme)
 
     def say(self, key: str, cooldown: float = 0.0, **fmt) -> bool:
-        """A line of `key` (lines.py) unless one was said less than `cooldown` seconds ago."""
+        """A line of `key` (lines.py) unless one was said less than `cooldown` seconds ago. A line is never
+        cut off before it can be read: while he is still talking, an important line (PRIORITY 2) waits for
+        its turn (only the newest one waits), anything else is skipped."""
         if not self.enabled:
             return False
         last = self.said.get(key)
         if cooldown and last is not None and self.clock - last < cooldown:
             return False
+        prio = PRIORITY.get(key, 1)
+        if self.bubble.busy():
+            if prio >= 2 and (self.waiting is None or self.waiting[0] <= prio):
+                self.waiting = (prio, key, fmt)
+                self.said[key] = self.clock
+                return True
+            return False
         self.said[key] = self.clock
+        self._show(key, fmt)
+        return True
+
+    def _show(self, key, fmt):
         self.bubble.say(self.lines.pick(key, **fmt))
         self._place_bubble()
-        return True
+
+    def talking(self) -> bool:
+        """Something is being said or waits to be said."""
+        return self.bubble.busy() or self.waiting is not None
 
     # reactions to the program (called by the window)
     def on_error(self):
@@ -227,6 +252,10 @@ class Beaver(QObject):
         self.timer.setInterval(ACTIVE_MS if busy else IDLE_MS)
         self._draw()
         self.bubble.advance(dt)
+        if self.waiting is not None and not self.bubble.busy():
+            _p, key, fmt = self.waiting
+            self.waiting = None
+            self._show(key, fmt)
         self._place_bubble()
 
     def _go(self, state: str, **data):
@@ -442,6 +471,8 @@ class Beaver(QObject):
         self.center = cur + QPointF(0, 8 + HEAD_TOP * self.S())
 
     def _s_glass(self, dt):
+        """Bonk on the glass, a joke, *tap tap* with the second line, a goodbye — each line readable before the
+        next — then home."""
         t, d = self.t, self.data
         self.kind, self.flip, self.rot = "front", False, 0.0
         rect = self.plot_rect()
@@ -450,25 +481,25 @@ class Beaver(QObject):
         half = 12 * self.S()
         self.center = QPointF(min(max(c.x(), rect.left() + half), rect.right() - half),
                               min(max(c.y(), rect.top() + half), rect.bottom() - half))
-        mood = "worried" if (d.get("fresh") and t < 0.3) else "open"
-        tap = False
-        if "said_drop" not in d and t > 0.3:
-            d["said_drop"] = True
+        step = d.setdefault("step", 0)
+        free = not self.talking()
+        if step == 0 and t > 0.3:
             self.say("glass_drop" if d.get("fresh") else "glass_again")
-        if "said_tap" not in d and t > 1.9:
-            d["said_tap"] = True
+            d["step"], d["at"] = 1, t
+        elif step == 1 and free and t - d["at"] > 0.4:
             self.say("glass_tap")
-        if 1.9 < t < 4.0:
-            tap = int(t / 0.25) % 2 == 0
-        if t > 4.0 and "said_back" not in d and not self.bubble.typing:
-            d["said_back"] = True
-            d["back_at"] = t
+            d["step"], d["at"] = 2, t
+        elif step == 2 and free and t - d["at"] > 0.6:
             self.say("glass_back")
+            d["step"], d["at"] = 3, t
+        elif step == 3 and not self.bubble.typing and t - d["at"] > 1.2:
+            self._go("hop", start=QPointF(self.center))
+            return
+        mood = "worried" if (d.get("fresh") and t < 0.3) else ("happy" if step == 3 else "open")
         if (self.clock % 4.1) < 0.14:
             mood = "closed"
-        self.pose = {"mood": "happy" if "said_back" in d else mood, "tap": tap, "f": self._f()}
-        if "back_at" in d and t - d["back_at"] > 1.4:
-            self._go("hop", start=QPointF(self.center))
+        tap = step == 2 and int(t / 0.25) % 2 == 0
+        self.pose = {"mood": mood, "tap": tap, "f": self._f()}
 
     def _start_flow(self, z: complex, quiet=False):
         self.z = z
@@ -483,10 +514,24 @@ class Beaver(QObject):
             self.say(blocked)
             self._go("hop", start=QPointF(self.to_window(z)))
             return
+        cross = self.crossing_time(z)
         if self._near(z, "source", 0.06):
             self.say("source")
+        elif cross > SLOW_CROSS_S and not self.cv.paused:
+            self.say("flow_slow")
+        elif cross < FAST_CROSS_S:
+            self.say("flow_too_fast")
         elif not quiet:
             self.say("flow_start")
+
+    def crossing_time(self, z: complex) -> float:
+        """Real seconds he would need to cross the view at the speed he has at z (inf when nothing moves)."""
+        (x0, x1), _ = self.cv.view()
+        v = self.velocity(z)
+        rate = self.anim_dt(1.0)
+        if not np.isfinite(v) or not abs(v) * rate > 0:
+            return float("inf")
+        return (x1 - x0) / (abs(v) * rate)
 
     def _near(self, z, kind, frac):
         (x0, x1), _ = self.cv.view()
@@ -511,6 +556,24 @@ class Beaver(QObject):
         T = self.anim_dt(dt)
         v_typ = self.typical_speed()
         z = self.z
+        # too slow a ride, or paused too long: he walks home
+        if self.cv.paused:
+            d["paused"] = d.get("paused", 0.0) + dt
+            if "said_paused" not in d and d["paused"] > 0.8:
+                d["said_paused"] = True
+                self.say("paused")
+            if d["paused"] > PAUSED_LEAVE_S:
+                self.say("paused_leave")
+                self._go("hop", start=QPointF(self.center))
+                return
+        else:
+            d["paused"] = 0.0
+            slow = self.crossing_time(z) > SLOW_CROSS_S
+            d["crawl"] = d.get("crawl", 0.0) + dt if slow else max(0.0, d.get("crawl", 0.0) - 0.5 * dt)
+            if d["crawl"] > 7.0 or self.t > FLOW_BORED_S:
+                self.say("flow_bored")
+                self._go("hop", start=QPointF(self.center))
+                return
         if T > 0:
             v0 = self.velocity(z)
             n = int(min(24, max(1, math.ceil(abs(v0) * T / (0.006 * L))))) if np.isfinite(v0) else 1
@@ -678,6 +741,18 @@ class Beaver(QObject):
             self.say("zoomed_out", cooldown=5.0)
             self._go("gone")
             return
+        wait = self.next_pulse_in(ph)
+        if self.cv.paused:
+            d["paused"] = d.get("paused", 0.0) + dt
+            if d["paused"] > PAUSED_LEAVE_S and "bonk" not in d:
+                self.say("paused_leave")
+                self._go("hop", start=QPointF(self.center))
+                return
+        elif (self.pulse_period() > PULSE_SLOW_S and wait > PULSE_DODGE_S and d["knocked"] == 0 and "bonk" not in d
+              and self.t > 1.2 and d["push"] <= 0):
+            self.say("pulse_slow")                         # the next pulse is far: off he runs, away from it
+            self._go("run", pts=pts, s=s)
+            return
         k = int(np.searchsorted(arc, s))
         k = min(max(k, 1), len(pts) - 1)
         tangent = pts[k] - pts[k - 1]
@@ -696,6 +771,38 @@ class Beaver(QObject):
         elif self.t > 16.0 and "bonk" not in d and d["knocked"] == 0:
             self.say("pulse_leave")
             self._go("hop", start=QPointF(self.center))
+
+    def pulse_period(self) -> float:
+        """Real seconds between two pulses (inf: none)."""
+        pl = self.cv.pulses
+        if not pl.period > 0 or self.cv.paused:
+            return float("inf")
+        from app.canvas.animation_layer import speed_factor
+        (x0, x1), (y0, y1) = self.cv.view()
+        rate = time_scale((x0, x1, y0, y1), pl.v_typ, speed_factor(pl.speed_slider))
+        return pl.period / rate if rate > 0 else float("inf")
+
+    def next_pulse_in(self, ph) -> float:
+        """Real seconds until the next pulse reaches him (inf: no pulses / paused)."""
+        return float("inf") if ph is None else (1.0 - ph) * self.pulse_period()
+
+    def _s_run(self, dt):
+        """Running along his line, away from the slow pulses, until the end of the line / the view."""
+        d = self.data
+        pts, arc = d["pts"], self._arc(d["pts"])
+        (x0, x1), _ = self.cv.view()
+        d["s"] = s = min(arc[-1], d["s"] + RUN_FRACTION_S * (x1 - x0) * dt)
+        self.z = complex(np.interp(s, arc, pts.real), np.interp(s, arc, pts.imag))
+        if self.t > 0.7 and "said" not in d:
+            d["said"] = True
+            self.say("pulse_run")
+        if s >= arc[-1] or not self._in_view(self.z, 0.0):
+            self._go("gone")
+            return
+        k = min(max(int(np.searchsorted(arc, s)), 1), len(pts) - 1)
+        self.kind, self.flip, self.rot = "side", (pts[k] - pts[k - 1]).real < 0, 0.0
+        self.pose = {"mood": "happy", "step": (-1, 0, 1, 0)[int(self.clock / 0.07) % 4], "f": self._f()}
+        self.center = self._feet_to_center(self.to_window(self.z), "side")
 
     # going home
     def _s_hop(self, dt):
@@ -762,9 +869,7 @@ class Beaver(QObject):
 
     def _place_bubble(self):
         if not self.bubble.active or self.state == "gone":
-            if self.state == "gone":
-                self.bubble.clear()
-            return
+            return                                       # (gone: the last words stay where he left)
         S = self.S()
         bounds = QRectF(self.win.rect())
         if self.state == "perch":

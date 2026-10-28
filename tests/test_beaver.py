@@ -32,7 +32,8 @@ def test_lines_are_english_and_not_repeated(qapp):
     p = Picker(seed=1)
     a, b = p.pick("pulse_hit"), p.pick("pulse_hit")
     assert a != b
-    assert p.pick("verify_ok", n=102).count("102") >= 1
+    assert all("{" not in p.pick("verify_ok", n=102) for _ in range(8))
+    assert all(len(v) >= 2 for k, v in LINES.items() if k not in ("no_pulses",))      # variety
     text = " ".join(" ".join(v) for v in LINES.values())
     assert not any(ch in text for ch in "çğışöüÇĞİŞÖÜ")
 
@@ -106,7 +107,8 @@ def test_static_glass_joke_then_home(win, qapp):
     b.drop(p)
     assert b.state == "glass"
     run(qapp, win, 1.0)
-    assert b.bubble.active and "fall" in b.bubble.text
+    from app.beaver.lines import LINES
+    assert b.bubble.active and b.bubble.text in LINES["glass_drop"]
     win.canvas.set_view((-8.0, 8.0), (-6.0, 6.0))                   # zoom out: the glass does not move
     run(qapp, win, 0.1)
     assert abs(b.center.x() - p.x()) < 25 and b.state == "glass"
@@ -170,7 +172,8 @@ def test_stagnation_point_stops_him(win, qapp):
     b = win.beaver
     b.drop(b.to_window(complex(-1.6, 0.0)))                         # on the dividing streamline
     run(qapp, win, 60, until=lambda b: b.state != "flow")
-    assert b.state == "hop" and "stagnat" in b.bubble.text.lower()
+    from app.beaver.lines import LINES
+    assert b.state == "hop" and (b.bubble.text in LINES["stagnation"] or b.waiting[1] == "stagnation")
 
 
 def test_no_dropping_into_a_solid_body(win, qapp):
@@ -180,7 +183,8 @@ def test_no_dropping_into_a_solid_body(win, qapp):
     win.canvas.set_view_mode("particles")
     b = win.beaver
     b.drop(b.to_window(complex(0.2, 0.3)))                          # inside the lifting cylinder
-    assert b.state == "hop" and "solid" in b.bubble.text.lower()
+    from app.beaver.lines import LINES
+    assert b.state == "hop" and (b.bubble.text in LINES["solid"] or (b.waiting and b.waiting[1] == "solid"))
 
 
 def test_pulses_knock_him_along_his_line_to_the_edge(win, qapp):
@@ -259,12 +263,17 @@ def test_speech_bubble_types_and_goes_away(win, qapp):
 def test_he_reacts_to_saving_and_verification(win, qapp, tmp_path):
     b = win.beaver
     run(qapp, win, 0.2)
+    b.bubble.clear()
+    b.waiting = None
     win.current_path = None
     win.model.add(Source(m=1.0, x0=2.0))
     assert win._write(str(tmp_path / "s.pflow"))
-    assert "Saved" in b.bubble.text
+    from app.beaver.lines import LINES
+    assert b.bubble.text in LINES["saved"]
+    run(qapp, win, 6)
     b.on_verified(102, 102)
-    assert "102" in b.bubble.text
+    from app.beaver.lines import LINES
+    assert b.bubble.text in [l.format(n=102) for l in LINES["verify_ok"]]
 
 
 def test_drag_him_from_the_ruler_onto_the_plot(win, qapp):
@@ -306,3 +315,56 @@ def test_the_wheel_over_him_still_zooms_the_plot(win, qapp):
     qapp.sendEvent(b.sprite, ev)
     qapp.processEvents()
     assert win.canvas.view() != before
+
+
+# ---------------------------------------------------------------------- very slow / very fast animations
+def test_a_very_slow_ride_bores_him(win, qapp):
+    win.canvas.set_view_mode("particles")
+    win.canvas.particles.speed_slider = 1                          # 4× slower than normal
+    b = win.beaver
+    b.drop(b.to_window(complex(-3.5, 1.5)))
+    assert b.crossing_time(b.z) > 18
+    run(qapp, win, 12, until=lambda b: b.state != "flow")
+    assert b.state == "hop" and b.t < 1                            # left after ~7 s, not after the whole ride
+    assert "flow_bored" in b.said
+
+
+def test_very_fast_flow_never_cuts_a_line_short(win, qapp):
+    from app.beaver.bubble import READ_PER_CHAR_S, READ_S
+    win.canvas.set_view_mode("particles")
+    win.canvas.particles.speed_slider = 10                         # 5.7× faster
+    b = win.beaver
+    b.drop(b.to_window(complex(-3.5, 0.6)))
+    shown = []
+    for _ in range(int(15 / DT)):
+        b.advance(DT)
+        if b.bubble.active and (not shown or shown[-1][1] != b.bubble.text):
+            shown.append((b.clock, b.bubble.text))
+    assert len(shown) >= 2                                          # "too fast" … and the goodbye
+    for (t0, text), (t1, _next) in zip(shown, shown[1:]):
+        typing = len(text) / 38.0
+        assert t1 - t0 >= typing + READ_S + READ_PER_CHAR_S * len(text) - 2 * DT
+
+
+def test_slow_pulses_he_runs_off_along_his_line(win, qapp):
+    win.canvas.set_view_mode("pulses")
+    win.canvas.pulses.speed_slider = 1
+    b = win.beaver
+    b.drop(b.to_window(complex(-1.5, -1.6)))
+    states = set()
+    for _ in range(int(20 / DT)):
+        win.canvas.pulses.advance(DT)
+        b.advance(DT)
+        states.add(b.state)
+        if b.state in ("gone", "walk"):
+            break
+    assert "run" in states and "pulse_slow" in b.said
+
+
+def test_paused_too_long_he_walks_home(win, qapp):
+    win.canvas.set_view_mode("particles")
+    b = win.beaver
+    b.drop(b.to_window(complex(-3.0, 1.0)))
+    win.canvas.set_paused(True)
+    run(qapp, win, 10, until=lambda b: b.state != "flow")
+    assert b.state == "hop" and "paused" in b.said and "paused_leave" in b.said

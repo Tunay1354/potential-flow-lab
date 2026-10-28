@@ -369,6 +369,18 @@ bırakıldı (kullanıcı kararı).
     - Testler: `tests/test_beaver.py` (21 test: sanat, maske, sürükle-bırak, cam + zoom, akış + çıkış, zoom ile
       görünüm dışı, vortex / drain, stagnation, solid body, pulse itmesi, mod değişimi, yeni sahne, aç / kapa,
       export'ta yok, balon, olaylar, tekerlek)
+    - Düzeltmeler (28 Ekim, kullanıcı geri bildirimi):
+      - Çok yavaş particle: görünümü geçmesi 18 s'den uzun sürecekse "Hmm, this flow is... slow", ~7 s sonra
+        sıkılıp eve gider; hiçbir yolculuk 25 s'yi geçmez. Space ile duraklatılırsa "Frozen in time!", 8 s sonra
+        yürüyerek eve
+      - Çok yavaş pulse (iki pulse arası > 2 s): pulse yetişmeden line boyunca ileri koşup görünümden çıkar,
+        konuşarak ("Ha! Catch me if you can!")
+      - Çok hızlı akış: hiçbir satır okunmadan kesilmiyor — yazılıp okunacak süre (0.7 s + 0.03 s / harf) dolmadan
+        yeni satır gelmez; önemli olaylar (çıkış, BONK, stagnation …) sıraya girer, küçük laflar atlanır; kunduz
+        ekrandan çıkınca son sözü olduğu yerde kalır. Görünümü 2.5 s'den kısa sürede geçecekse "Whoa, way too fast!"
+      - Diyaloglar: 39 durum, 177 satır (her durumda 2–10 seçenek), son söylenen birkaç satır tekrar seçilmez
+      - Testler: yavaş yolculuk, çok hızlı akışta satırların okunabilir kalması, yavaş pulse'tan kaçış, uzun
+        duraklatma (toplam 25 test)
     - ☐ Aşama 2: ilk açılışta atlanabilir tanıtım turu (aynı balon ve İngilizce); sonra isim (Psi geçici) ve
       yan / akış pozlarının rötuşu (kullanıcı: "yan görünüşler hâlâ biraz garip, sonra düzeltiriz")
 20. ☐ **Optimizasyon (+ Paket E2)**: ölçüm → iyileştirme: açılış ve ilk Numba derleme süresi, sürükleme, zoom /

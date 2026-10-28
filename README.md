@@ -82,7 +82,8 @@ Cetvelde Help'in sağında duran piksel kunduz. Mouse ile tutup plota bırakıl�
 - **Pulses**: en yakın streamline'a basar; her pulse çarpınca düşer ve line boyunca itilir; kenarda "BONK",
   söylenir, döner
 
-Particles / Pulses'ta plota (veriye) bağlıdır: zoom / pan ile birlikte hareket eder, görünümden çıkarsa eve döner.
+Çok yavaş akışta sıkılıp eve gider, çok yavaş pulse'lardan koşarak kaçar; çok hızlı akışta da her satır okunacak
+kadar ekranda kalır. Particles / Pulses'ta plota (veriye) bağlıdır: zoom / pan ile birlikte hareket eder, görünümden çıkarsa eve döner.
 Konuşmalar İngilizce, piksel fontla harf harf yazılır (Pixelify Sans, `assets/fonts/pixelify-sans`, OFL). Export
 edilen figür ve animasyonlarda görünmez; tekerlek üstündeyken de plotu zoom'lar. **View → Beaver** ile kapatılır.
 
