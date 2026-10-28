@@ -310,13 +310,16 @@ sadece genel teknikler öğrenildi: döngünün tamamını derlemek, trail buffe
       beklerken tooltip olarak görünüyordu
     - Faz 5 için not: komut satırı modu (`--verify` …) konsolsuz GUI exe'sinde çıktı göstermez; menüden
       çalıştırma bunu karşılıyor, istenirse ayrıca küçük bir konsol exe'si eklenebilir
-Kalan işler — 28 Ekim'de yeniden sıralandı (süre sınırsızmış gibi: hepsi yapılacak). Sıra mantığı: önce Windows
-riskini erken gör → yeni özellikler → optimizasyon → kod temizliği → görsel / metin son kontrolü → en son kodla
-kapsamlı rastgele test → paketleme → rapor → son kontrol → demo.
+Kalan işler — 28 Ekim'de yeniden sıralandı (süre sınırsızmış gibi: hepsi yapılacak). Sıra mantığı: önce
+sağlamlık (hata yakalama, kurtarma) → son özellik (kunduz) → optimizasyon → kod düzenleme → görsel / metin son
+kontrolü → en son kodla kapsamlı rastgele test → paketleme → rapor → son kontrol → demo. Exe bilerek sona
+bırakıldı (kullanıcı kararı).
 
-17. ☐ **Deneme exe'si** (eski 13, ~yarım gün): şimdiki hali PyInstaller ile exe; Windows'ta Numba, fontlar, Qt
-    eklentileri, Help → Run verification, .pflow açma, export'lar. Windows'a özgü bir sorun varsa şimdi çıksın
-18. ☐ **Dye rake**: çizilen rake'ten pulse'lı boya → streakline; taşınır, döndürülür, kaydedilir
+17. ☐ **Beklenmeyen hata yakalayıcı + log dosyası**: yakalanmamış bir hata programı kapatmasın / sessizce
+    kaybolmasın — pencere "beklenmeyen hata, ayrıntılar şu dosyada" desin, program açık kalsın; arka plan
+    hesaplarındaki hatalar da; log dosyası programın veri klasöründe (Help'ten açılabilir)
+18. ☐ **Otomatik kaydetme / çökme sonrası geri getirme**: kaydedilmemiş sahne birkaç saniyede bir arka planda
+    yedeklenir; program beklenmedik kapanırsa bir sonraki açılışta "kaydedilmemiş sahne bulundu — geri getir?"
 19. ☐ **Faz 6 — Kunduz rehber** [7]: ilk açılışta atlanabilir tanıtım turu, Help yanındaki yeri, açma / kapama
     ayarı, animasyon modunda akışla süzülüp kaybolması ve geri dönmesi (karar: adı, turun dili)
 20. ☐ **Optimizasyon (+ Paket E2)**: ölçüm → iyileştirme: açılış ve ilk Numba derleme süresi, sürükleme, zoom /
@@ -335,26 +338,24 @@ kapsamlı rastgele test → paketleme → rapor → son kontrol → demo.
     kesişmiyor; cisim dolgusu zoom'dan bağımsız; yüzey Cp'si ve kuvvet (Kutta–Joukowski / d'Alembert ile kıyas
     mümkünse); kaydet → aç aynı; figür / CSV export; parçacıklar akışkanda kalıyor. Ayrıca arayüz için rastgele
     kullanıcı işlemleri (ekle, sürükle, sil, undo / redo, katmanlar, tema, preset): çökme yok, undo'dan sonra
-    sahne birebir aynı. Bulunan her hata düzeltilir ve o sahne kalıcı teste eklenir; test temiz çıkana kadar baştan
-24. ☐ **Faz 5 — Paketleme (son)**: Python gerektirmeyen Windows 10/11 exe (zip içinde klasör), sürüm 1.0, GitHub
+    sahne birebir aynı; otomatik kayıttan geri getirme de. Bulunan her hata düzeltilir ve o sahne kalıcı teste
+    eklenir; test temiz çıkana kadar baştan
+24. ☐ **Faz 5 — Paketleme**: Python gerektirmeyen Windows 10/11 exe (zip içinde klasör), sürüm 1.0, GitHub
     Releases, kurulum dosyası (Inno Setup), Numba önbelleği, .pflow'a çift tıklayınca açılma, (isteğe bağlı)
     komut satırı için konsol exe'si; exe'de Help → Run verification 102 / 102, Python kurulu olmayan temiz bir
-    Windows'ta deneme
+    Windows'ta deneme. Yedek plan: kaynak kod + kurulum talimatı / demo kendi bilgisayarından
 25. ☐ **Faz 3 — Rapor ve user guide**: 4–6 sayfa rapor (figürler, tablolar, doğrulama Paket V'den; sector
     kuralının açıklaması), user guide (Help → User guide, F1)
 26. ☐ **Son kontrol**: ödev metni madde madde, tüm testler, verification, exe tekrar, README, sürüm numarası
 27. ☐ **Demo provası**
 
-Öneriler (28 Ekim, karar bekliyor) — önem sırasıyla:
-- (yüksek) Beklenmeyen hata yakalayıcı + log dosyası: exe'de konsol yok, bir hata sessizce kaybolur; pencere
-  "beklenmeyen hata — ayrıntılar şu dosyada" desin, program açık kalsın (rastgele testten önce)
-- (yüksek) Ödev metniyle madde madde karşılaştırma tablosu en başta (eksik bir zorunlu madde varsa vakit varken)
-- (orta–yüksek) GitHub Actions: her push'ta testler Windows'ta da koşar, exe otomatik derlenir
-- (orta) Hocanınki gibi farklı bir bilgisayarda deneme: ilk açılış süresi, 150 % / 4K ekran, zayıf ekran kartı
-- (orta) Zip'te kısa "nasıl açılır" notu: imzasız exe'de Windows SmartScreen uyarısı ("More info → Run anyway")
-- (orta–düşük) macOS sürümü (GitHub Actions macOS'ta derler; deneyecek bir Mac gerekir)
-- (düşük) Otomatik kaydetme / çökmeden sonra sahneyi geri getirme
-- (olmasa da olur, büyük iş) Joukowski airfoil (conformal mapping, Kutta koşulu → Γ kendiliğinden)
+Belki (askıda — yapılmayacak değil, sıra gelirse / vakit olursa):
+- **Dye rake**: çizilen rake'ten pulse'lı boya → streakline; taşınır, döndürülür, kaydedilir
+- **Joukowski airfoil**: conformal mapping ile kanat profili, Kutta koşulu → Γ kendiliğinden
+
+Öneriler (28 Ekim, şimdilik alınmadı): ödev metniyle karşılaştırma tablosunun en başta yapılması (26'da yapılacak),
+GitHub Actions (Windows'ta testler + otomatik exe), farklı bir bilgisayarda deneme, zip'te SmartScreen notu
+(24'te), macOS sürümü.
 
 (Köşeli parantezdeki numaralar 26 Ekim'deki istek listesindeki madde numaralarıdır.)
 
