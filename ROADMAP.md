@@ -304,6 +304,10 @@ sadece genel teknikler öğrenildi: döngünün tamamını derlemek, trail buffe
     - Her check'e `how` alanı (Theory / Program / Tolerance), CSV'de de son sütun
     - Köşedeki durma noktası: w ∝ z³ (üçlü kök) olduğu bulundu → konum ancak (1e-16)^(1/3) ≈ 5e-6 hassasiyetle
       belirlenebilir; tolerans 1e-5 bu yüzden
+    - Durum çubuğundaki sahne kontrolü ("⚠ 2 warnings · 1 note") artık tıklanabilir (28 Ekim, kullanıcı isteği):
+      üstünde bir panel açılıyor — her error / warning / note, hangi elementle ilgili olduğu ([numara] tip:
+      parametreler) ve tam metniyle; satıra tıklayınca o element seçiliyor. Önceden sadece fareyle üstünde
+      beklerken tooltip olarak görünüyordu
     - Faz 5 için not: komut satırı modu (`--verify` …) konsolsuz GUI exe'sinde çıktı göstermez; menüden
       çalıştırma bunu karşılıyor, istenirse ayrıca küçük bir konsol exe'si eklenebilir
 17. ☐ **Dye rake** (isteğe bağlı): çizilen rake'ten pulse'lı boya → streakline; taşınır, döndürülür, kaydedilir

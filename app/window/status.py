@@ -11,8 +11,8 @@ from physics import check_scene, complex_potential, velocity
 from physics.field import fluid_mask, singular_points
 
 from ..theme import LAYOUT
+from .issues_popup import IssueButton, IssuesPopup
 
-SEVERITY_SYMBOL = {"error": "✖", "warning": "⚠", "info": "•"}     # (ℹ is drawn as a blue emoji on Windows)
 
 
 def _count(n: int, word: str) -> str:
@@ -25,7 +25,8 @@ class StatusMixin:
         sb = self.statusBar()
         self.probe_label = QLabel("Move the mouse over the plot")
         self.probe_label.setObjectName("ProbeLabel")
-        self.issue_label = QLabel("")
+        self.issue_label = IssueButton()          # click: every issue listed (IssuesPopup)
+        self.issue_label.clicked.connect(self.show_issues)
         self.count_label = QLabel("")
         sb.addPermanentWidget(self.probe_label)
         # a message (e.g. "Moved vortex — Ctrl+Z to undo") gets the room of the probe text while shown
@@ -80,17 +81,25 @@ class StatusMixin:
         if notes and not errors:
             text += "  ·  " + _count(len(notes), "note")
         self.issue_label.setText(text)
-        self.issue_label.setStyleSheet(f"color: {color}; font-weight: 600;")
+        self.issue_label.set_look(color, self.theme["panel_header"])
+        self._issues = issues
 
         def who(s):                                    # number in the element list
             return f"[{s.index + 1}] " if s.index is not None else ""
-        tips = [f"{SEVERITY_SYMBOL.get(s.severity, '•')} {who(s)}{s.message}" for s in issues]
-        self.issue_label.setToolTip("\n".join(tips) if tips else "No problems found.")
+        self.issue_label.setToolTip("Click to read them" if issues else "No problems found.")
         if errors:
-            more = f"   (+{len(errors) - 1} more: hover the status bar)" if len(errors) > 1 else ""
+            more = f"   (+{len(errors) - 1} more: click the status bar)" if len(errors) > 1 else ""
             self.canvas.set_banner(f"✖ Not physically consistent — {who(errors[0])}{errors[0].message}{more}")
         else:
             self.canvas.set_banner(None)
+
+    def show_issues(self):
+        """Status bar → the scene check, every issue in a panel above it (click one: select its element)."""
+        popup = IssuesPopup(getattr(self, "_issues", []), self.elements, self.theme, self)
+        popup.select.connect(self.select_element)
+        popup.show_above(self.issue_label)
+        self._issues_popup = popup
+        return popup
 
     def _update_status(self, n_lines, ms):
         self._update_title_block_counts()

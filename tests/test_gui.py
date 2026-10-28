@@ -665,3 +665,26 @@ def test_real_export_dialog_returns_its_options(window, qapp, tmp_path):
     window._ask_export_path = lambda suggested, flt: str(tmp_path / "fig.png")
     _accept_modal_soon(qapp)
     assert window.export_figure() and (tmp_path / "fig.png").exists()
+
+
+def test_scene_check_in_the_status_bar_can_be_opened(window, qapp):
+    """The status bar's '⚠ 2 warnings · 1 note' is a button: it lists every issue; a click on one selects
+    its element."""
+    from physics.elements import Doublet, Source, Uniform, Vortex
+    window.load_scene([Uniform(), Doublet(mu=1.0), Vortex(Gamma=-2.0), Source(m=0.0, x0=2.0)])
+    qapp.processEvents()
+    assert window.issue_label.text().startswith("⚠ 1 warning") and "1 note" in window.issue_label.text()
+    window.issue_label.click()
+    qapp.processEvents()
+    popup = window._issues_popup
+    assert popup.isVisible()
+    from app.window.issues_popup import _Row
+    rows = popup.findChildren(_Row)
+    assert len(rows) == 2
+    texts = [" ".join(l.text() for l in r.findChildren(type(window.probe_label))) for r in rows]
+    assert "Warning" in texts[0] and "m = 0" in texts[0] and "Note" in texts[1]       # warnings first
+    rows[0].clicked.emit()
+    qapp.processEvents()
+    import shiboken6
+    assert window.elements_panel.current_row() == 3
+    assert not shiboken6.isValid(popup) or not popup.isVisible()                    # closed
