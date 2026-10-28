@@ -115,6 +115,7 @@ class StatusMixin:
         self.setWindowFilePath(self.current_path or "")
         file = os.path.basename(self.current_path) if self.current_path else "not saved"
         self.header.plank.file.setText(f"SHEET  {file}{star}")
+        self.recovery.changed()                  # saved / changed: the recovery copy follows
         tb = self.canvas.title_block
         tb.set("scene", self.scene_title)
         tb.set("file", file + star)

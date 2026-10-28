@@ -24,6 +24,7 @@ from physics import ELEMENT_TYPES
 from physics.warmup import warm_up_in_background
 
 from .canvas import LIVE_DRAG_DEFAULT, PlotCanvas
+from .recovery import SessionRecovery
 from .chrome import HeaderBar, load_fonts, paint_paper_grid, tint_title_bar
 from .dialogs import ElementDialog, dispose
 from .element_specs import spec_for
@@ -44,6 +45,9 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         load_fonts()
         self.theme = DEFAULT_THEME
         self._verification = None                # Help → Run verification (created on first use)
+        # a copy of an unsaved scene, restored if the program does not close normally (app/recovery.py)
+        self.recovery = SessionRecovery(self._document, lambda: self.model.is_modified,
+                                        lambda: (self.current_path, self.scene_title), parent=self)
         self.scene_title = "Lifting (rotating) cylinder"
         self.current_path: str | None = None           # file of the scene (None = never saved)
         self.recent = RecentFiles()
@@ -121,6 +125,7 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         cv.computed.connect(lambda *_: warm_up_in_background())     # the other kernels, once, unseen
         cv.view_changed.connect(self._update_title_block_view)
         cv.view_changed.connect(sp.set_view)
+        cv.view_changed.connect(self.recovery.changed)
         # element list -> model
         ep.edit_requested.connect(self.edit_element)
         ep.enabled_changed.connect(lambda row, on: self.model.set_enabled(row, on))
@@ -361,6 +366,7 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         self.canvas.shutdown()
         if self._verification is not None:
             self._verification.shutdown()
+        self.recovery.close()                    # closed normally: no copy to restore next time
         super().closeEvent(event)
 
     def apply_theme(self, theme):

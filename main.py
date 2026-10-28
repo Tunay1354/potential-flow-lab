@@ -32,6 +32,7 @@ def main():
         win.showMaximized()          # fills the screen (the title bar's restore button gives window_size)
     else:
         win.show()
+    QTimer.singleShot(0, win.offer_recovery)       # a scene left unsaved by a crash: "Restore it?"
     files = [a for a in sys.argv[1:] if not a.startswith("-")]
     if files:
         QTimer.singleShot(0, lambda: win.open_scene(files[0]))

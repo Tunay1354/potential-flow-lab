@@ -16,6 +16,7 @@ from model import EXTENSION, SceneDocument, SceneFileError
 from model import load_scene as read_scene_file
 from model import save_scene as write_scene_file
 
+from ..recovery import find_recoverable
 from ..theme import LAYOUT
 
 FILE_FILTER = f"{APP_NAME} scenes (*{EXTENSION});;JSON files (*.json);;All files (*)"
@@ -142,6 +143,68 @@ class FilesMixin:
         self.current_path = None        # a preset is a new, unsaved scene (Save would not overwrite a file)
         self.model.load(elements, f"Load “{title}”" if title else "Load scene")
         self._flash_done()
+
+    # ------------------------------------------------------------------ after a crash
+    def offer_recovery(self, folder: str | None = None, ask=None) -> bool:
+        """At start: a scene left unsaved by a session that did not end normally → "Restore it?". It comes
+        back as an unsaved change (Undo returns to the start scene), with its file name if it had one.
+        `ask(found) -> "restore" | "discard" | "later"` replaces the question (tests). True = restored."""
+        from ..errors import previous_crash
+        found = find_recoverable(folder or self.recovery.folder, exclude=self.recovery.stem)
+        if not found:
+            if previous_crash():
+                self.flash("The program closed unexpectedly last time — details: Help → Open log folder.")
+            return False
+        newest, older = found[0], found[1:]
+        for r in older:                                  # (several crashed sessions: offered next time)
+            r.release()
+        answer = (ask or self._ask_restore)(newest)
+        if answer == "later":
+            newest.release()
+            return False
+        if answer != "restore":
+            newest.discard()
+            logging.getLogger("pflab").info("recovered scene discarded: %s", newest.scene_path)
+            return False
+        try:
+            doc = newest.document()
+        except (OSError, SceneFileError) as exc:
+            self._notify_user("warning", "Cannot restore the scene", str(exc))
+            newest.release()
+            return False
+        if doc.view is not None:
+            self.canvas.set_view(*doc.view)
+        settings = self.canvas.settings.updated(doc.settings)
+        self.canvas.apply_settings(settings)
+        self.settings_panel.show_settings(settings)
+        original = newest.original
+        self.current_path = original if original and os.path.exists(os.path.dirname(original) or ".") else None
+        self.scene_title = newest.title
+        self.model.load(doc.elements, "Restore unsaved scene")
+        newest.discard()
+        self.recovery.save_now()                         # this session's copy from now on
+        logging.getLogger("pflab").info("recovered scene restored (%s, %d elements)", newest.title,
+                                        len(doc.elements))
+        self.flash(f"Restored “{newest.title}” — not saved yet (Ctrl+S). Undo goes back to the start scene.")
+        return True
+
+    def _ask_restore(self, found) -> str:
+        from ..errors import previous_crash
+        where = os.path.basename(found.original) if found.original else "never saved"
+        box = QMessageBox(QMessageBox.Question, "Restore unsaved scene",
+                          "Potential Flow Lab did not close normally last time.", parent=self)
+        box.setInformativeText(
+            f"A scene with unsaved changes was kept:\n\n    {found.title}   ({where})\n    last change: "
+            f"{found.when}\n\nRestore it? It opens as an unsaved scene — save it to keep it."
+            + ("\n\nWhat went wrong is in the log (Help → Open log folder)." if previous_crash() else ""))
+        restore = box.addButton("Restore", QMessageBox.AcceptRole)
+        restore.setObjectName("Primary")
+        discard = box.addButton("Discard", QMessageBox.DestructiveRole)
+        box.addButton("Not now", QMessageBox.RejectRole)
+        box.setDefaultButton(restore)
+        box.exec()
+        clicked = box.clickedButton()
+        return "restore" if clicked is restore else "discard" if clicked is discard else "later"
 
     # ------------------------------------------------------------------ a scene file dropped on the window
     def dragEnterEvent(self, event):

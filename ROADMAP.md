@@ -329,8 +329,19 @@ bırakıldı (kullanıcı kararı).
       (`previous_crash()` — madde 18'de "geri getir?" için); normal kapanışta dosya silinir
     - Testler: `tests/test_errors.py` (slot'ta, thread'de, çizimde hata; tekrar; sıraya alma; konsolsuz;
       gerçek segfault ile çökme dosyası)
-18. ☐ **Otomatik kaydetme / çökme sonrası geri getirme**: kaydedilmemiş sahne birkaç saniyede bir arka planda
-    yedeklenir; program beklenmedik kapanırsa bir sonraki açılışta "kaydedilmemiş sahne bulundu — geri getir?"
+18. ✅ **Otomatik kaydetme / çökme sonrası geri getirme** (28 Ekim)
+    - `app/recovery.py`: sahnede kaydedilmemiş değişiklik varken son değişiklikten (ya da görünüm değişiminden)
+      3 s sonra kopyası programın veri klasörüne yazılır (`recovery/session-….pflow` + hangi dosya, başlık, saat);
+      kaydedince, Undo ile kaydedilmiş hale dönünce, program normal kapanınca silinir. Kullanıcının kendi
+      dosyasına hiç dokunulmaz
+    - Her oturum bir kilit dosyası tutar (QLockFile); sahibi artık çalışmayan bir kopya = o oturum normal
+      kapanmadı. Açılışta "Restore unsaved scene": başlık, dosyası (ya da "never saved"), son değişiklik saati,
+      çökme varsa log'a yönlendirme → Restore (kaydedilmemiş sahne olarak, dosya adıyla — Ctrl+S oraya yazar;
+      Undo önceki sahneye döner) / Discard / Not now (sonraki açılışta tekrar sorulur). Aynı anda açık başka
+      bir programın kopyasına dokunulmaz. Kopya yoksa ama çökme olduysa durum çubuğunda not
+    - Testler: `tests/test_recovery.py` (kopya / kaydedince silinme / undo / normal kapanış / çalışan oturum
+      sorulmuyor / gerçekten düşen bir süreçten geri getirme / Not now / Discard); testler artık kullanıcının
+      veri klasörüne değil Qt'nin test klasörüne yazıyor
 19. ☐ **Faz 6 — Kunduz rehber** [7]: ilk açılışta atlanabilir tanıtım turu, Help yanındaki yeri, açma / kapama
     ayarı, animasyon modunda akışla süzülüp kaybolması ve geri dönmesi (karar: adı, turun dili)
 20. ☐ **Optimizasyon (+ Paket E2)**: ölçüm → iyileştirme: açılış ve ilk Numba derleme süresi, sürükleme, zoom /

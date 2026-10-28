@@ -78,6 +78,11 @@ folder), program açık kalır, sahne kaybolmaz. Her hata traceback'iyle log dos
 **Help → Open log folder** → `potential-flow-lab.log` (en çok 3 × 1 MB). Program tamamen çökerse (derlenmiş
 kodda) yığın `crash.txt`'e yazılır ve bir sonraki açılışta log'a aktarılır. Sorun bildirirken log dosyasını gönder.
 
+Kaydedilmemiş değişiklik varken sahnenin bir kopyası son değişiklikten ~3 s sonra programın veri klasörüne
+(`recovery/`) yazılır; kaydedince, değişiklikler geri alınınca ya da program normal kapanınca silinir. Program
+normal kapanmazsa (çökme, elektrik, görev yöneticisi) bir sonraki açılışta "Restore unsaved scene" sorulur:
+Restore (kaydedilmemiş sahne olarak açılır, Undo önceki sahneye döner) / Discard / Not now.
+
 ### Komut satırı (pencere açmadan)
 
 ```
@@ -126,6 +131,7 @@ Exe (Faz 5): `pyinstaller packaging/potential_flow_lab.spec` → `dist/Potential
 | `app/panels.py`, `app/dialogs.py` | Elements / Plot settings panelleri; parametre penceresi (alanlar `app/element_specs.py`'den otomatik) |
 | `app/surface_panel.py` | Surface pressure paneli: Cp grafiği, kuvvetler, CSV |
 | `app/errors.py` | Beklenmeyen hatalar: log dosyası, hata penceresi (program açık kalır), çökme dosyası |
+| `app/recovery.py` | Otomatik kopya ve çökme sonrası sahneyi geri getirme |
 | `app/verification_dialog.py` | Help → Run verification…: raporu arka planda üretir, check ağacı ve "nasıl hesaplandı" paneli |
 | `app/theme.py` | Renkler (açık / koyu), fontlar, boyutlar, marker'lar |
 | `app/geometry.py` | Duvarların çizim geometrisi (köşelerde sadece akışkana bakan kısım çizilir) |
