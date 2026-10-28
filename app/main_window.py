@@ -43,6 +43,7 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         super().__init__()
         load_fonts()
         self.theme = DEFAULT_THEME
+        self._verification = None                # Help → Run verification (created on first use)
         self.scene_title = "Lifting (rotating) cylinder"
         self.current_path: str | None = None           # file of the scene (None = never saved)
         self.recent = RecentFiles()
@@ -358,6 +359,8 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         QApplication.instance().removeEventFilter(self)
         self.save_layout()
         self.canvas.shutdown()
+        if self._verification is not None:
+            self._verification.shutdown()
         super().closeEvent(event)
 
     def apply_theme(self, theme):
@@ -373,6 +376,8 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         self.setWindowIcon(make_app_icon(theme))
         self.header.apply_theme(theme)
         self.surface_panel.apply_theme(theme)
+        if getattr(self, "_verification", None) is not None:
+            self._verification.apply_theme(theme)
         for w in QApplication.topLevelWidgets():
             if w.isVisible() and w.windowType() in (Qt.Window, Qt.Dialog):
                 tint_title_bar(w, theme)
@@ -392,6 +397,19 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
 
     def paintEvent(self, _event):
         paint_paper_grid(self, self.theme)
+
+    def run_verification(self):
+        """Help → Run verification…: the verification report, made in the background (one dialog, kept)."""
+        from .verification_dialog import VerificationDialog
+        if self._verification is None:
+            self._verification = VerificationDialog(self.theme, self)
+        dlg = self._verification
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
+        tint_title_bar(dlg, self.theme)
+        if not dlg.running and dlg.report is None:             # a finished report stays (Run again)
+            dlg.start()
 
     def _show_conventions(self):
         QMessageBox.information(self, "Sign conventions",

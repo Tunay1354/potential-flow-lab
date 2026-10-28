@@ -143,3 +143,54 @@ def test_main_py_help_runs_without_a_window():
                          text=True, encoding="utf-8", timeout=120, cwd=ROOT)
     assert res.returncode == 0
     assert "--verify" in res.stdout and "--figure" in res.stdout
+
+
+# ---------------------------------------------------------------------- how each check is computed
+def test_every_check_says_how_it_is_computed():
+    from app.cli.report import check_jobs, how_parts, scenes
+    for label, job in check_jobs(scenes()):
+        for c in job():
+            parts = dict(how_parts(c.how))
+            assert "Program" in parts, f"{label}: {c.quantity}"
+            assert "Theory" in parts or c.quantity.startswith("saved"), f"{label}: {c.quantity}"
+
+
+def test_html_report_folds_the_explanation_under_each_check(tmp_path):
+    from app.cli import main
+    assert main(["--verify", "--no-figures", "--out", str(tmp_path)]) == 0
+    text = (tmp_path / "verification.html").read_text(encoding="utf-8")
+    with open(tmp_path / "verification.csv", encoding="utf-8-sig", newline="") as f:
+        rows = list(csv.DictReader(f))
+    assert text.count("<details>") == len(rows)                 # folded: <details> without "open"
+    assert text.count("<b>Theory:</b>") == len(rows) - 18        # (2 save → reopen rows per scene: no theory)
+    assert all(r["how"] for r in rows)
+
+
+def test_run_verification_from_the_help_menu(qapp):
+    import time
+
+    from PySide6.QtCore import QStandardPaths
+
+    from app.main_window import MainWindow
+    QStandardPaths.setTestModeEnabled(True)
+    win = MainWindow()
+    try:
+        win.run_verification()
+        dlg = win._verification
+        t0 = time.time()
+        while dlg.running and time.time() - t0 < 180:
+            qapp.processEvents()
+            time.sleep(0.01)
+        assert not dlg.running and dlg.report is not None and dlg.report.ok
+        assert "102 of 102" in dlg.result.text() or "checks OK" in dlg.result.text()
+        assert os.path.exists(dlg.paths["html"]) and len(dlg.report.figures) == 9
+        assert dlg.tree.topLevelItemCount() == 3
+        assert not any(dlg.tree.topLevelItem(i).isExpanded() for i in range(3))     # folded at first
+        lifting = dlg.tree.topLevelItem(1).child(7)
+        dlg.tree.setCurrentItem(lifting)
+        assert "<img" in dlg.detail.toHtml()                                      # the scene's figure
+        dlg.tree.setCurrentItem(lifting.child(3))                                 # the lift check
+        text = dlg.detail.toPlainText()
+        assert "Kutta" in text and "Theory:" in text and "Program:" in text and "Result:" in text
+    finally:
+        win.close()

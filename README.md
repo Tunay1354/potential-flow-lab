@@ -83,9 +83,13 @@ python main.py --help           # tüm seçenekler
   (streamline açıları, stagnation point konumu, yüzey r = a, Cp, basınç integralinden L′ ve D′ — Kutta–Joukowski
   ve d'Alembert), kaydet → tekrar aç (aynı elementler, aynı streamline'lar) ve sahnenin figürü, (3) sayısal
   yöntemlerin doğruluğu (çizgiler boyunca ψ, Newton ile durma noktası, izlenen yüzeylerin şekli, birkaç Γ için
-  kaldırma). Her satırın kendi toleransı var; hepsi tutarsa çıkış kodu 0, tutmayan satırlar konsola da yazılır.
-  Çıktı: `verification.md` (figürlerle), `verification.csv` (section, case, quantity, analytic, numerical,
-  error, tolerance, ok), `figures/*.png`. Süre ≈ 10 s.
+  kaldırma). Her satırın kendi toleransı ve "nasıl hesaplandı" açıklaması var (Theory / Program / Tolerance);
+  hepsi tutarsa çıkış kodu 0, tutmayan satırlar konsola da yazılır. Çıktı: `verification.html` (tarayıcıda:
+  figürler, her check'in açıklaması tıklayınca açılır), `verification.md`, `verification.csv` (section, case,
+  quantity, analytic, numerical, error, tolerance, ok, how), `figures/*.png`. Süre ≈ 15 s.
+- Aynısı programın içinden: **Help → Run verification…** (arka planda çalışır; sonuç katlanmış bir ağaç —
+  bölüm → durum → check; bir satır seçilince sağda formüller, programın yaptığı hesap, tolerans ve sayılar,
+  sahne seçilince figürü; Open full report / Open folder / Save report to… / Run again)
 - `--figure` (.png / .svg / .pdf) ve `--data` (CSV, File → Export data ile aynı tablolar): `--view X0 X1 Y0 Y1`,
   `--layers +bodies,+surface,-markers` (ya da işaretsiz liste: sadece bunlar), `--width / --height` (plot alanı,
   piksel), `--scale 1–4`, `--background white|paper|transparent`, `--dark`, `--vref V`, `--tables
@@ -102,7 +106,7 @@ Exe (Faz 5): `pyinstaller packaging/potential_flow_lab.spec` → `dist/Potential
 | Klasör / dosya | İçerik |
 |---|---|
 | `main.py` | Programı başlatır (`python main.py sahne.pflow` dosyayı da açar); `--verify`, `--figure`, `--data` ile komut satırı |
-| `app/cli/` | Komut satırı: `__init__.py` (seçenekler), `headless.py` (ekranda görünmeyen plot, görünüme göre boyut), `report.py` (`--verify` raporu: Markdown, CSV, figürler) |
+| `app/cli/` | Komut satırı: `__init__.py` (seçenekler), `headless.py` (ekranda görünmeyen plot, görünüme göre boyut), `report.py` (doğrulama raporu: HTML, Markdown, CSV, figürler; komut satırı ve Help menüsü ortak) |
 | `app_info.py` | Program adı ve sürümü |
 | `app/paths.py` | Programın dosyalarının yeri (kaynak klasör veya exe) |
 | `packaging/` | Exe yapımı (PyInstaller spec) |
@@ -114,6 +118,7 @@ Exe (Faz 5): `pyinstaller packaging/potential_flow_lab.spec` → `dist/Potential
 | `app/chrome/` | Pencerenin "çizim kağıdı" görünümü: `style.py` (font, renk), `header.py` (logo, tahta şerit, cetvel + menüler), `cards.py` (panel kartları, title block), `palette.py` (element paleti) |
 | `app/panels.py`, `app/dialogs.py` | Elements / Plot settings panelleri; parametre penceresi (alanlar `app/element_specs.py`'den otomatik) |
 | `app/surface_panel.py` | Surface pressure paneli: Cp grafiği, kuvvetler, CSV |
+| `app/verification_dialog.py` | Help → Run verification…: raporu arka planda üretir, check ağacı ve "nasıl hesaplandı" paneli |
 | `app/theme.py` | Renkler (açık / koyu), fontlar, boyutlar, marker'lar |
 | `app/geometry.py` | Duvarların çizim geometrisi (köşelerde sadece akışkana bakan kısım çizilir) |
 | `app/scene.py`, `app/recent_files.py`, `app/shortcuts.py` | Başlangıç sahnesi ve preset listesi; son açılanlar; değiştirilebilir kısayollar |

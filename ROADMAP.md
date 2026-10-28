@@ -295,8 +295,17 @@ sadece genel teknikler öğrenildi: döngünün tamamını derlemek, trail buffe
       katmanlar (+/−), plot alanı boyutu, ölçek, arka plan, koyu tema, V_ref, tablolar, ayraç seçilebiliyor;
       hatalarda çıkış kodu 2. Plot ekranda hiç görünmüyor (Linux'ta ekran yoksa Qt offscreen)
     - `physics/program_checks.py` (Qt'siz), `app/cli/` (seçenekler, headless plot, rapor), `tests/test_cli.py`
-    - Faz 5 için not: GUI exe'si konsolsuz (console=False) → komut satırı için ayrı küçük bir konsol exe'si
-      (aynı klasörde, ör. `pflab-cli.exe`) gerekecek
+    - **Help → Run verification…** (28 Ekim, kullanıcı isteği): aynı rapor programın içinden, arka planda
+      (pencere kullanılabilir kalıyor, ilerleme çubuğu). Sonuç tek satır ("102 of 102 checks OK") + katlanmış
+      ağaç (3 bölüm → durumlar / sahneler → check'ler). Bir check seçilince sağda nasıl hesaplandığı: Theory
+      (analitik formül), Program (programın yaptığı hesap: hangi kod, kaç nokta, hangi yöntem), Tolerance (neden
+      o değer) ve sayılar; sahne seçilince figürü. Open full report (verification.html: aynı açıklamalar her
+      satırın altında katlı), Open folder, Save report to…, Run again. Rapor programın veri klasörüne yazılıyor
+    - Her check'e `how` alanı (Theory / Program / Tolerance), CSV'de de son sütun
+    - Köşedeki durma noktası: w ∝ z³ (üçlü kök) olduğu bulundu → konum ancak (1e-16)^(1/3) ≈ 5e-6 hassasiyetle
+      belirlenebilir; tolerans 1e-5 bu yüzden
+    - Faz 5 için not: komut satırı modu (`--verify` …) konsolsuz GUI exe'sinde çıktı göstermez; menüden
+      çalıştırma bunu karşılıyor, istenirse ayrıca küçük bir konsol exe'si eklenebilir
 17. ☐ **Dye rake** (isteğe bağlı): çizilen rake'ten pulse'lı boya → streakline; taşınır, döndürülür, kaydedilir
 18. ☐ **Paket E2 — Performans + ekran kartı** (isteğe bağlı): animasyon çalışırken profiling, gerekirse
     "Use graphics card (OpenGL)" seçeneği (açılamazsa normal çizime döner)
@@ -304,7 +313,7 @@ sadece genel teknikler öğrenildi: döngünün tamamını derlemek, trail buffe
     açma / kapama ayarı, animasyon modunda akışla süzülüp kaybolması ve geri dönmesi
 20. ☐ **Faz 5 — Paketleme**: Python gerektirmeyen Windows 10/11 exe (zip içinde klasör), GitHub Releases,
     isteğe bağlı kurulum dosyası (Inno Setup), Numba önbelleği, .pflow dosyasına çift tıklayınca açılma,
-    komut satırı için konsol exe'si (`--verify`, `--figure`, `--data`)
+    (isteğe bağlı) komut satırı için konsol exe'si (`--verify`, `--figure`, `--data`)
 21. ☐ **Faz 3 — Rapor ve user guide**: malzemenin çoğu Paket V'den (figürler, tablolar, doğrulama), sector
     kuralının yazılı açıklaması, 4–6 sayfa rapor, user guide
 22. ☐ **Demo provası**
