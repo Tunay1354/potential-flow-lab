@@ -18,6 +18,7 @@ dosyaya kaydedilip açılabilir. Sıradaki işler: `ROADMAP.md`.
 | Çoğalt | **Duplicate** butonu / Ctrl+D (kopya (0.5, 0.5) kaydırılır) |
 | Sil | **Delete** butonu / listede veya plot'ta Delete tuşu |
 | Geri al / yinele | **Edit → Undo / Redo**, Ctrl+Z / Ctrl+Y |
+| Yüzey basıncı | **Layers → Surface pressure (Cp on surfaces)**: cisim yüzeyleri ve duvarlar Cp'ye göre renklenir, solda **Surface pressure** paneli açılır: Cp grafiği (θ / s / x boyunca; silindirde analitik eğri kesikli), kapalı cisimde basınç integraliyle lift / drag ve Kutta–Joukowski / d'Alembert karşılaştırması, ρ ile N/m, **Export CSV…**. Grafiğin üstünde gezinince plot'ta o nokta halkayla gösterilir. Panel: **View → Panels → Surface pressure** |
 | Hazır sahne | **Presets** menüsü (bu da geri alınabilir); ilk grup hocanın doğrulama durumları |
 | Kaydet / aç | **File → Save** (Ctrl+S), **Save as…** (Ctrl+Shift+S), **Open…** (Ctrl+O), **Open recent**; `.pflow` dosyasını pencereye sürükleyip bırakmak da açar |
 | Yeni sahne | **File → New** (Ctrl+N) |
@@ -85,10 +86,11 @@ Exe (Faz 5): `pyinstaller packaging/potential_flow_lab.spec` → `dist/Potential
 | `presets/` | Hazır sahneler (`.pflow` dosyaları, klasör = menüdeki grup) |
 | `app/main_window.py` | Ana pencere: parçaları birleştirir, sinyalleri bağlar, element komutları (ekle / düzenle / taşı / sil, undo / redo) |
 | `app/window/` | Ana pencerenin parçaları: `layout.py` (yan paneller, palette sağ/sol, düzeni hatırlama), `menus.py` (palette, menüler, kısayollar), `files.py` (New / Open / Save, preset'ler), `exporting.py` (figür ve CSV export), `status.py` (durum çubuğu, probe, sahne kontrolü, başlıklar) |
-| `app/canvas/` | Plot kartı. `canvas.py` ortak durumu tutar (elementler, ayarlar, katman anahtarları, seçim) ve her olayı katmanlara iletir. Katmanlar: `streamline_layer.py` (arka planda hesap), `stagnation_layer.py`, `field_layer.py` (φ, \|V\|, Cp; `contours.py`, `legend.py`), `element_layer.py` (semboller, duvarlar, seçme), `animation_layer.py` + `particle_layer.py` + `pulse_layer.py` (animasyonlar: particle'lar, streamline üstünde darbeler), `body_layer.py` (cisimlerin içi dolu: Solid bodies). `interaction.py`: fare modları, sürükleme, palette'ten bırakma. `settings.py`: Plot settings slider'larının tablosu |
+| `app/canvas/` | Plot kartı. `canvas.py` ortak durumu tutar (elementler, ayarlar, katman anahtarları, seçim) ve her olayı katmanlara iletir. Katmanlar: `streamline_layer.py` (arka planda hesap), `stagnation_layer.py`, `field_layer.py` (φ, \|V\|, Cp; `contours.py`, `legend.py`), `element_layer.py` (semboller, duvarlar, seçme), `animation_layer.py` + `particle_layer.py` + `pulse_layer.py` (animasyonlar: particle'lar, streamline üstünde darbeler), `body_layer.py` (cisimlerin içi dolu: Solid bodies), `surface_layer.py` (yüzeyler Cp renginde: Surface pressure). `interaction.py`: fare modları, sürükleme, palette'ten bırakma. `settings.py`: Plot settings slider'larının tablosu |
 | `app/export/` | `figure.py` (PNG / SVG / PDF), `data.py` (CSV, Qt'siz), `dialogs.py` |
 | `app/chrome/` | Pencerenin "çizim kağıdı" görünümü: `style.py` (font, renk), `header.py` (logo, tahta şerit, cetvel + menüler), `cards.py` (panel kartları, title block), `palette.py` (element paleti) |
 | `app/panels.py`, `app/dialogs.py` | Elements / Plot settings panelleri; parametre penceresi (alanlar `app/element_specs.py`'den otomatik) |
+| `app/surface_panel.py` | Surface pressure paneli: Cp grafiği, kuvvetler, CSV |
 | `app/theme.py` | Renkler (açık / koyu), fontlar, boyutlar, marker'lar |
 | `app/geometry.py` | Duvarların çizim geometrisi (köşelerde sadece akışkana bakan kısım çizilir) |
 | `app/scene.py`, `app/recent_files.py`, `app/shortcuts.py` | Başlangıç sahnesi ve preset listesi; son açılanlar; değiştirilebilir kısayollar |
@@ -104,7 +106,8 @@ Exe (Faz 5): `pyinstaller packaging/potential_flow_lab.spec` → `dist/Potential
 | `physics/field.py` | Superposition (w = Σ wₖ), grid hesabı, Cp, singularity masking, fluid region |
 | `physics/streamlines/` | Eşit aralıklı streamline'lar (Jobard–Lefer, RK4): `level.py` (bir aralık seviyesi), `cache.py` (pan'de çizgileri yerinde tutan önbellek), `seeds.py`, `rasters.py`, `arrows.py`, `drawing.py` (soluklaşan uçlar) |
 | `physics/stagnation.py` | Stagnation point'ler (w = 0, Newton) ve dividing streamline'lar; akışkanın nereden geldiği (`trace_origin`: serbest akış / cisim / kapalı döngü) |
-| `physics/bodies.py` | Cisimler: bölge resmi (`body_map`), yüzeyler saat yönünün tersine sıralı (`find_bodies`, Paket S için) |
+| `physics/bodies.py` | Cisimler: bölge resmi (`body_map`), yüzeyler saat yönünün tersine sıralı (`find_bodies`) |
+| `physics/surface.py` | Yüzeyler (cisimler + ıslak duvarlar), üzerlerinde Cp, basınç integraliyle kuvvet (Kutta–Joukowski / d'Alembert karşılaştırması), silindirin analitik Cp'si |
 | `physics/warmup.py` | Numba çekirdeklerini arka planda önceden derler / yükler |
 | `physics/particles.py` | Animasyon fiziği: tracer particle'lar, streamline boyunca yolculuk süresi (pulse'lar) |
 | `physics/kernel.py` | Numba ile derlenmiş hız alanı ve integrator (aynı matematik, ~10× hızlı, arayüzü bekletmez) |

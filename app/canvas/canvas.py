@@ -25,6 +25,7 @@ from .field_layer import KEYS as FIELD_KEYS
 from .field_layer import FieldLayer
 from .interaction import DRAG_OPACITY, MOUSE_MODES, PlotInteraction, PlotViewBox
 from .particle_layer import ParticleLayer
+from .surface_layer import SurfaceLayer
 from .pulse_layer import PulseLayer
 from .settings import PlotSettings
 from .stagnation_layer import StagnationLayer
@@ -45,6 +46,7 @@ LAYERS = (
     ("markers", "Element markers", True),
     ("walls", "Walls", True),
     ("bodies", "Solid bodies (filled)", False),
+    ("surface", "Surface pressure (Cp on surfaces)", False),
 )
 
 
@@ -115,6 +117,7 @@ class PlotCanvas(QWidget):
         self.fields.legend.clicked = self.cp_reference_requested.emit
         self.element_layer = self.add_layer(ElementLayer(self.plot, self.vb))
         self.bodies = self.add_layer(BodyLayer(self.plot, self.vb))
+        self.surfaces = self.add_layer(SurfaceLayer(self.plot, self.vb))           # Cp on body surfaces, walls
         self.particles = self.add_layer(ParticleLayer(self.plot, self.vb))      # animation styles
         self.pulses = self.add_layer(PulseLayer(self.plot, self.vb))
         self.bodies.changed += [self.particles.bodies_changed, self.pulses.bodies_changed,
@@ -174,6 +177,8 @@ class PlotCanvas(QWidget):
             self.fields.schedule(force=True, now=True)
         elif key == "bodies":
             self.bodies.refresh()
+        elif key == "surface":
+            self.surfaces.refresh()
         elif key == "stagnation" and not on:
             self.stagnation.select(None)
         else:
@@ -319,6 +324,7 @@ class PlotCanvas(QWidget):
         """None = V∞ of the uniform flow(s); a number = the user's reference speed."""
         self.settings.cp_reference = v_ref or None
         self.fields.schedule(force=True)
+        self.surfaces.redraw()
 
     def cp_reference(self):
         return self.settings.cp_reference or reference_speed(self.elements)
@@ -356,10 +362,14 @@ class PlotCanvas(QWidget):
         self.streamlines.recompute()
         self.fields.schedule(force=True, now=True)
         self.bodies.update()
+        if self.surfaces.wanted:
+            background, self.surfaces.background = self.surfaces.background, False
+            self.surfaces.refresh()
+            self.surfaces.background = background
 
     def wait_idle(self, msecs: int = 10000) -> bool:
         """Wait until the background computation is idle (results still arrive via the event loop)."""
-        return self.streamlines.wait_idle(msecs)
+        return self.streamlines.wait_idle(msecs) and self.surfaces.wait(msecs)
 
     def shutdown(self):
         """Stop background work (call before the window closes)."""

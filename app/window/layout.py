@@ -34,7 +34,7 @@ class LayoutMixin:
         return d
 
     def _docks(self):
-        return self.dock_elements, self.dock_settings
+        return self.dock_elements, self.dock_settings, self.dock_surface
 
     def _place_dock_card(self, d):
         """Paper margin between the card and the window edge, depending on where the dock is."""
@@ -49,18 +49,22 @@ class LayoutMixin:
         d.widget().set_outer(body)
 
     def _default_dock_layout(self):
-        """Both panels on the right, Elements above Plot settings."""
-        de, ds = self._docks()
-        for d in (de, ds):
+        """Elements above Plot settings on the right; Surface pressure on the left (the graph needs the
+        height), hidden: View → Panels, or it opens with the Surface pressure layer."""
+        de, ds, du = self._docks()
+        for d in (de, ds, du):
             self.removeDockWidget(d)
         self.addDockWidget(Qt.RightDockWidgetArea, de)
         self.addDockWidget(Qt.RightDockWidgetArea, ds)
+        self.addDockWidget(Qt.LeftDockWidgetArea, du)
         self.splitDockWidget(de, ds, Qt.Vertical)
-        for d in (de, ds):
+        for d in (de, ds, du):
             d.show()
             self._place_dock_card(d)
-        self.resizeDocks([de, ds], [LAYOUT["right_panel_width"]] * 2, Qt.Horizontal)
+        self.resizeDocks([de, ds, du], [LAYOUT["right_panel_width"], LAYOUT["right_panel_width"],
+                                        LAYOUT["surface_panel_width"]], Qt.Horizontal)
         self.resizeDocks([de, ds], [260, 560], Qt.Vertical)
+        du.hide()
 
     def _sections_changed(self):
         """Plot settings sections hidden / shown: the note on the panel title and the menu ticks."""

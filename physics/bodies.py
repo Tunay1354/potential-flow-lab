@@ -321,15 +321,19 @@ def scene_map(elements, result, cells: int = 400) -> BodyMap | None:
                     list(result.scene_dividing) + list(getattr(result, "scene_inner", [])))
 
 
-def find_bodies(elements, dividing, region, cells: int = 480) -> list[Body]:
+def find_bodies(elements, dividing, region, cells: int = 480, inner=()) -> list[Body]:
     """The bodies of a scene in `region` = (x0, x1, y0, y1) (a grid of about `cells` cells across is
-    used to tell the sides of the lines apart; the surfaces themselves are the traced lines)."""
+    used to tell the sides of the lines apart; the surfaces themselves are the traced lines).
+    `inner`: the branches into bodies (borders, never surfaces). Body regions that touch (e.g. the
+    ring of a fast-spinning cylinder and the cylinder) are one body."""
     x0, x1, y0, y1 = map(float, region)
     w, h = x1 - x0, y1 - y0
     shape = (max(8, int(round(cells * h / max(w, h)))), max(8, int(round(cells * w / max(w, h)))))
-    bmap = body_map(elements, (x0, x1, y0, y1), shape, dividing)
+    bmap = body_map(elements, (x0, x1, y0, y1), shape, list(dividing) + list(inner))
     if bmap is None or bmap.count == 0:
         return []
+    labels, count = _label(bmap.mask)                                  # touching regions: one body
+    bmap = BodyMap(bmap.box, labels.astype(np.int32), int(count))
     pieces = surface_pieces(bmap, dividing)
     sing = np.array(singular_points(active(elements)), dtype=complex)
     cell = max(w / shape[1], h / shape[0])

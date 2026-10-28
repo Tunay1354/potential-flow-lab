@@ -119,13 +119,37 @@ class ExportMixin:
         try:
             written = export_data(path, opt["datasets"], self.elements, cv.view(), cv.stagnation_points,
                                   cv.last_result.lines if cv.last_result else [], cv.settings.cp_reference,
-                                  opt["grid"], opt["separator"])
+                                  opt["grid"], opt["separator"], self._surfaces_if_ready())
         except OSError as exc:
             self._notify_user("warning", "Cannot export the data", str(exc))
             return False
         self._save_export_settings("data", opt, path)
         self.flash("Saved " + ", ".join(os.path.basename(p) for p in written))
         return True
+
+    def export_surface(self):
+        """Surface pressure panel → Export CSV…: Cp along all surfaces, one table."""
+        opt = self._export_settings("data")
+        path = self._ask_export_path(self._export_suggestion("_surface_cp.csv"), "CSV files (*.csv)")
+        if not path:
+            return False
+        cv = self.canvas
+        try:
+            export_data(path, ["surface"], self.elements, cv.view(), v_ref=cv.settings.cp_reference,
+                        separator=opt.get("separator", ","), surfaces=self._surfaces_if_ready())
+        except OSError as exc:
+            self._notify_user("warning", "Cannot export the data", str(exc))
+            return False
+        QSettings().setValue("export/folder", os.path.dirname(os.path.abspath(path)))
+        self.flash("Saved " + os.path.basename(path))
+        return True
+
+    def _surfaces_if_ready(self):
+        """The surfaces as on the plot, if they are up to date (else None: export_data computes them)."""
+        layer = self.canvas.surfaces
+        if layer.wanted and not layer._stale and not layer.computing:
+            return layer.surfaces()
+        return None
 
     def _export_suggestion(self, extension: str) -> str:
         """Last export folder + the scene's file name (or title)."""

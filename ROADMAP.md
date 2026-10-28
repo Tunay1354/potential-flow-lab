@@ -249,9 +249,24 @@ sadece genel teknikler öğrenildi: döngünün tamamını derlemek, trail buffe
     - Kontrol: 21 preset + 11 elle seçilmiş + 65 rastgele sahne (uniform + 1–3 source / sink / doublet / vortex),
       her biri 3–7 görünümde, sahne ölçeğinde izlenen referans haritayla karşılaştırıldı (sonuç commit
       mesajında)
-15. ▶ **Paket S — Surface pressure paneli**: cisimlerin yüzeyi Cp'ye göre renkli, dock panelde Cp – θ grafiği
-    (silindirde analitik eğri), yüzey integraliyle lift / drag ↔ Kutta–Joukowski / d'Alembert, surface Cp CSV
-16. ☐ **Paket V — Komut satırı + otomatik doğrulama**: pencere açmadan figür / CSV export, `--verify`: verification
+15. ✅ **Paket S — Surface pressure** (28 Ekim)
+    - Layers → "Surface pressure (Cp on surfaces)": cisim yüzeyleri ve ıslak duvarlar (symmetry wall, sector
+      flow kenarları) kalın çizgi olarak Cp renginde (mavi = emme, kırmızı = durma, Cp = 1), sol üstte lejant
+    - Cisim yüzeyleri görünümden bağımsız, tüm sahne için arka planda bulunur (`physics/surface.py`: kapalı
+      cisim saat yönünün tersine tek halka; half-body açık); yüzeyde eşit aralıklı noktalar, hız tam orada
+    - Surface pressure paneli (solda açılır; View → Panels): yüzey seçimi, Cp grafiği θ (merkez etrafında,
+      serbest akıştan; Anderson'daki gibi ön durma noktası 180°) / s (yüzey boyunca) / x (akış boyunca) —
+      açık cisimde x, duvarda s'ye kendiliğinden geçer; "Suction up" (−Cp yukarı); silindir / lifting
+      cylinder'da analitik Cp = 1 − (2 sin θ − Γ/2πaV∞)² kesikli; grafikte gezinince plot'ta halka
+    - Kapalı cisimde basınç integrali −∮ p n ds (birim açıklık): L′/ρ, D′/ρ ve ρ ile N/m; cisim tek başına
+      uniform akıştaysa Kutta–Joukowski (−ρV∞Γ) ve d'Alembert (0) ile fark %; duvar / başka eleman varsa
+      neden karşılaştırma olmadığı yazılı. Ölçülen: lifting cylinder Γ = −2 → L′/ρ = 2.0002 (%0.01),
+      Γ = −15 (halkalı) 15.0013, Rankine oval / silindir sürüklemesi < 1e-3; ard arda iki silindir: eşit ve
+      zıt kuvvet; zemindeki silindir aşağı çekiliyor
+    - CSV: panelde Export CSV… ve File → Export data → "Surface pressure" (yüzey, x, y, s, θ, x akış boyunca,
+      u, v, |V|, Cp); V∞ yoksa panel Cp reference'a link veriyor
+    - `find_bodies` artık bitişik cisim bölgelerini tek cisim sayıyor, içe giden dalları sınır olarak alıyor
+16. ▶ **Paket V — Komut satırı + otomatik doğrulama**: pencere açmadan figür / CSV export, `--verify`: verification
     case'ler ve analitik çözümlerle karşılaştırma tablosu (Markdown + CSV) ve rapor figürleri
 17. ☐ **Dye rake** (isteğe bağlı): çizilen rake'ten pulse'lı boya → streakline; taşınır, döndürülür, kaydedilir
 18. ☐ **Paket E2 — Performans + ekran kartı** (isteğe bağlı): animasyon çalışırken profiling, gerekirse

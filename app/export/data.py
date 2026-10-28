@@ -1,6 +1,7 @@
 """
 data.py — CSV tables for spreadsheets / MATLAB / Python: the elements, the stagnation points, the
-streamlines in view, and u, v, |V|, Cp, φ, ψ on a grid over the view.
+streamlines in view, u, v, |V|, Cp, φ, ψ on a grid over the view, and Cp along the surfaces (body
+surfaces and walls).
 """
 import csv
 import os
@@ -13,7 +14,8 @@ from physics.field import complex_potential, fluid_mask, reference_speed, singul
 DATASETS = (("elements", "Elements (parameters)"),
             ("stagnation", "Stagnation points"),
             ("streamlines", "Streamlines in view (x, y of every point)"),
-            ("field", "Velocity field on a grid (u, v, |V|, Cp, φ, ψ)"))
+            ("field", "Velocity field on a grid (u, v, |V|, Cp, φ, ψ)"),
+            ("surface", "Surface pressure (Cp along body surfaces and walls)"))
 
 
 def _fmt(v) -> str:
@@ -81,6 +83,28 @@ def field_rows(elements, view, nx: int, v_ref=None):
     return header, rows
 
 
+def surface_rows(elements, surfaces, v_ref=None):
+    """One row per surface point: the surface (Body 1, Wall 1 …), x, y, arc length s, θ round the center
+    (closed bodies), distance along the free stream, u, v, |V|, Cp. `surfaces` = physics.surface.Surface
+    list (as on the plot); v_ref = Cp reference speed (None = V∞ of the uniform flow)."""
+    from physics.surface import free_stream_angle, rotate_to_theta0
+    v_ref = v_ref or reference_speed(elements)
+    alpha = free_stream_angle(elements)
+    header = ["surface", "kind", "closed", "point", "x [m]", "y [m]", "s [m]", "theta [deg]", "x along flow [m]",
+              "u [m/s]", "v [m/s]", "|V| [m/s]", "Cp"]
+    rows = []
+    for srf in surfaces:
+        srf = rotate_to_theta0(srf, alpha)
+        cp = srf.cp(v_ref)
+        th = srf.theta(alpha) if srf.closed else np.full(srf.z.shape, np.nan)
+        xf = srf.along_flow(alpha) if srf.kind == "body" else np.full(srf.z.shape, np.nan)
+        for k in range(srf.z.size):
+            rows.append([srf.name, srf.kind, int(srf.closed), k + 1, _fmt(srf.z[k].real), _fmt(srf.z[k].imag),
+                         _fmt(srf.s[k]), _fmt(th[k]), _fmt(xf[k]), _fmt(srf.vel[k].real), _fmt(srf.vel[k].imag),
+                         _fmt(abs(srf.vel[k])), _fmt(cp[k])])
+    return header, rows
+
+
 def write_csv(path: str, header, rows, separator: str = ","):
     """UTF-8 with BOM (Excel shows Γ, μ correctly). separator ',' -> numbers with a decimal point
     (Python, MATLAB, English Excel); ';' -> decimal comma, as Excel with Turkish settings expects."""
@@ -94,6 +118,11 @@ def write_csv(path: str, header, rows, separator: str = ","):
         wr.writerows([[cell(v) for v in row] for row in rows])
 
 
+def _surfaces(elements, view):
+    from physics.surface import body_surfaces, wall_surfaces
+    return body_surfaces(elements) + wall_surfaces(elements, view)
+
+
 def _is_number(text: str) -> bool:
     try:
         float(text)
@@ -103,9 +132,10 @@ def _is_number(text: str) -> bool:
 
 
 def export_data(path: str, datasets, elements, view, stagnation=(), streamlines=(), v_ref=None,
-                grid_nx: int = 101, separator: str = ","):
+                grid_nx: int = 101, separator: str = ",", surfaces=None):
     """Write the chosen tables (keys of DATASETS) for the view ((x0, x1), (y0, y1)): the stagnation
-    points and streamline arrays as drawn, v_ref = Cp reference speed (None = V∞ of the uniform flow).
+    points and streamline arrays as drawn, v_ref = Cp reference speed (None = V∞ of the uniform flow),
+    surfaces = the surfaces as on the plot (None: computed here).
     One table -> `path`; several -> path stem + '_elements.csv' etc. Returns the written paths."""
     (x0, x1), (y0, y1) = view
     view = ((float(x0), float(x1)), (float(y0), float(y1)))
@@ -114,6 +144,8 @@ def export_data(path: str, datasets, elements, view, stagnation=(), streamlines=
         "stagnation": lambda: stagnation_rows(stagnation),
         "streamlines": lambda: streamline_rows(streamlines, view),
         "field": lambda: field_rows(elements, view, grid_nx, v_ref),
+        "surface": lambda: surface_rows(elements, _surfaces(elements, view) if surfaces is None else surfaces,
+                                        v_ref),
     }
     chosen = [d for d in datasets if d in tables]
     stem, ext = os.path.splitext(path)

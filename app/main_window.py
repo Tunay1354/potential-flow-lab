@@ -31,6 +31,7 @@ from .icons import make_app_icon, make_palette_icon
 from .panels import ElementsPanel, SettingsPanel, element_title
 from .recent_files import RecentFiles
 from .scene import starter_scene
+from .surface_panel import SurfacePanel
 from .theme import DEFAULT_THEME, FONT, LAYOUT, build_stylesheet
 from .window import ExportMixin, FilesMixin, LayoutMixin, MenusMixin, StatusMixin
 
@@ -79,6 +80,8 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         self.dock_elements.widget().setMinimumHeight(LAYOUT["elements_panel_min_height"])
         self.settings_panel = SettingsPanel()
         self.dock_settings = self._dock("Plot settings", self.settings_panel)
+        self.surface_panel = SurfacePanel(self.theme)
+        self.dock_surface = self._dock("Surface pressure", self.surface_panel)
         self._default_dock_layout()
 
         self._build_palette()
@@ -137,6 +140,12 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         sp.view_edited.connect(cv.set_view)
         sp.fit_requested.connect(cv.fit_view)
         sp.sections_changed.connect(self._sections_changed)
+        # surface pressure panel <-> plot
+        su = self.surface_panel
+        su.set_layer(cv.surfaces)
+        su.export_requested.connect(self.export_surface)
+        su.cp_reference_requested.connect(self._show_cp_reference)
+        self.dock_surface.visibilityChanged.connect(self._surface_panel_shown)
         title = self.dock_settings.titleBarWidget()
         title.setContextMenuPolicy(Qt.CustomContextMenu)
         title.customContextMenuRequested.connect(lambda pos: self.sections_menu.exec(title.mapToGlobal(pos)))
@@ -151,6 +160,7 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
     # ------------------------------------------------------------------ model -> view
     def _on_model_changed(self, focus):
         self.elements_panel.set_elements(self.elements, select=focus)
+        self.surface_panel.set_elements(self.elements)
         self._update_cp_available()
         n = len(self.elements)
         self.dock_elements.titleBarWidget().note.setText(f"{n} ITEM{'' if n == 1 else 'S'}")
@@ -176,11 +186,20 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         if on and other and self.settings_panel.layer_boxes[other].isChecked():
             self.settings_panel.layer_boxes[other].setChecked(False)     # one color map at a time
         self.canvas.set_layer(key, on)
+        if key == "surface" and on and not self.dock_surface.isVisible():
+            self.dock_surface.show()                    # the graph and the forces go with the colors
         act = self.layer_actions.get(key)
         if act is not None and act.isChecked() != on:
             act.blockSignals(True)
             act.setChecked(on)
             act.blockSignals(False)
+
+    def _surface_panel_shown(self, visible):
+        layer = self.canvas.surfaces
+        layer.panel_open = bool(visible)
+        if visible:
+            layer.refresh()
+            self.surface_panel.refresh()
 
     def _cp_reference_changed(self, v_ref):
         self.canvas.set_cp_reference(v_ref)
@@ -349,6 +368,7 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         app.setPalette(pal)
         self.setWindowIcon(make_app_icon(theme))
         self.header.apply_theme(theme)
+        self.surface_panel.apply_theme(theme)
         for w in QApplication.topLevelWidgets():
             if w.isVisible() and w.windowType() in (Qt.Window, Qt.Dialog):
                 tint_title_bar(w, theme)

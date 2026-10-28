@@ -60,6 +60,8 @@ LIGHT = {
     "equipotential": "#8C6A45",  # dashed φ = const lines
     "map_speed":    ["#F6F0E2", "#E9D5B0", "#D9A877", "#B9714A", "#8A4530"],   # |V| bands, slow -> fast
     "map_cp":       ["#4E7FA8", "#F6F0E2", "#B8432F"],   # Cp bands: suction, 0, stagnation (Cp = 1)
+    # Cp on body surfaces and walls (thick lines on paper and on the body fill: the middle must show)
+    "surface_cp":   ["#1F4E86", "#4F86BF", "#9DB9A0", "#E0A04A", "#B02E1E"],   # strong suction … Cp = 1
     "particles":    ["#5E8FC7", "#5DB0B3", "#86B86C", "#DDB04F", "#D4654F"],   # animation: slow -> fast
     "body_fill":    "#E6DCC6",
     "body_edge":    "#3A3326",
@@ -116,6 +118,7 @@ DARK = {
     "equipotential": "#C9A983",
     "map_speed":    ["#1D1915", "#3B2C22", "#6A4630", "#A8693D", "#E0A060"],
     "map_cp":       ["#5E95C8", "#1D1915", "#E07A5F"],
+    "surface_cp":   ["#4F8FD8", "#7FB2E0", "#A9C7A0", "#E8B060", "#E86A50"],
     "particles":    ["#8DB6E6", "#86D3CB", "#AED68F", "#F0D084", "#F0907C"],
     "body_fill":    "#2E2720",
     "body_edge":    "#CFC3AE",
@@ -166,6 +169,7 @@ LAYOUT = {
     "palette_width": 84,            # element palette left of the plot
     "palette_button": (68, 58),     # size of one palette button (icon + name)
     "right_panel_width": 340,
+    "surface_panel_width": 320,            # Surface pressure panel (left of the plot when opened)
     "elements_panel_min_height": 210,
     "plot_initial_range": {"x": (-4.0, 4.0), "y": (-2.6, 2.6)},
     "dividing_streamline_width": 2.4,
