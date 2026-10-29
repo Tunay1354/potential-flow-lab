@@ -96,21 +96,22 @@ def check_scene(elements: Sequence[FlowElement]) -> list[SceneIssue]:
     return out
 
 
-def _doublet_alignment(elements) -> list[SceneIssue]:
-    """A warning for every doublet whose axis is not along the flow AT the doublet (made by the other
-    elements; stagnation.doublet_alignment): uniform flow + doublet is the flow past a cylinder only
-    for δ = α. Other elements turn the flow there too (e.g. a vortex beside the doublet, not at its
-    center, or a source nearby). The Solid bodies layer uses the same test (stagnation.open_elements)."""
+def doublet_misalignment(elements) -> dict:
+    """Doublets whose axis is not along the flow AT the doublet (made by the other elements;
+    stagnation.doublet_alignment): {index: (flow angle °, the δ that fixes it °, True if only the uniform
+    flow is there)}. Uniform flow + doublet is the flow past a cylinder only for δ = α. Other elements turn
+    the flow there too (e.g. a vortex beside the doublet, not at its center, or a source nearby). The Solid
+    bodies layer uses the same test (stagnation.open_elements); the beaver's tour explains the warning."""
     act = [e for e in elements if e.enabled]
     fs = complex(sum((e.freestream_velocity() or 0j) for e in act))
     if abs(fs) == 0 and not any(e.TYPE == "sector" for e in act):
-        return []
+        return {}
     try:
         flows = resolve(act)
     except Exception:                                   # noqa: BLE001 - an invalid scene: other checks say why
-        return []
+        return {}
     sing = singular_points(act)
-    out = []
+    out = {}
     for i, e in enumerate(elements):
         if not e.enabled or e.TYPE != "doublet" or e.mu == 0:
             continue
@@ -120,7 +121,17 @@ def _doublet_alignment(elements) -> list[SceneIssue]:
         angle = al[0]
         want = (angle - (180.0 if e.mu < 0 else 0.0) + 180.0) % 360.0 - 180.0
         local = flow_at(flows, sing, e.z0)
-        if abs(fs) > 0 and abs(local - fs) <= 1e-6 * abs(fs):           # only the uniform flow there
+        out[i] = (angle, want, abs(fs) > 0 and abs(local - fs) <= 1e-6 * abs(fs))
+    return out
+
+
+def _doublet_alignment(elements) -> list[SceneIssue]:
+    """A warning for every doublet whose axis is not along the flow at the doublet (doublet_misalignment)."""
+    act = [e for e in elements if e.enabled]
+    out = []
+    for i, (angle, want, only_uniform) in doublet_misalignment(elements).items():
+        e = elements[i]
+        if only_uniform:                                                 # only the uniform flow there
             text = (f"The doublet axis (δ = {e.delta:.4g}°) is not along the uniform flow (α = {angle:.4g}°): "
                     f"this is not the flow past a cylinder — part of the free stream goes through the doublet. "
                     f"For a cylinder set δ = {want:.4g}°.")

@@ -86,19 +86,27 @@ Cetvelde Help'in sağında duran piksel kunduz. Mouse ile tutup plota bırakıl�
 Çok yavaş akışta sıkılıp eve gider, çok yavaş pulse'lardan koşarak kaçar; çok hızlı akışta da her satır okunacak
 kadar ekranda kalır. Particles / Pulses'ta plota (veriye) bağlıdır: zoom / pan ile birlikte hareket eder, görünümden çıkarsa eve döner.
 **Tıklama ve sürükleme ayrı:** kunduza tıklayınca (fare kıpırdamadan) menüsü açılır — Questions & answers,
-Show me around (tour), Tell me a fun fact; basılı tutup sürükleyince eline alırsın. **P** tuşu (ya da Help → Beaver →
-Questions & answers) her yerden soru–cevap listesini açar: 1–9, 0, oklar + Enter ya da tıklama; Esc kapatır.
+Show me around (tour), Tell me a fun fact, Nothing, thanks ("I'm here if you need me"); basılı tutup sürükleyince
+eline alırsın. **P** tuşu (ya da Help → Beaver → Call the beaver) her yerden bu menüyü açar / kapatır. Soru–cevap
+listesi: 1–9, 0, oklar + Enter ya da tıklama; Esc kapatır.
 
 **Tanıtım turu:** ilk açılışta kunduz "First time here? Want a quick tour?" diye sorar (bir kez). Evet → boş bir
 sayfadan başlayıp pencerenin parçalarını tek tek gösterir (kırmızı çerçeve, gerisi hafif karartılmış) ve asıl
 işleri yaptırır: uniform flow ekle, doublet ekle, elementi düzenle, Move'a bas ve doublet'i taşı, Density
-slider'ını oynat, Particles'ı aç; sonra Export, File, Presets, Help, kendisi ve P tuşu (18 adım).
+slider'ını oynat, Particles'ı aç; sonra Export, File, Presets, Help, GPU kutusu, kendisi ve P tuşu (19 adım).
+Plotta element varken tur başlatılırsa kunduz önce sorar: kaydedilmemiş değişiklik varsa **Save first** /
+**Clear and start** / **Cancel**, kayıtlıysa **Clear and start** / **Cancel** (Enter ana buton, Esc Cancel).
 - Tur sürerken pencere kilitli: tıklama / çift tıklama / tekerlek / sağ tık sadece o adımın istediği yere gider
   (plot adımlarında zoom / pan; "Your turn!" adımlarında sadece gösterilen şey). Fare her yerde gezer (hover,
   tooltip'ler çalışır).
-- Okuma adımları Enter / Space / balona veya kunduza tıklama / **Next ›** butonu ile geçer. "Your turn!" adımları
-  istenen yapılınca kendiliğinden geçer; Enter / Space / **Skip** atlar. Esc veya **End tour** turu bitirir. Diğer
-  tuşlar tur boyunca çalışmaz (Move adımında M hariç).
+- Okuma adımları Enter / Space / **sağ ok** / balona veya kunduza tıklama / **Next ›** butonu ile geçer. "Your turn!"
+  adımları istenen yapılınca kendiliğinden geçer; Enter / Space / sağ ok / **Skip** atlar. **Sol ok** ya da **‹ Back**
+  bir önceki adıma döner (ilk adımın temizliği tekrarlanmaz; yapılmış bir iş "Done already" diye Next ile gösterilir).
+  Esc veya **End tour** turu bitirir. Diğer tuşlar tur boyunca çalışmaz (Move adımında M hariç).
+- Density adımı slider bırakılınca geçer (sürüklerken değil). Element pencereleri sadece kendi adımlarında açılır
+  (düzenleme adımında palette'e tıklamak bir şey açmaz).
+- Uniform flow'a açı verildiyse doublet penceresi uyarı gösterir: kunduz kısaca hangi δ'nın uyarıyı kaldırdığını
+  söyler (δ = α); düzenleme penceresinde uyarı yeniden çıkarsa sadece "That's the warning we talked about".
 - Palette'ten sürüklerken plot aydınlanır; element penceresi açılınca kunduz yanına geçip ne yapılacağını söyler
   (Apply → devam, Cancel → adıma geri). Konuşma balonu gösterdiği yerin üstüne binmez. Plot settings adımlarında
   panel açılır ve slider görünür yere kaydırılır (slider'ın bölümü gizliyse o adım atlanır).
@@ -109,7 +117,7 @@ around ya da kunduza tıkla → 2. Sonraki açılışlarda sormaz (arada "Welcom
 Help → Beaver → Next start as a first-time user (bir sonraki açılış ilk açılış olur).
 
 Konuşmalar İngilizce, harf harf yazılır. Konuşma balonu "çizim kartı" görünümünde: kalın mürekkep çerçeve, basamaklı
-köşeler, gölge; üstte adı (PSI, isim geçici) ve sağda etiket (TOUR 3/18, MENU, QUESTIONS …); yazı IBM Plex Mono;
+köşeler, gölge; üstte adı (PSI, isim geçici) ve sağda etiket (TOUR 3/19, MENU, QUESTIONS …); yazı IBM Plex Mono;
 sağ altta düğmeler (asıl düğme başlıktaki ahşap renginde: Next ›, Yes, show me around ›, More questions ›). Kunduz
 export edilen figür ve animasyonlarda görünmez; tekerlek üstündeyken de plotu zoom'lar. **View → Beaver** ile kapatılır.
 

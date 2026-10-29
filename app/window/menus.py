@@ -115,15 +115,6 @@ class MenusMixin:
         self.act_del.triggered.connect(lambda: self.delete_element(self.elements_panel.current_row()))
         m.addSeparator()
         m.addAction("Keyboard shortcuts…").triggered.connect(self.edit_shortcuts)
-        bm = m.addMenu("Beaver")
-        self.act_tour = bm.addAction("Show me around (tour)")
-        self.act_tour.triggered.connect(self._beaver_tour)
-        self.act_faq = bm.addAction("Questions && answers")
-        self.act_faq.setShortcut("P")
-        self.act_faq.triggered.connect(self._beaver_faq)
-        self.addAction(self.act_faq)
-        bm.addSeparator()
-        bm.addAction("Next start as a first-time user").triggered.connect(self.forget_first_start)
 
     def _build_view_menu(self, m):
         lay = m.addMenu("Layers")
@@ -226,12 +217,15 @@ class MenusMixin:
         verify.triggered.connect(self.run_verification)
         m.addAction("Keyboard shortcuts…").triggered.connect(self.edit_shortcuts)
         bm = m.addMenu("Beaver")
+        # (one action per command: the same shortcut on two actions would be ambiguous and do nothing)
+        self.act_beaver_menu = bm.addAction("Call the beaver (his menu)")
+        self.act_beaver_menu.setShortcut("P")
+        self.act_beaver_menu.triggered.connect(self._beaver_menu)
+        self.addAction(self.act_beaver_menu)
         self.act_tour = bm.addAction("Show me around (tour)")
         self.act_tour.triggered.connect(self._beaver_tour)
         self.act_faq = bm.addAction("Questions && answers")
-        self.act_faq.setShortcut("P")
         self.act_faq.triggered.connect(self._beaver_faq)
-        self.addAction(self.act_faq)
         bm.addSeparator()
         bm.addAction("Next start as a first-time user").triggered.connect(self.forget_first_start)
         m.addSeparator()
@@ -309,7 +303,7 @@ class MenusMixin:
                 ("mode.select", self.mode_actions["select"], "Mouse mode: Select", "Plot"),
                 ("mode.move", self.mode_actions["move"], "Mouse mode: Move elements", "Plot"),
                 ("mode.pan", self.mode_actions["pan"], "Mouse mode: Pan", "Plot"),
-                ("help.faq", self.act_faq, "Beaver: questions & answers", "Help")):
+                ("help.beaver", self.act_beaver_menu, "Beaver: his menu", "Help")):
             sc.register(ident, act, label, group)
         for key, act in self.element_actions.items():
             sc.register(f"add.{key}", act, f"Add {spec_for(key).name.lower()}…", "Add element", default="")
@@ -328,6 +322,10 @@ class MenusMixin:
     def _beaver_tour(self):
         self._beaver_on()
         self.beaver.start_tour()
+
+    def _beaver_menu(self):
+        self._beaver_on()
+        self.beaver.toggle_menu()
 
     def _beaver_faq(self):
         self._beaver_on()

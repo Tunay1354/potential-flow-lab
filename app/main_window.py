@@ -313,6 +313,8 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
     def add_element_dialog(self, key, at=None):
         """Palette / Elements → Add: dialog with default values. The position is `at` (an element
         dragged from the palette and dropped on the plot) or the view center."""
+        if getattr(self, "beaver", None) is not None and not self.beaver.tour_allows_add(key):
+            return                                       # the tour: only in its own palette step
         spec, cls = spec_for(key), ELEMENT_TYPES[key]
         values = {p.key: p.default for p in spec.params}
         if at is not None and cls.POSITION_KEYS:
@@ -323,6 +325,7 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
             values["x0"], values["y0"] = round(0.5 * (x0 + x1), 1) + 0.0, round(0.5 * (y0 + y1), 1) + 0.0
         dlg = ElementDialog(spec, self.theme, False, self, values=values,
                             validator=lambda vals: self._preview(cls(**vals), None))
+        dlg.row = None                                   # (a new element; the tour reads it)
         accepted = False
         self._tell_beaver("dialog_open", ("add", key, dlg))
         try:
@@ -338,10 +341,13 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         if not 0 <= row < len(self.elements):
             return
         el = self.elements[row]
+        if getattr(self, "beaver", None) is not None and not self.beaver.tour_allows_edit(el.TYPE):
+            return                                       # the tour: only in its edit step
         spec = spec_for(el.TYPE)
         values = {p.key: getattr(el, p.key) for p in spec.params}
         dlg = ElementDialog(spec, self.theme, True, self, values=values,
                             validator=lambda vals: self._preview(el.copy(**vals), row))
+        dlg.row = row                                    # (the element edited; the tour reads it)
         accepted = changed = False
         self._tell_beaver("dialog_open", ("edit", el.TYPE, dlg))
         try:

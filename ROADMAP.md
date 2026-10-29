@@ -628,6 +628,22 @@ bırakıldı (kullanıcı kararı).
       (2) açılış: soğuk 13.8 → 18.2 s, sıcak 2.1 → 3.0 s (her şeyin pencereden önce hazırlanmasının bedeli);
       (3) ağır sahnede pan / zoom p95 ~70 ms (NVIDIA); (4) element eklemeye tepki ~380 ms; (5) 16 element en yoğun
       streamline hesabı 0.64 s, her şey birden 1.2 s.
+20.7 ▶ **Kullanıcının 21 maddelik listesi** (30 Ekim 01:12; üç pakette, her biri ayrı commit):
+    - ✅ **20.7A Tur + kunduz** (madde 3, 4, 5, 6, 7, 8, 18, 19): sağ ok = ileri, sol ok / ‹ Back = geri (ilk
+      adımın temizliği tekrarlanmaz; yapılmış iş "Done already" + Next); uniform'a açı verildiyse doublet
+      penceresindeki uyarıyı kunduz açıklıyor (δ = α, ters μ'de α + 180°), düzenlemede uyarı yeniden çıkarsa kısa
+      hatırlatma (`validation.doublet_misalignment`, uyarıyla aynı test); Add / Edit pencereleri turda sadece
+      kendi adımlarında açılıyor (palette tıklaması, drop, menü, klavye — `tour.may_add / may_edit`); Density
+      adımı slider bırakılınca geçiyor; plotta element varken tur önce soruyor (Save first / Clear and start /
+      Cancel; eskiden Qt'nin "Unsaved changes" kutusunda Cancel denince tur dolu plotta devam ediyordu); Help'ten
+      sonra GPU kutusu adımı (19 adım); P artık çalışıyor (aynı kısayol Edit ve Help menüsündeki iki ayrı
+      action'daydı → Qt "ambiguous" deyip hiçbirini çalıştırmıyordu) ve kunduzun menüsünü açıyor / kapatıyor;
+      "Nothing, thanks" → "I'm here if you need me". Testler: oklar ve geri, slider bırakma, palette kilidi,
+      uyarı ipucu, GPU adımı, tur öncesi soru, P.
+    - ☐ 20.7B Pencere düzeni, ızgara, Surface pressure paneli, User guide, Sign conventions (madde 1, 2, 14, 15, 16,
+      20, 21)
+    - ☐ 20.7C GPU: aç / kapa = yeniden başlat (iş kaybolmadan), sağ alana açılan Graphics card paneli, GPU ile
+      genişleyen slider sınırları, eklenen elementin görünmemesi (madde 9, 10, 11, 12, 13, 17)
 21. ☐ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,
     dosya yapısı, uyarılar (pyflakes), çok uzun dosyaların bölünmesi, testlerin süresi, README klasör tablosu.
     Ölçüt: tüm testler + verification aynı sonuç

@@ -271,7 +271,16 @@ GUI / Qt
 - **30 Oct, 20.6**: his `windows_full_nvidia.json` confirms the relaunch (RTX 3050 draws). Results + the remaining weak
   spots (heavy MP4 export 30 s, startup 3 s warm / 18 s cold, heavy-scene pan p95 ~70 ms, add-element 380 ms) in
   ROADMAP 20.6. He will now send his list of small / big issues; then cleanup (21) incl. folder tidy-up.
-- **Next**: his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
+- **30 Oct, 20.7 his 21-item list** (after 20.6), in three commits A / B / C. **20.7A (tour + beaver)**: Right arrow =
+  next, Left / "‹ Back" = `Tour.back()` (never re-runs a step's `enter`; a step whose action is done (`Tour.done`,
+  or the mode is already on) shows "Done already" + Next); bubble buttons are handled by their LABEL now
+  (`Tour.button`). Doublet dialog hint: `physics.validation.doublet_misalignment` (the same test as the warning) is
+  polled every 0.25 s while a doublet dialog is open (`dlg.row` = edited row or None); first time long, later
+  "we talked about". Add / Edit dialogs ask `beaver.tour_allows_add / tour_allows_edit` (only in their own step).
+  Slider steps wait for `isSliderDown()` False (`Tour.released`). `beaver.start_tour(confirmed)`: a full plot →
+  dialog "tour_clear" (Save first / Clear and start / Cancel). GPU step after Help (19 steps). P =
+  `act_beaver_menu` → `beaver.toggle_menu()` (the old duplicate act_faq in Edit + Help made P ambiguous = dead).
+- **Next**: 20.7B and 20.7C, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
   remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
 - Then, in this order (all planned, "as if time were unlimited"):
   21 code cleanup without behaviour change (dead / duplicate code, names, docstrings, pyflakes, long files) →

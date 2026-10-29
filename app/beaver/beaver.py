@@ -57,7 +57,8 @@ RUN_FRACTION_S = 0.22                 # running: this part of the view width per
 PAUSED_LEAVE_S = 8.0
 DRAG_PX = 6                           # a press that moves further than this is a drag, otherwise a click
 TOUR_MOUSE = (QEvent.MouseButtonPress, QEvent.MouseButtonDblClick, QEvent.Wheel, QEvent.ContextMenu)   # (the lock)
-MENU = ["Questions & answers  (P)", "Show me around (tour)", "Tell me a fun fact", "Nothing, thanks"]
+SAVE_FIRST, CLEAR_AND_START = "Save first", "Clear and start \u203a"     # before a tour on a full plot
+MENU = ["Questions & answers", "Show me around (tour)", "Tell me a fun fact", "Nothing, thanks"]
 
 
 class BeaverSprite(QWidget):
@@ -442,9 +443,13 @@ class Beaver(QObject):
             return False
         k = event.key()
         if self.tour.active:
-            if k in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space):
+            if k in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space, Qt.Key_Right):
                 if act and not event.isAutoRepeat():
                     self.tour.next()
+                return True
+            if k == Qt.Key_Left:
+                if act and not event.isAutoRepeat():
+                    self.tour.back()
                 return True
             if k == Qt.Key_Escape:
                 if act:
@@ -454,6 +459,15 @@ class Beaver(QObject):
         if isinstance(QApplication.focusWidget(), (QLineEdit, QAbstractSpinBox)):
             return False
         b = self.bubble
+        if self.dialog == "tour_clear":                     # buttons: Esc = Cancel, Enter = the main one
+            keys = (Qt.Key_Escape, Qt.Key_Return, Qt.Key_Enter)
+            if not act or k not in keys:
+                return k in keys
+            if b.typing and k != Qt.Key_Escape:
+                b.finish_typing()
+            else:
+                self._bubble_button(0 if k == Qt.Key_Escape else b.primary)
+            return True
         if self.dialog == "ask_tour":                       # buttons, no list: Enter / 1 yes, Esc / 2 no
             keys = (Qt.Key_Escape, Qt.Key_Return, Qt.Key_Enter, Qt.Key_1, Qt.Key_2)
             if not act or k not in keys:
@@ -529,6 +543,15 @@ class Beaver(QObject):
     def open_menu(self):
         self._dialog("menu", self.lines.pick("menu"), MENU, tag="menu", buttons=["Close"])
 
+    def toggle_menu(self):
+        """P (Help → Beaver → Call the beaver): his menu, or closes it (not during the tour)."""
+        if not self.enabled or self.tour.active:
+            return
+        if self.dialog == "menu":
+            self.close_dialog()
+        else:
+            self.open_menu()
+
     def open_faq(self):
         if not self.enabled:
             return
@@ -569,6 +592,18 @@ class Beaver(QObject):
             self._choose(1 if k == 0 else 0)               # "No, thanks" / "Yes, show me around"
         elif self.dialog == "answer" and k == 1:
             self.open_faq()                                 # "More questions"
+        elif self.dialog == "tour_clear":
+            label = self.bubble.buttons[k] if 0 <= k < len(self.bubble.buttons) else ""
+            self.close_dialog()
+            if label == SAVE_FIRST:
+                if self.win.save_scene():                   # saved: the tour may clear the plot
+                    self.start_tour(confirmed=True)
+                else:
+                    self._ask_clear()                       # (the save was cancelled: ask again)
+            elif label == CLEAR_AND_START:
+                self.start_tour(confirmed=True)
+            else:
+                self.say("tour_later")
         elif self.dialog:
             self.close_dialog()                             # "Close"
 
@@ -576,7 +611,7 @@ class Beaver(QObject):
         kind = self.dialog
         if kind == "menu":
             self.close_dialog()
-            [self.open_faq, self.start_tour, lambda: self.say("facts"), lambda: None][k]()
+            [self.open_faq, self.start_tour, lambda: self.say("facts"), lambda: self.say("menu_bye")][k]()
         elif kind == "faq":
             self.answer(k)
         elif kind == "ask_tour":
@@ -587,14 +622,35 @@ class Beaver(QObject):
                 self.say("tour_declined")
 
     # ------------------------------------------------------------------ the tour
-    def start_tour(self):
+    def start_tour(self, confirmed: bool = False):
+        """Show me around. The tour starts on an empty sheet: with elements on the plot he asks first
+        (save first / clear / cancel); confirmed = asked already."""
         if not self.enabled:
+            return
+        if not confirmed and self.win.elements and not self.tour.active:
+            self._ask_clear()
             return
         self.close_dialog()
         self.waiting = None
         self._press = None
         self._go("tour", feet=None)
         self.tour.start()
+
+    def _ask_clear(self):
+        unsaved = self.win.model.is_modified
+        if unsaved:
+            self._dialog("tour_clear", self.lines.pick("tour_clear_unsaved"), tag="tour",
+                         buttons=["Cancel", SAVE_FIRST, CLEAR_AND_START], primary=1)
+        else:
+            self._dialog("tour_clear", self.lines.pick("tour_clear_saved"), tag="tour",
+                         buttons=["Cancel", CLEAR_AND_START], primary=1)
+
+    def tour_allows_add(self, key: str) -> bool:
+        """The window asks before an Add dialog opens: during the tour only in that palette step."""
+        return not (self.enabled and self.tour.active) or self.tour.may_add(key)
+
+    def tour_allows_edit(self, kind: str) -> bool:
+        return not (self.enabled and self.tour.active) or self.tour.may_edit(kind)
 
     def tour_goto(self, feet):
         """The tour moves him next to the part it explains (feet: window point; None: his shelf)."""

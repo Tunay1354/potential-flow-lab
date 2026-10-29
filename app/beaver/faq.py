@@ -1,5 +1,5 @@
 """
-faq.py — questions & answers (P, or click the beaver): the questions a first-time user asks, answered in
+faq.py — questions & answers (click the beaver or press P, then "Questions & answers"): the questions a first-time user asks, answered in
 a few lines each. Keys 1–9, 0 pick a question.
 """
 

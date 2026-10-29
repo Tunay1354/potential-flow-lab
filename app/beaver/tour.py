@@ -10,11 +10,14 @@ window tells the tour: added / edited / mouse_mode / moved / setting / view_mode
 While the tour runs the window is locked: a click, double-click, wheel or right-click only reaches what the
 step allows (`Step.allow`, checked by `Tour.allows`); the mouse still hovers everywhere (highlights,
 tooltips). Keys: Enter / Space = next (an action step: skip it), Esc = end the tour; every other key is
-swallowed, except the ones a step asks for (M in the Move step). The bubble has the same as buttons (End tour,
-Next / Skip); a click on the bubble or the beaver = next in a reading step.
+swallowed, except the ones a step asks for (M in the Move step). Right arrow = next too, Left arrow = the step
+before (an action already done there is shown as done, with Next). The bubble has the same as buttons (End tour,
+Back, Next / Skip); a click on the bubble or the beaver = next in a reading step. A slider step goes on when the
+slider is let go, not while it is dragged.
 
 Sub-steps (`Tour.sub`): while an element is dragged from the palette the plot is highlighted ("drag"); while
-an element dialog is open the beaver stands beside it and explains it ("dialog"; Apply goes on, Cancel back).
+an element dialog is open the beaver stands beside it and explains it ("dialog"; Apply goes on, Cancel back);
+a doublet dialog that shows the "doublet axis not along the flow" warning gets a short hint (the angle that fixes it).
 """
 from __future__ import annotations
 
@@ -46,6 +49,7 @@ class Step:
 END_BUTTON = "End tour"            # Esc does the same
 NEXT_BUTTON = "Next \u203a"        # Enter / Space / a click on the bubble do the same (the main button)
 SKIP_BUTTON = "Skip"               # an action step: Enter / Space do the same
+BACK_BUTTON = "\u2039 Back"         # Left arrow does the same
 TAIL_ROOM = 16                       # px: the bubble's tail and margin (bubble.TAIL + 6)
 
 STEPS = [
@@ -84,9 +88,12 @@ STEPS = [
          "cases.", "menu:File", where="below"),
     Step("Help: Run verification checks the program against the theory, and this tour lives there too.",
          "menu:Help", where="below"),
-    Step("And me! Drag me onto the plot for fun, click me for help, and press P any time for questions and "
-         "answers. You'll find me on my shelf. Have fun!", "perch", where="perch"),
+    Step("The GPU box: tick it and your graphics card draws the plot. Smoother and faster, above all the "
+         "animations. Untick it any time to go back.", "gpu", where="below"),
+    Step("And me! Drag me onto the plot for fun, and click me (or press P) whenever you need help. You'll find "
+         "me on my shelf. Have fun!", "perch", where="perch"),
 ]
+GPU_OFF_TEXT = " (This computer can't use it: point at it to see why.)"
 
 # what the beaver says beside an open element dialog
 DIALOG_TEXT = {
@@ -96,6 +103,20 @@ DIALOG_TEXT = {
 }
 DRAG_TEXT = "Now let go over the plot, where you want it."
 NO_CHANGE_TEXT = "Nothing changed! Double-click the DOUBLET row again and type a bigger mu."
+DONE_TEXT = "Done already: Next goes on, or do it again."
+# a doublet dialog showing the alignment warning (validation.doublet_misalignment): the first time …
+ALIGN_TEXT = "See the warning? Your uniform flow goes at {alpha}°. Give the doublet the same angle, δ = {want}°, " \
+             "and it goes away."
+ALIGN_TEXT_REVERSED = "See the warning? Your uniform flow goes at {alpha}°. With a negative mu the doublet needs " \
+                      "δ = {want}°, then it goes away."
+ALIGN_TEXT_OTHER = "See the warning? The flow at the doublet goes at {alpha}°: set δ = {want}° and it goes away."
+# … and again later
+ALIGN_AGAIN_TEXT = "That's the warning we talked about: δ = {want}° makes it go away."
+HINT_EVERY_S = 0.25                  # how often an open doublet dialog is checked for the warning
+
+
+def _deg(x: float) -> str:
+    return f"{x:.4g}".replace("-", "−")
 
 
 class Tour:
@@ -110,6 +131,12 @@ class Tour:
         self.dialog_kind = "add"
         self.note = None                 # a text shown instead of the step's text (e.g. nothing changed)
         self._restore = {}               # settings changed by the tour: put back at the end
+        self.done = set()                # steps whose action the user did (shown as done when he comes back)
+        self.released = None             # a slider step: the value changed, waiting for the slider to be let go
+        self.hint = ""                   # the alignment hint shown beside a doublet dialog
+        self.hint_t = 0.0
+        self.warned = False              # the alignment warning was explained once …
+        self.long_hint = True            # … so this dialog explains it (True) or only reminds (False)
 
     @property
     def step(self) -> Step | None:
@@ -120,6 +147,8 @@ class Tour:
         self.active = True
         self.i = -1
         self._restore = {}
+        self.done = set()
+        self.warned = False
         self.done_wait = None
         self.beaver.bubble.clear()                       # a remark still typing must not hold up step 1
         fw = self.win.focusWidget()
@@ -129,14 +158,13 @@ class Tour:
         self.next()
 
     def next(self):
-        """Enter / Space / the Next button: finish the typing, or go on (an action step: skip it)."""
+        """Enter / Space / Right / the Next button: finish the typing, or go on (an action step: skip it)."""
         b = self.beaver.bubble
         if b.typing and self.done_wait is None:
             b.finish_typing()
             return
         self.i += 1
-        self.done_wait = None
-        self.sub, self.dialog, self.note = None, None, None
+        self._reset_step()
         if self.i >= len(STEPS):
             self.end(completed=True)
             return
@@ -144,11 +172,13 @@ class Tour:
         if s.enter == "clear":
             self.win.canvas.set_view_mode("static")
             self.win.canvas.set_mode("select")
+            self.win.model.mark_clean()                  # (the beaver asked before the tour: beaver.start_tour)
             self.win.new_scene()
-        if s.wait == ("mouse_mode", "move") and self.win.canvas.mode == "move":
-            self.i += 1                                  # already in Move mode: straight to the drag
+        if s.wait == ("mouse_mode", "move") and self.win.canvas.mode == "move" and self.i not in self.done:
+            self.next()                                  # already in Move mode: straight to the drag
+            return
         if not self._prepare(s):                         # (e.g. its panel section is hidden): skip it
-            self.beaver.bubble.finish_typing()
+            b.finish_typing()
             self.next()
             return
         if s.target and s.target.startswith("slider:"):
@@ -157,6 +187,37 @@ class Tour:
             if sl is not None and key not in self._restore:
                 self._restore[key] = sl.value()
         self.show()
+
+    def back(self):
+        """Left arrow / the Back button: the step before (never its "enter" again: no second clearing). An
+        action done there is shown as done, with Next."""
+        if self.i <= 0 or self.sub is not None or self.done_wait is not None:
+            return
+        j = self.i - 1
+        while j > 0 and not self._prepare(STEPS[j]):     # (a hidden section: that step is skipped back too)
+            j -= 1
+        self.i = j
+        self._reset_step()
+        self._prepare(self.step)
+        self.show()
+
+    def _reset_step(self):
+        self.done_wait = None
+        self.sub, self.dialog, self.note = None, None, None
+        self.released = None
+        self.hint = ""
+
+    def is_done(self, i: int | None = None) -> bool:
+        """Was the action of step i (default: this one) done already? (Coming back to it.)"""
+        i = self.i if i is None else i
+        if not 0 <= i < len(STEPS) or STEPS[i].wait is None:
+            return False
+        ev, val = STEPS[i].wait
+        if ev == "mouse_mode" and self.win.canvas.mode == val:
+            return True
+        if ev == "view_mode" and self.win.canvas.view_mode == val:
+            return True
+        return i in self.done
 
     def _prepare(self, s) -> bool:
         """Make the step's part visible: its panel open, a slider scrolled into view in the Plot settings
@@ -191,10 +252,14 @@ class Tour:
             self.next()
 
     def button(self, k: int):
-        """The bubble's buttons: 0 = End tour, 1 = Next / Skip."""
-        if k == 0:
+        """The bubble's buttons (by their text): End tour, Back, Next / Skip."""
+        btns = self.beaver.bubble.buttons
+        label = btns[k] if 0 <= k < len(btns) else ""
+        if label == END_BUTTON:
             self.end(completed=False)
-        elif k == 1 and self.sub is None and self.done_wait is None:
+        elif label == BACK_BUTTON:
+            self.back()
+        elif label in (NEXT_BUTTON, SKIP_BUTTON) and self.sub is None and self.done_wait is None:
             self.next()
 
     def show(self):
@@ -204,23 +269,76 @@ class Tour:
         self.spot.raise_()
         self.beaver.tour_goto(self._feet_now(rect))
         bub, name = self.beaver.bubble, self.beaver.name.upper()
+        back = [BACK_BUTTON] if self.i > 0 else []
         if self.sub == "dialog":
-            bub.say(DIALOG_TEXT.get(self.dialog_kind, DIALOG_TEXT["add"]), sticky=True, title=name, tag=self.tag())
+            bub.say(self._dialog_text(), sticky=True, title=name, tag=self.tag())
         elif self.sub == "drag":
             bub.say(DRAG_TEXT, sticky=True, title=name, tag=self.tag())
+        elif s.wait and self.is_done():
+            bub.say(self.note or f"{s.text} {DONE_TEXT}", sticky=True, title=name, tag=self.tag(),
+                    buttons=[END_BUTTON, *back, NEXT_BUTTON], primary=1 + len(back))
         elif s.wait:
             bub.say(self.note or s.text, sticky=True, title=name, tag=self.tag(),
-                    buttons=[END_BUTTON, SKIP_BUTTON])
+                    buttons=[END_BUTTON, *back, SKIP_BUTTON])
         else:
-            bub.say(self.note or s.text, sticky=True, title=name, tag=self.tag(),
-                    buttons=[END_BUTTON, NEXT_BUTTON], primary=1)
+            text = s.text
+            if s.target == "gpu" and not self.win.header.plank.gpu.isEnabled():
+                text += GPU_OFF_TEXT
+            bub.say(self.note or text, sticky=True, title=name, tag=self.tag(),
+                    buttons=[END_BUTTON, *back, NEXT_BUTTON], primary=1 + len(back))
+        self.beaver._place_bubble()
+
+    def _dialog_text(self) -> str:
+        base = DIALOG_TEXT.get(self.dialog_kind, DIALOG_TEXT["add"])
+        return f"{base}\n{self.hint}" if self.hint else base
+
+    def _alignment_hint(self) -> str:
+        """The open dialog is a doublet's and shows the "axis not along the flow" warning: what fixes it
+        (the first time with the uniform flow's angle; later short). "" when there is no such warning."""
+        dlg = self.dialog
+        if dlg is None or getattr(getattr(dlg, "spec", None), "key", "") != "doublet":
+            return ""
+        try:
+            from model.preview import candidate_scene
+            from physics.elements import Doublet
+            from physics.validation import doublet_misalignment
+            vals, row, els = dlg.values(), getattr(dlg, "row", None), self.win.elements
+            new = Doublet(**vals) if row is None else els[row].copy(**vals)
+            cand, idx = candidate_scene(els, new, row)
+            found = doublet_misalignment(cand).get(idx)
+        except Exception:                                # noqa: BLE001 - invalid numbers typed: no hint
+            return ""
+        if found is None:
+            return ""
+        angle, want, only_uniform = found
+        if not self.long_hint:                           # explained in an earlier dialog already: short
+            return ALIGN_AGAIN_TEXT.format(want=_deg(want))
+        text = ALIGN_TEXT_OTHER if not only_uniform else \
+            ALIGN_TEXT if abs((want - angle + 180.0) % 360.0 - 180.0) < 1e-9 else ALIGN_TEXT_REVERSED
+        return text.format(alpha=_deg(angle), want=_deg(want))
+
+    def _update_hint(self):
+        """The doublet dialog's warning came or went (numbers typed): the hint follows; the text before it
+        stays as typed (only a new hint is typed on)."""
+        hint = self._alignment_hint()
+        if hint == self.hint:
+            return
+        old_shown = self.beaver.bubble.shown
+        self.hint = hint
+        if hint and self.long_hint:
+            self.warned = True
+        bub = self.beaver.bubble
+        base = len(self._dialog_text()) - len(hint)
+        bub.say(self._dialog_text(), sticky=True, title=self.beaver.name.upper(), tag=self.tag())
+        bub.shown = min(old_shown, float(base)) if hint else float(len(bub._typed()))
         self.beaver._place_bubble()
 
     def tag(self) -> str:
-        """Header tag of the bubble: "TOUR 3/18", or "YOUR TURN · 4/18" in an action step."""
+        """Header tag of the bubble: "TOUR 3/19", or "YOUR TURN · 4/19" in an action step (not done yet)."""
         s = self.step
         n = f"{self.i + 1}/{len(STEPS)}"
-        return f"your turn \u00b7 {n}" if s is not None and s.wait and self.sub is None else f"tour {n}"
+        turn = s is not None and s.wait and self.sub is None and not self.is_done()
+        return f"your turn \u00b7 {n}" if turn else f"tour {n}"
 
     def notify(self, event: str, value=None):
         """The user did something (the window tells): a sub-step, or the action of this step?"""
@@ -240,12 +358,17 @@ class Tour:
         if event == "dialog_open":
             kind, _key, dlg = value
             self.sub, self.dialog, self.dialog_kind = "dialog", dlg, kind
+            self.hint_t = 0.0
+            self.long_hint = not self.warned             # the first dialog with the warning explains it
+            self.hint = self._alignment_hint()
+            if self.hint and self.long_hint:
+                self.warned = True
             self.show()
             return
         if event == "dialog_closed":
             accepted, changed = value
             if self.sub == "dialog":
-                self.sub, self.dialog = None, None
+                self.sub, self.dialog, self.hint = None, None, ""
                 if accepted and not changed and s.wait and s.wait[0] == "edited":
                     self.note = NO_CHANGE_TEXT
                 self.show()
@@ -253,11 +376,32 @@ class Tour:
         if s.wait is None:
             return
         if s.wait[0] == event and (s.wait[1] is None or s.wait[1] == value):
-            self.done_wait = 1.0
-            self.sub, self.dialog = None, None
-            self.beaver.bubble.say(self.beaver.lines.pick("tour_nice"), sticky=True,
-                                   title=self.beaver.name.upper(), tag=f"tour {self.i + 1}/{len(STEPS)}")
-            self.beaver._place_bubble()
+            if event == "setting":
+                sl = self.win.settings_panel.sliders.get(value)
+                if sl is not None and sl.isSliderDown():
+                    self.released = value                # dragged: goes on when the slider is let go
+                    return
+            self._completed()
+
+    def _completed(self):
+        """The step's action is done: "Nice!", then the next step (advance)."""
+        self.done.add(self.i)
+        self.done_wait = 1.0
+        self.released = None
+        self.sub, self.dialog, self.hint = None, None, ""
+        self.beaver.bubble.say(self.beaver.lines.pick("tour_nice"), sticky=True,
+                               title=self.beaver.name.upper(), tag=f"tour {self.i + 1}/{len(STEPS)}")
+        self.beaver._place_bubble()
+
+    def may_add(self, key: str) -> bool:
+        """May an Add dialog of `key` open now (palette click / drop)? Only in its own palette step."""
+        s = self.step
+        return s is not None and s.allow == f"palette:{key}" and self.done_wait is None and \
+            self.sub in (None, "drag", "drag_end")
+
+    def may_edit(self, kind: str) -> bool:
+        s = self.step
+        return s is not None and s.allow == f"elements:{kind}" and self.done_wait is None and self.sub is None
 
     def advance(self, dt):
         self.spot.advance(dt)
@@ -268,6 +412,11 @@ class Tour:
                 self.beaver.bubble.clear()
                 self.next()
             return
+        if self.released is not None:
+            sl = self.win.settings_panel.sliders.get(self.released)
+            if sl is None or not sl.isSliderDown():
+                self._completed()
+                return
         if self.sub == "drag_end":
             self.sub_t += dt
             if self.sub_t > 0.3:                        # let go somewhere else: back to the step
@@ -278,6 +427,10 @@ class Tour:
             rect = self.target_rect()
             self.spot.show_on(rect)
             if self.sub == "dialog":
+                self.hint_t += dt
+                if self.hint_t >= HINT_EVERY_S:         # the doublet warning came / went (numbers typed)
+                    self.hint_t = 0.0
+                    self._update_hint()
                 self.beaver.tour_goto(self._feet_now(rect))
                 self.beaver._place_bubble()
 
@@ -285,7 +438,7 @@ class Tour:
         self.active = False
         self.spot.hide()
         self.i = -1
-        self.sub, self.dialog, self.note, self.done_wait = None, None, None, None
+        self._reset_step()
         for key, pos in self._restore.items():           # settings the tour changed (the Density slider)
             sl = self.win.settings_panel.sliders.get(key)
             if sl is not None:
@@ -448,6 +601,8 @@ class Tour:
             return self._map(win.canvas.bar.btn_particles)
         if target == "export":
             return self._map(win.canvas.bar.btn_export)
+        if target == "gpu":
+            return self._map(win.header.plank.gpu)
         if target.startswith("menu:"):
             name = target.split(":")[1]
             mb = win.menuBar()

@@ -18,6 +18,13 @@ LINES = {
                  "Hello! I'm Psi. Looks like you're new here. Shall I show you around? Two minutes, promise."],
     "tour_declined": ["Okay! Click me or press P whenever you need help.",
                       "No problem. Click me any time, I'll show you around later."],
+    "menu_bye": ["Okay! I'm here if you need me.", "Alright. Click me or press P if you need me.",
+                 "Sure. I'll be on my shelf if you need me.", "No problem. I'm right here if you need me."],
+    "tour_clear_unsaved": ["The tour starts on an empty sheet, and your scene has unsaved changes. Save it first?",
+                           "Before we start: the tour clears the plot, and your scene isn't saved. Save it first?"],
+    "tour_clear_saved": ["The tour starts on an empty sheet. Your scene is saved, so I'll clear the plot. Okay?",
+                         "The tour needs an empty sheet. Your scene is saved: shall I clear the plot?"],
+    "tour_later": ["Okay, maybe later! Click me when you're ready.", "No problem. The tour waits for you."],
     "tour_skipped": ["Okay! The tour is in Help -> Beaver, or click me.", "Tour ended. Click me if you need me!"],
     "tour_nice": ["Nice!", "Well done!", "Perfect!", "Just like that!", "You're a natural!", "Great!"],
     "welcome_back": ["Welcome back!", "Oh, you're back! Let's flow.", "Hello again!", "Ready for more streamlines?"],
@@ -109,7 +116,7 @@ PRIORITY.update({k: 2 for k in ("glass_drop", "glass_tap", "glass_back", "glass_
                                 "flow_gone", "pulse_bonk", "pulse_run", "pulse_leave", "no_pulses", "paused_leave",
                                 "error", "verify_ok", "verify_fail", "hello", "flow_slow", "pulse_slow", "paused",
                                 "flow_too_fast", "saved", "tour_declined",
-                                "tour_skipped")})
+                                "tour_skipped", "menu_bye", "tour_later")})
 PRIORITY.update({k: 0 for k in ("flow_fast", "pulse_wait", "sleep", "welcome_back")})
 
 
