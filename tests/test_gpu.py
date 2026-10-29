@@ -529,12 +529,14 @@ def test_many_particles_on_several_cores_move_as_on_one(monkeypatch):
 
 
 @pytest.mark.skipif(_xvfb_display() is None, reason="needs an X server with OpenGL (Xvfb + Mesa)")
-def test_pulses_and_particles_drawn_by_the_card(tmp_path):
+@pytest.mark.parametrize("scale", ["1", "1.25"])
+def test_pulses_and_particles_drawn_by_the_card(tmp_path, scale):
     """Real OpenGL (Mesa): a Pulses frame drawn by the card = the same frame drawn by the processor (pixels);
-    Particles drawn by the card show particles; no fallback happened."""
+    Particles drawn by the card show particles; no fallback happened. Also at 125 % (his screen): the card's
+    picture was 1.25× too large there, off to the lower right (29 Oct)."""
     script = tmp_path / "anim.py"
     script.write_text(ANIM_SCRIPT % {"root": ROOT, "out": str(tmp_path)})
-    env = dict(os.environ, DISPLAY=_xvfb_display(), QT_QPA_PLATFORM="xcb")
+    env = dict(os.environ, DISPLAY=_xvfb_display(), QT_QPA_PLATFORM="xcb", QT_SCALE_FACTOR=scale)
     out = subprocess.run([sys.executable, str(script)], env=env, capture_output=True, text=True, timeout=240)
     line = next((ln for ln in out.stdout.splitlines() if ln.startswith("RESULT")), None)
     assert line is not None, out.stdout[-2000:] + out.stderr[-2000:]

@@ -597,6 +597,12 @@ bırakıldı (kullanıcı kararı).
       Kart kapatılınca / daha azına izin veren bilgisayarda açılan sahnede sayı sınıra iniyor.
       Testler (`tests/test_gpu.py`, +5): kayıt adımları ve geri dönüş, sınır + ölçümün hatırlanması, sahne
       açılırken sınır, çok çekirdekte particles, Xvfb'de gerçek OpenGL ile pulses kart = işlemci.
+    - ✅ **20.4b Kartın resmi yanlış yerde (125 %)** (29 Ekim, kullanıcının ekran görüntüsü: hız 135 fps ama
+      pulses / particles 1.25× büyük, sağ alta kaymış, eksenlerin üstüne taşıyor). Neden: resmin plot'taki yeri
+      boyacının dönüşümünden (`combinedTransform`) hesaplanıyordu; ekran kartı boyacısında o dönüşüm ekran ölçeğini
+      zaten içeriyor, üstüne bir kez daha çarpılıyordu. Düzeltme: köşeler veri → sahne → viewport (görünümün kendi
+      `viewportTransform`'u, mantıksal piksel) yoluyla. Xvfb'de QT_SCALE_FACTOR=1.25 ile yeniden üretildi (%4.85
+      piksel farklı → %0.002); 1, 1.25, 1.5'te kart = işlemci. Test artık 1 ve 1.25'te çalışıyor (eski kodda 1.25 düşüyor).
 21. ☐ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,
     dosya yapısı, uyarılar (pyflakes), çok uzun dosyaların bölünmesi, testlerin süresi, README klasör tablosu.
     Ölçüt: tüm testler + verification aynı sonuç

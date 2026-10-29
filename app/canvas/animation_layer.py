@@ -19,7 +19,7 @@ import time
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QLineF, QRectF, Qt, QTimer
+from PySide6.QtCore import QLineF, QPointF, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QImage, QPainter, QPen
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QGraphicsItem
@@ -373,6 +373,18 @@ class AnimatedLayer(PlotLayer):
             self._gl_ops[:] = [("clear",)]
         return GLFrame(w, h, self._gl_ops)
 
+    def _corners_on_viewport(self):
+        """The picture's corners (x0, y0), (x1, y0), (x0, y1), (x1, y1) in the viewport's logical pixels:
+        data → scene (the item's own mapping) → viewport (the view's transform), independent of the screen
+        scale."""
+        r = self._rect
+        to_view = self.plot.viewportTransform()
+        out = []
+        for x, y in ((r.left(), r.top()), (r.right(), r.top()), (r.left(), r.bottom()), (r.right(), r.bottom())):
+            p = to_view.map(self.trail.mapToScene(QPointF(x, y)))
+            out.append((p.x(), p.y()))
+        return out
+
     def paint_gl(self, painter, viewport):
         """The picture on the graphics card: the recorded steps, then onto the plot (inside the plot's paint,
         the context current). If the card cannot do it, the processor draws from the next frame on."""
@@ -402,7 +414,7 @@ class AnimatedLayer(PlotLayer):
                         anim.upload(t, segs)
                         t.serial = serial
                     anim.segments(t, self._palette, radius, pulse=(phase, length), keep_max=True)
-            anim.present(t, painter, self._rect, viewport)
+            anim.present(t, self._corners_on_viewport(), viewport)
         except Exception:                                 # noqa: BLE001 - the processor takes over
             import logging
             logging.getLogger("pflab").exception("animation on the graphics card failed: the processor draws it")

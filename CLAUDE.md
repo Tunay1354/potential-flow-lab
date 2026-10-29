@@ -166,6 +166,9 @@ GUI / Qt
   refreshed by Qt on new data → `layer.drop_picture` on sigPlotChanged / sigImageChanged (cache off and on).
 - **Pulses 27 fps at a 144 fps cap (61 at 60)**: the timer drew frames faster than the window could show them →
   `AnimatedLayer.frame` skips a tick while `TrailItem.shown` is False (≤ 6 ticks).
+- **GPU animation picture 1.25× too large / shifted at 125 %**: QPainter.combinedTransform() on the GL viewport
+  already contains the screen scale → map the corners with `plot.viewportTransform()` (logical px) instead.
+  Test GL things also with QT_SCALE_FACTOR=1.25 on Xvfb.
 - Particle trails stayed on an empty page (last steps redrawn every frame) → no step without flow + clear.
 - **Exceptions in Qt slots / paint events** go to `sys.excepthook` → `app/errors.py` logs them and shows one
   window per distinct error (no floods). Background threads (QThreadPool) never touch widgets; results and

@@ -20,7 +20,6 @@ from __future__ import annotations
 import logging
 
 import numpy as np
-from PySide6.QtCore import QPointF
 from PySide6.QtGui import QOpenGLContext, QVector2D, QVector4D
 from PySide6.QtOpenGL import (QOpenGLBuffer, QOpenGLFramebufferObject, QOpenGLFramebufferObjectFormat,
                               QOpenGLShader, QOpenGLShaderProgram, QOpenGLVertexArrayObject)
@@ -380,18 +379,17 @@ class GLAnimation:
         self.vao.release()
         self.quad_buf.release()
 
-    def present(self, t: Target, painter, rect, viewport):
-        """The picture onto the plot (inside the plot's paint): rect = its region in data coordinates."""
+    def present(self, t: Target, corners_px, viewport):
+        """The picture onto the plot (inside the plot's paint). corners_px: where its (x0, y0), (x1, y0),
+        (x0, y1), (x1, y1) are on the viewport, in its logical pixels (PlotGLViewport coordinates). (Not the
+        painter's transform: on the graphics card at 125 % it already contains the screen scale, and the
+        picture came out 1.25× too large, off to the lower right — his screenshot, 29 Oct.)"""
         if t.fbo is None:
             return
         dpr = viewport.devicePixelRatioF()
         W, H = viewport.width() * dpr, viewport.height() * dpr
-        tr = painter.combinedTransform()
-        corners = []
-        for x, y in ((rect.left(), rect.top()), (rect.right(), rect.top()),
-                     (rect.left(), rect.bottom()), (rect.right(), rect.bottom())):
-            p = tr.map(QPointF(x, y))                     # (top/bottom: data y grows upwards in the rect)
-            corners.append((p.x() * dpr / W * 2.0 - 1.0, 1.0 - p.y() * dpr / H * 2.0))
+        w, h = max(viewport.width(), 1), max(viewport.height(), 1)
+        corners = [(x / w * 2.0 - 1.0, 1.0 - y / h * 2.0) for x, y in corners_px]
         f = self.f
         f.glBindFramebuffer(GL_FRAMEBUFFER, viewport.defaultFramebufferObject())
         f.glViewport(0, 0, int(round(W)), int(round(H)))
