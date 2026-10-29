@@ -5,8 +5,11 @@ a later change (e.g. drawing with the graphics card, OpenGL) can be compared num
     python scripts/benchmark.py                      (a real window: the honest numbers for this PC)
     python scripts/benchmark.py --out results.json   (also writes every number to a JSON file)
     python scripts/benchmark.py --quick              (shorter runs, fewer repeats)
-    python scripts/benchmark.py --only startup,compute,paint,interact,anim,export,verify
+    python scripts/benchmark.py --only startup,compute,paint,interact,anim,limits,export,verify
     QT_QPA_PLATFORM=offscreen python scripts/benchmark.py   (no window, e.g. on a server)
+    python scripts/benchmark.py --full --out benchmarks/NAME.json
+                                    (THE ONE TO RUN: everything, then paint / interact / anim / limits again with
+                                     the graphics card — one file, ~8–10 min)
     python scripts/benchmark.py --gpu --out after.json        (the plot drawn by the graphics card, OpenGL)
     python scripts/benchmark.py --gpu --fps-cap screen        (animations as fast as the screen shows)
 
@@ -33,6 +36,9 @@ Sections
   anim      Particles and Pulses at the default and the maximum settings: frames per second actually
             drawn, the render time of one frame, and how smooth the window stays
   export    PNG 1× / 2× / 4×, SVG, PDF, CSV (all tables), GIF and MP4 (2 s)
+  limits    the heaviest a user can do (a few seconds each): 16 elements at the densest streamlines with every
+            layer — computing, pan / zoom / dragging an element, the most particles the slider allows and the
+            longest, densest pulses (with the card: as fast as the screen), PNG 4× and MP4 2× of it
   verify    Help → Run verification (102 checks), without and with figures
 """
 from __future__ import annotations
@@ -63,7 +69,9 @@ SCENES = {          # name: preset file (relative to presets/), or a list of ele
     "source in corner flow": "3 Sector flows/05_source_in_corner_flow.pflow",
     "busy (8 elements)": None,
 }
-SECTIONS = ("startup", "compute", "paint", "interact", "anim", "export", "verify")
+STRESS = "stress (16 elements)"                # the limits section's scene (stress_scene)
+SECTIONS = ("startup", "compute", "paint", "interact", "anim", "limits", "export", "verify")
+GPU_SECTIONS = ("paint", "interact", "anim", "limits")      # --full: these again with the graphics card
 
 
 # ---------------------------------------------------------------------------------------------- helpers
@@ -93,8 +101,22 @@ def busy_scene():
             Doublet(mu=0.6, x0=0.5, y0=-0.2, delta=10.0), Source(m=-1.0, x0=3.0, y0=0.5)]
 
 
+def stress_scene():
+    """16 elements of every kind with a free stream at an angle: the heaviest ordinary scene."""
+    from physics import Doublet, Source, Uniform, Vortex
+    return [Uniform(V=1.0, alpha=15.0),
+            Source(m=2.0, x0=-4.0, y0=1.5), Source(m=-1.5, x0=-3.0, y0=-1.8), Source(m=1.2, x0=3.5, y0=2.0),
+            Source(m=-2.0, x0=4.0, y0=-1.0), Source(m=0.8, x0=0.5, y0=2.4), Source(m=-0.8, x0=-0.5, y0=-2.4),
+            Vortex(Gamma=2.5, x0=-2.0, y0=0.5), Vortex(Gamma=-2.0, x0=2.0, y0=-0.5), Vortex(Gamma=1.0, x0=0.0, y0=1.2),
+            Vortex(Gamma=-1.2, x0=-1.0, y0=-1.0),
+            Doublet(mu=0.8, x0=0.0, y0=0.0, delta=15.0), Doublet(mu=0.4, x0=-3.0, y0=0.0, delta=60.0),
+            Doublet(mu=0.5, x0=3.0, y0=0.5, delta=-30.0), Source(m=1.0, x0=1.5, y0=-2.0), Vortex(Gamma=0.8, x0=2.8, y0=1.5)]
+
+
 def load(name):
     from model.scene_file import load_scene as read_scene_file
+    if name == STRESS:
+        return stress_scene(), ((-5.0, 5.0), (-3.0, 3.0))
     path = SCENES[name]
     if path is None:
         return busy_scene(), ((-4.0, 4.0), (-2.6, 2.6))
@@ -108,6 +130,7 @@ class Bench:
         self.use_gpu = use_gpu
         self.fps_cap = fps_cap
         self.gpu_info = None
+        self.tag = ""                         # " [GPU]" while --full repeats sections with the graphics card
         self.results: dict = {}
         self.app = self.win = None
 
@@ -119,6 +142,11 @@ class Bench:
         self.app = QApplication.instance() or QApplication(sys.argv)
         from app.main_window import MainWindow, setup_application
         setup_application(self.app)
+        try:
+            from app import hardware
+            hardware.detect()                              # (this computer, for the report; remembered)
+        except Exception:                                  # noqa: BLE001
+            pass
         QSettings().setValue("beaver/tour_offered", True)
         QSettings().setValue("gpu/enabled", False)              # switched on below (--gpu), never left over
         self.win = MainWindow()
@@ -135,7 +163,7 @@ class Bench:
         from physics.warmup import warm_up
         warm_up()                                                    # compiled kernels ready (startup measures that)
 
-    def gpu_on(self):
+    def gpu_on(self, must: bool = True) -> bool:
         """--gpu: the plot drawn by the graphics card, as when the GPU box is ticked (also on software
         OpenGL, which the box would refuse: the numbers say how it compares)."""
         from app import gpu
@@ -150,12 +178,17 @@ class Bench:
         while w._gpu_frames < 2 and w.canvas.gpu and time.perf_counter() < end:
             self.pump(0.1)
         if not w.canvas.gpu or w._gpu_frames < 2:
+            if not must:
+                print("   the graphics card did not draw the plot: the [GPU] part is skipped", flush=True)
+                return False
             raise SystemExit("--gpu: the graphics card did not draw the plot (see the note above); "
                              "run without --gpu")
         w.set_fps_cap(self.fps_cap)
         self.gpu_info = dict(w.canvas.gpu_info or {})
         print(f"   graphics card: {self.gpu_info.get('renderer')} ({self.gpu_info.get('samples')}× smoothing), "
               f"animation frames every {w.canvas.particles.frame_interval} ms", flush=True)
+        self.use_gpu = True
+        return True
 
     def finish_gl(self, vp):
         """Wait until the graphics card has really drawn (OpenGL works asynchronously)."""
@@ -193,7 +226,7 @@ class Bench:
         self.settle()
 
     def record(self, section, key, value):
-        self.results.setdefault(section, {})[key] = value
+        self.results.setdefault(section + self.tag, {})[key] = value
 
     # ------------------------------------------------------------------ sections
     def startup(self):
@@ -463,6 +496,113 @@ w.model.mark_clean(); w.close()
                         default = {"particles": 1500, "trail": 4, "pulse_length": 4, "pulse_spacing": 4}[key]
                         sp[key].setValue(default)
 
+    def limits(self):
+        """The heaviest things a user can do, a few seconds each: 16 elements, densest streamlines, every layer,
+        the most particles / the longest and densest pulses, the biggest exports."""
+        secs = 2.0 if self.quick else 3.0
+        w, cv = self.win, self.win.canvas
+        sp = w.settings_panel.sliders
+        layers = ("equipotential", "speed", "bodies", "surface")
+        dense = sp["density"].maximum()
+        row = {}
+
+        # computing: the whole scene at the densest streamlines, then every layer at once
+        self.show(STRESS)
+        sp["density"].setValue(dense)
+        self.settle()
+        row["streamlines, density max"] = timed(lambda: cv.streamlines.recompute(), 2, warm=0)
+        for k in layers:
+            w.settings_panel.layer_boxes[k].setChecked(True)
+        row["everything at once (every layer)"] = timed(lambda: (cv.compute_now(), self.settle()), 2, warm=0)
+        self.settle()
+        self.record("limits", "compute (ms)", row)
+
+        # moving the view and an element with everything on
+        jobs = []
+        cv.computed.connect(lambda n, ms: jobs.append(ms))
+
+        def pan(k, ph):
+            (x0, x1), (y0, y1) = cv.vb.viewRange()
+            d = 0.006 * (x1 - x0)
+            cv.set_view((x0 + d, x1 + d), (y0 + d / 3, y1 + d / 3))
+
+        def zoom(k, ph):
+            (x0, x1), (y0, y1) = cv.vb.viewRange()
+            s_ = 1.0 + 0.012 * np.sin(k / 8.0)
+            cx, cy, hw, hh = (x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) / 2 * s_, (y1 - y0) / 2 * s_
+            cv.set_view((cx - hw, cx + hw), (cy - hh, cy + hh))
+
+        moves = {}
+        for what, fn in (("pan", pan), ("zoom", zoom)):
+            cv.set_view((-5.0, 5.0), (-3.0, 3.0))
+            self.settle()
+            jobs.clear()
+            moves[what] = {"frame gap": stats(self._ticks(secs, fn)), "computations": len(jobs)}
+        from PySide6.QtCore import QPointF
+        cv.set_view((-5.0, 5.0), (-3.0, 3.0))
+        self.settle()
+        cv.set_mode("move")
+        el = cv.elements[11]                                  # the doublet in the middle
+        start = cv.vb.mapViewToScene(QPointF(el.x0, el.y0))
+        ok = cv.interaction.begin_drag(start)
+
+        def drag(k, ph):
+            cv.interaction.drag_to(QPointF(start.x() + 60.0 * np.sin(k / 10.0), start.y() + 60.0 * (1 - np.cos(k / 10.0))))
+        jobs.clear()
+        gaps = self._ticks(secs, drag) if ok else []
+        cv.interaction.end_drag()
+        cv.set_mode("select")
+        moves["drag an element (live update)"] = {"frame gap": stats(gaps), "computations": len(jobs)}
+        self.settle()
+        self.record("limits", STRESS + ", density max, every layer", moves)
+
+        # animations at their maximum (the most particles the slider allows; graphics card: as fast as the screen)
+        cap = None
+        if self.tag and self.win.canvas.gpu:
+            cap = w.gpu_panel.cap.currentData()
+            w.set_fps_cap("screen")
+        anims = {}
+        for mode, settings in (("particles", {"particles": sp["particles"].maximum(), "trail": 10}),
+                               ("pulses", {"pulse_length": 10, "pulse_spacing": 1})):
+            for key, val in settings.items():
+                sp[key].setValue(val)
+            cv.set_view_mode(mode)
+            self.pump(1.0)
+            lay = cv.animation
+            lay.frame_ms.clear()
+            cv.plot.meter.clear()
+            t0 = time.perf_counter()
+            gaps = self._ticks(secs + 1.0, lambda k, ph: None)
+            shown = sum(1 for t in cv.plot.meter.stamps if t >= t0) / (time.perf_counter() - t0)
+            label = mode + " " + ", ".join(f"{k}={v}" for k, v in settings.items())
+            anims[label] = {"fps drawn": shown, "plot frames per s": shown, "plot paint ms": stats(list(cv.plot.meter.paint_ms)),
+                            "render ms": stats(lay.frame_ms), "window frame gap": stats(gaps)}
+            cv.set_view_mode("static")
+        for key, val in (("particles", 1500), ("trail", 4), ("pulse_length", 4), ("pulse_spacing", 4)):
+            sp[key].setValue(val)
+        if cap is not None:
+            w.set_fps_cap(cap)
+        self.record("limits", "animation (" + STRESS + ", every layer)", anims)
+
+        # the biggest exports of that scene
+        if not self.tag:
+            from app.export.animation import missing_package, render_animation
+            from app.export.figure import render_figure
+            out = tempfile.mkdtemp(prefix="pfl-bench-")
+            ex = {"PNG 4×, every layer": timed(lambda: render_figure(cv, os.path.join(out, "big.png"), "png", scale=4),
+                                              1, warm=0)}
+            if not missing_package("mp4"):
+                cv.set_view_mode("particles")
+                self.pump(0.5)
+                ex["MP4 2 s, 30 fps, 2×"] = timed(lambda: render_animation(cv, os.path.join(out, "big.mp4"), "mp4",
+                                                                          seconds=2, fps=30, scale=2), 1, warm=0)
+                cv.set_view_mode("static")
+            self.record("limits", "export (ms)", ex)
+        for k in layers:
+            w.settings_panel.layer_boxes[k].setChecked(False)
+        sp["density"].setValue(5)
+        self.settle()
+
     def export(self):
         from app.export.animation import missing_package, render_animation
         from app.export.data import DATASETS, export_data
@@ -509,6 +649,12 @@ w.model.mark_clean(); w.close()
                 "numpy": np.__version__, "qt_platform": self.app.platformName() if self.app else "",
                 "window": list(WINDOW), "screen_dpr": self.win.devicePixelRatioF() if self.win else None,
                 "date": time.strftime("%Y-%m-%d %H:%M"), "quick": self.quick}
+        try:
+            from app import hardware
+            prof = getattr(self.win, "hardware", None) if self.win is not None else None
+            info["computer"] = hardware.summary_lines(prof) if prof else []
+        except Exception:                              # noqa: BLE001
+            info["computer"] = []
         if self.win is not None:                       # QWidget = drawn by the CPU; PlotGLViewport = graphics card
             info["opengl_viewport"] = type(self.win.canvas.plot.viewport()).__name__
             info["gpu"] = self.gpu_info
@@ -525,13 +671,35 @@ def verdict(ms, kind):
     return "instant" if ms <= 100 else ("ok" if ms <= 300 else ("slow" if ms <= 1000 else "SLOW"))
 
 
+def _ms(v):
+    return f"{v:9.1f}" if isinstance(v, (int, float)) else f"{'—':>9}"
+
+
+def _print_frames(name, row):
+    if "frame gap" in row:
+        row = {"": row}
+    for k, r in row.items():
+        g = r["frame gap"]
+        print(f"  {(name + ' ' + k).strip():<52}{_ms(g.get('median'))}{_ms(g.get('p95'))}{_ms(g.get('max'))}"
+              f"  jobs {r.get('computations', 0):>4}   {verdict(g.get('p95'), 'frame')}")
+
+
+def _print_anim(rows):
+    print(f"  {'':<70}  fps   paint ms  render ms (med/p95)   window gap p95")
+    for k, r in rows.items():
+        shown = r.get("plot frames per s", r["fps drawn"])
+        print(f"  {k:<70}{shown:5.1f}{_ms(r.get('plot paint ms', {}).get('median'))}"
+              f"  {_ms(r['render ms'].get('median'))}{_ms(r['render ms'].get('p95'))}"
+              f"   {_ms(r['window frame gap'].get('p95'))}  {verdict(r['window frame gap'].get('p95'), 'frame')}")
+
+
 def print_report(res: dict):
-    def ms(v):
-        return f"{v:9.1f}" if isinstance(v, (int, float)) else f"{'—':>9}"
-    print("\n" + "=" * 100)
+    print("\n" + "=" * 110)
     m = res["machine"]
     print(f"Potential Flow Lab benchmark  {m['date']}  |  {m['platform']}  |  {m['cpus']} CPUs  |  Qt: "
           f"{m['qt_platform']}  |  viewport: {m.get('opengl_viewport', '?')}")
+    for line in m.get("computer", []):
+        print("  " + line)
     if m.get("gpu"):
         print(f"graphics card: {m['gpu'].get('renderer')}  |  {m['gpu'].get('samples')}× smoothing  |  "
               f"animation limit {m.get('fps_cap')}  |  screen {m.get('screen_hz', 0):.0f} Hz")
@@ -542,54 +710,54 @@ def print_report(res: dict):
             if "error" in r:
                 print(f"  {k:<44} ERROR {r['error'][:60]}")
                 continue
-            print(f"  {k:<44}{ms(r['import_ms'] + r['window_ms'])}   {ms(r['to_first_lines_ms'])}"
-                  f"   {ms(r['all_kernels_ready_ms'])}   ms")
+            print(f"  {k:<44}{_ms(r['import_ms'] + r['window_ms'])}   {_ms(r['to_first_lines_ms'])}"
+                  f"   {_ms(r['all_kernels_ready_ms'])}   ms")
     if "compute" in res:
         keys = list(next(iter(res["compute"].values())).keys())
         print("\nCOMPUTE (median ms)" + "".join(f"{k[:13]:>14}" for k in keys))
         for name, row in res["compute"].items():
             print(f"  {name:<22}" + "".join(f"{row[k].get('median', float('nan')):14.1f}" for k in keys))
-    if "paint" in res:
-        print("\nPAINT (median ms, one full redraw)")
-        for name, row in res["paint"].items():
-            for k, s in row.items():
-                print(f"  {name:<22}{k:<34}{ms(s.get('median'))}  p95{ms(s.get('p95'))}  "
-                      f"{verdict(s.get('median'), 'frame')}")
-    if "interact" in res:
-        print("\nINTERACT (60 fps timer: frame gap median / p95 / max ms; computations)")
-        for name, row in res["interact"].items():
-            if name == "reaction time (ms)":
-                continue
-            if "frame gap" in row:
-                row = {"": row}
-            for k, r in row.items():
-                g = r["frame gap"]
-                print(f"  {name + ' ' + k:<46}{ms(g.get('median'))}{ms(g.get('p95'))}{ms(g.get('max'))}"
-                      f"  jobs {r.get('computations', 0):>4}   {verdict(g.get('p95'), 'frame')}")
-        rt = res["interact"].get("reaction time (ms)", {})
-        if rt:
-            print("\nREACTION TIME (until the plot shows the change; median / max ms)")
-            for k, s in rt.items():
-                print(f"  {k:<46}{ms(s.get('median'))}{ms(s.get('max'))}   {verdict(s.get('median'), 'latency')}")
-    if "anim" in res:
-        print("\nANIMATION  (fps = frames the plot really showed; plot paint = one frame's drawing, median)")
-        print(f"  {'':<66}  fps   paint ms  render ms (med/p95)   window gap p95")
-        for k, r in res["anim"].items():
-            shown = r.get("plot frames per s", r["fps drawn"])
-            print(f"  {k:<66}{shown:5.1f}{ms(r.get('plot paint ms', {}).get('median'))}"
-                  f"  {ms(r['render ms'].get('median'))}{ms(r['render ms'].get('p95'))}"
-                  f"   {ms(r['window frame gap'].get('p95'))}  {verdict(r['window frame gap'].get('p95'), 'frame')}")
+    for tag in ("", " [GPU]"):
+        if "paint" + tag in res:
+            print(f"\nPAINT{tag} (median ms, one full redraw)")
+            for name, row in res["paint" + tag].items():
+                for k, s in row.items():
+                    print(f"  {name:<22}{k:<38}{_ms(s.get('median'))}  p95{_ms(s.get('p95'))}  "
+                          f"{verdict(s.get('median'), 'frame')}")
+        if "interact" + tag in res:
+            print(f"\nINTERACT{tag} (60 fps timer: frame gap median / p95 / max ms; computations)")
+            for name, row in res["interact" + tag].items():
+                if name != "reaction time (ms)":
+                    _print_frames(name, row)
+            rt = res["interact" + tag].get("reaction time (ms)", {})
+            if rt:
+                print(f"\nREACTION TIME{tag} (until the plot shows the change; median / max ms)")
+                for k, s in rt.items():
+                    print(f"  {k:<52}{_ms(s.get('median'))}{_ms(s.get('max'))}   {verdict(s.get('median'), 'latency')}")
+        if "anim" + tag in res:
+            print(f"\nANIMATION{tag}  (fps = frames the plot really showed; paint = one frame's drawing, median)")
+            _print_anim(res["anim" + tag])
+        if "limits" + tag in res:
+            print(f"\nLIMITS{tag}  (the heaviest: {STRESS}, densest streamlines, every layer, the most particles)")
+            for name, row in res["limits" + tag].items():
+                if name.startswith("compute") or name.startswith("export"):
+                    for k, s in row.items():
+                        print(f"  {name.split(' (')[0] + ': ' + k:<52}{_ms(s.get('median'))} ms")
+                elif name.startswith("animation"):
+                    _print_anim(row)
+                else:
+                    _print_frames("", row)
     if "export" in res:
         print("\nEXPORT (ms)")
         for name, row in res["export"].items():
             for k, s in row.items():
-                print(f"  {k:<30}{ms(s.get('median')) if 'median' in s else '  ' + str(s.get('skipped'))}")
+                print(f"  {k:<30}{_ms(s.get('median')) if 'median' in s else '  ' + str(s.get('skipped'))}")
     if "verify" in res:
         print("\nVERIFY (ms)")
         for name, row in res["verify"].items():
             for k, s in row.items():
-                print(f"  {k:<30}{ms(s.get('median'))}")
-    print("=" * 100)
+                print(f"  {k:<30}{_ms(s.get('median'))}")
+    print("=" * 110)
 
 
 def main():
@@ -600,20 +768,33 @@ def main():
     p.add_argument("--gpu", action="store_true", help="draw the plot with the graphics card (OpenGL)")
     p.add_argument("--fps-cap", default="60", choices=["screen", "60", "120", "144"],
                    help="with --gpu: the animations' frame rate limit (default 60)")
+    p.add_argument("--full", action="store_true",
+                   help="everything, then paint / interact / anim / limits again with the graphics card (one file)")
     a = p.parse_args()
     only = [s.strip() for s in a.only.split(",") if s.strip()]
-    b = Bench(a.quick, a.gpu, a.fps_cap)
+    b = Bench(a.quick, a.gpu and not a.full, a.fps_cap)
+    t_all = time.perf_counter()
     if "startup" in only:
         print("startup …", flush=True)
         b.startup()
-    if any(s in only for s in SECTIONS[1:]):
-        b.open()
-        for s in SECTIONS[1:]:
+
+    def run(sections):
+        for s in sections:
             if s in only:
-                print(f"{s} …", flush=True)
+                print(f"{s}{b.tag} …", flush=True)
                 t = time.perf_counter()
                 getattr(b, s)()
                 print(f"   ({time.perf_counter() - t:.0f} s)", flush=True)
+
+    if any(s in only for s in SECTIONS[1:]):
+        b.open()
+        run(SECTIONS[1:])
+        if a.full and any(s in only for s in GPU_SECTIONS):
+            print("graphics card on …", flush=True)
+            if b.gpu_on(must=False):
+                b.tag = " [GPU]"
+                run(GPU_SECTIONS)
+    print(f"total: {(time.perf_counter() - t_all) / 60:.1f} min", flush=True)
     res = {"machine": b.machine(), **b.results}
     print_report(res)
     if a.out:

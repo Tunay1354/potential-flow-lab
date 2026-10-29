@@ -603,6 +603,12 @@ bırakıldı (kullanıcı kararı).
       zaten içeriyor, üstüne bir kez daha çarpılıyordu. Düzeltme: köşeler veri → sahne → viewport (görünümün kendi
       `viewportTransform`'u, mantıksal piksel) yoluyla. Xvfb'de QT_SCALE_FACTOR=1.25 ile yeniden üretildi (%4.85
       piksel farklı → %0.002); 1, 1.25, 1.5'te kart = işlemci. Test artık 1 ve 1.25'te çalışıyor (eski kodda 1.25 düşüyor).
+    - ✅ **20.5 Benchmark: sınırlar + tek komut** (29 Ekim, kullanıcının isteği: "daha kapsamlı, sınırları zorlayan,
+      çok uzatmadan"): yeni bölüm `limits` — 16 elementli sahne (`stress_scene`: her tür element, açılı akış), en
+      yoğun streamline'lar, tüm katmanlar: hesap (streamlines, her şey birden), pan / zoom / element sürükleme,
+      slider'ın izin verdiği en çok particle ve en uzun / sık pulses (kartla: ekranın Hz'inde), PNG 4× ve MP4 2×.
+      `--full`: her şey bir kez işlemciyle, sonra çizim / etkileşim / animasyon / sınırlar bir kez daha kartla;
+      tek JSON (bölümler "[GPU]" ekli), raporda bu bilgisayarın özeti. Programın kendisi değişmedi.
 21. ☐ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,
     dosya yapısı, uyarılar (pyflakes), çok uzun dosyaların bölünmesi, testlerin süresi, README klasör tablosu.
     Ölçüt: tüm testler + verification aynı sonuç

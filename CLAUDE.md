@@ -261,6 +261,9 @@ GUI / Qt
   Pulses upload pieces once, the shader decides lit pieces from the time. Particles max with GPU calibrated
   (`step_ms`, stored `gpu/particles_max` + fingerprint, ≤ 100 000); advect split on cores for ≥ 10 000.
   Uniforms must be set by location (`gl_animation._uniform`): PySide's name overloads are ambiguous.
+- **29 Oct, 20.5**: `scripts/benchmark.py --full --out benchmarks/<name>.json` = the one command for him (all
+  sections incl. the new `limits` with `stress_scene()`, then paint / interact / anim / limits again with the GPU,
+  keys suffixed " [GPU]"). He runs it and pushes the JSON from GitHub Desktop.
 - **Next**: his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
   remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
 - Then, in this order (all planned, "as if time were unlimited"):
