@@ -25,6 +25,10 @@ def main():
     from app.cli import main as cli_main, wants_cli
     if wants_cli(args):
         sys.exit(cli_main(args))
+    from app.gpu import relaunch_on_strong_card
+    code = relaunch_on_strong_card()                 # laptop + "Use NVIDIA": once more, on the NVIDIA card
+    if code is not None:
+        sys.exit(code)
     from PySide6.QtCore import QTimer, qInstallMessageHandler
     from PySide6.QtWidgets import QApplication
 

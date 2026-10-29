@@ -138,6 +138,46 @@ def apply_startup_env():
         log.info("startup environment not set: %s", exc)
 
 
+RELAUNCH_ENV = "PFL_STRONG_CARD"           # set in the process started by relaunch_on_strong_card (never twice)
+
+
+def wants_strong_card() -> bool:
+    """Before any QApplication exists: the user chose "Use NVIDIA" (gpu/optimus)."""
+    try:
+        from PySide6.QtCore import QSettings
+        from app_info import APP_NAME, ORGANIZATION
+        return QSettings(ORGANIZATION, APP_NAME).value(KEY_OPTIMUS, False, bool)
+    except Exception:                                 # noqa: BLE001
+        return False
+
+
+def relaunch_on_strong_card(force: bool = False, call=None) -> int | None:
+    """NVIDIA's Optimus switch (SHIM_MCCOMPAT) only works when it is there AT THE START of the process: set
+    inside the running program (apply_startup_env) the window still got the Intel card (his benchmark of 29 Oct:
+    "Intel(R) UHD Graphics"). So on a Windows computer with an NVIDIA card, when the user chose it (or force),
+    the program starts itself once more with the switch and waits for it; returns its exit code. None: nothing
+    to do (not Windows, no NVIDIA card, already started that way) — go on normally."""
+    if sys.platform != "win32" or os.environ.get(SHIM_ENV) or os.environ.get(RELAUNCH_ENV):
+        return None
+    if not (force or wants_strong_card()):
+        return None
+    try:
+        from .hardware import display_adapters, strong_adapter, vendor_of
+        strong = strong_adapter(display_adapters())
+        if strong is None or vendor_of(strong["name"]) != "nvidia":
+            return None
+    except Exception:                                 # noqa: BLE001
+        return None
+    import subprocess
+    env = dict(os.environ, **{SHIM_ENV: SHIM_VALUE, RELAUNCH_ENV: "1"})
+    args = sys.argv[1:] if getattr(sys, "frozen", False) else sys.argv
+    try:
+        return (call or subprocess.call)([sys.executable, *args], env=env)
+    except OSError as exc:
+        log.warning("start on the NVIDIA card failed: %s", exc)
+        return None
+
+
 def merge_preference(old: str | None, value: str = PREF_HIGH) -> str:
     """The registry text with GpuPreference=value; other entries (Windows keeps more, e.g.
     SwapEffectUpgradeEnable=1;) are kept as they were."""

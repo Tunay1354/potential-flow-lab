@@ -185,6 +185,12 @@ class Bench:
                              "run without --gpu")
         w.set_fps_cap(self.fps_cap)
         self.gpu_info = dict(w.canvas.gpu_info or {})
+        from app import hardware
+        weak = hardware.runs_on_weak_card(self.gpu_info.get("renderer", ""), self.gpu_info.get("vendor", ""),
+                                          hardware.display_adapters())
+        if weak is not None:
+            print(f"   WARNING: drawn by {self.gpu_info.get('renderer')}, not by {weak['name']}: the [GPU] numbers "
+                  "are the slower card's", flush=True)
         print(f"   graphics card: {self.gpu_info.get('renderer')} ({self.gpu_info.get('samples')}× smoothing), "
               f"animation frames every {w.canvas.particles.frame_interval} ms", flush=True)
         self.use_gpu = True
@@ -770,7 +776,14 @@ def main():
                    help="with --gpu: the animations' frame rate limit (default 60)")
     p.add_argument("--full", action="store_true",
                    help="everything, then paint / interact / anim / limits again with the graphics card (one file)")
+    p.add_argument("--integrated", action="store_true",
+                   help="laptops: leave the graphics card to Windows (default with --gpu / --full: the NVIDIA card)")
     a = p.parse_args()
+    if (a.gpu or a.full) and not a.integrated:
+        from app.gpu import relaunch_on_strong_card
+        code = relaunch_on_strong_card(force=True)          # (the Optimus switch must be there at the start)
+        if code is not None:
+            sys.exit(code)
     only = [s.strip() for s in a.only.split(",") if s.strip()]
     b = Bench(a.quick, a.gpu and not a.full, a.fps_cap)
     t_all = time.perf_counter()

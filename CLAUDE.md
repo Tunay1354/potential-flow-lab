@@ -264,6 +264,10 @@ GUI / Qt
 - **29 Oct, 20.5**: `scripts/benchmark.py --full --out benchmarks/<name>.json` = the one command for him (all
   sections incl. the new `limits` with `stress_scene()`, then paint / interact / anim / limits again with the GPU,
   keys suffixed " [GPU]"). He runs it and pushes the JSON from GitHub Desktop.
+- **29 Oct, 20.5b**: his `windows_full.json` [GPU] part ran on **Intel** (the in-process SHIM_MCCOMPAT of 20.3b does
+  NOT work; only at process start). `gpu.relaunch_on_strong_card()` (main.py when "Use NVIDIA" was chosen;
+  benchmark --gpu/--full always unless --integrated) restarts the process once with the switch and waits.
+  Not verified on Windows yet — ask him to run `--full` again and check the "graphics card:" line.
 - **Next**: his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
   remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
 - Then, in this order (all planned, "as if time were unlimited"):

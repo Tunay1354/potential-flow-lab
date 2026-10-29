@@ -596,3 +596,33 @@ broken = broken or cv.particles.gpu_broken or not cv.particles.trail.on_gpu
 print("RESULT", round(100 * float((d > 40).mean()), 3), colored(g), colored(c), pp, broken)
 w.model.mark_clean(); w.close()
 '''
+
+
+def test_relaunch_on_the_nvidia_card(qapp, monkeypatch):
+    """Laptop + "Use NVIDIA": the program starts itself once more with SHIM_MCCOMPAT at the start (set inside the
+    running process the window still got the Intel card — his benchmark, 29 Oct)."""
+    from PySide6.QtCore import QSettings
+    import app.hardware as hw
+    calls = []
+    call = lambda cmd, env: calls.append((cmd, env)) or 7
+    monkeypatch.delenv("SHIM_MCCOMPAT", raising=False)
+    monkeypatch.delenv(gpu.RELAUNCH_ENV, raising=False)
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(hw, "display_adapters", lambda: GL_PROFILE["adapters"])
+    monkeypatch.setattr(gpu, "wants_strong_card", lambda: QSettings().value(gpu.KEY_OPTIMUS, False, bool))
+    assert gpu.relaunch_on_strong_card(call=call) is None and not calls        # not chosen: nothing
+    QSettings().setValue(gpu.KEY_OPTIMUS, True)
+    try:
+        assert gpu.relaunch_on_strong_card(call=call) == 7                    # chosen: started again, its exit code
+        cmd, env = calls[-1]
+        assert cmd[0] == sys.executable and env["SHIM_MCCOMPAT"] == "0x800000001" and env[gpu.RELAUNCH_ENV] == "1"
+        monkeypatch.setenv(gpu.RELAUNCH_ENV, "1")                              # the started one: never again
+        assert gpu.relaunch_on_strong_card(call=call) is None and len(calls) == 1
+        monkeypatch.delenv(gpu.RELAUNCH_ENV)
+        monkeypatch.setattr(hw, "display_adapters", lambda: [{"name": "Intel(R) UHD Graphics", "memory_mb": 128}])
+        assert gpu.relaunch_on_strong_card(call=call) is None                  # no NVIDIA card: nothing
+        assert gpu.relaunch_on_strong_card(force=True, call=call) is None
+    finally:
+        QSettings().remove(gpu.KEY_OPTIMUS)
+    monkeypatch.setattr(sys, "platform", "linux")
+    assert gpu.relaunch_on_strong_card(force=True, call=call) is None          # not Windows

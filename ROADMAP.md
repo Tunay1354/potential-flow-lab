@@ -609,6 +609,13 @@ bırakıldı (kullanıcı kararı).
       slider'ın izin verdiği en çok particle ve en uzun / sık pulses (kartla: ekranın Hz'inde), PNG 4× ve MP4 2×.
       `--full`: her şey bir kez işlemciyle, sonra çizim / etkileşim / animasyon / sınırlar bir kez daha kartla;
       tek JSON (bölümler "[GPU]" ekli), raporda bu bilgisayarın özeti. Programın kendisi değişmedi.
+    - ✅ **20.5b Laptop'ta NVIDIA'yı garanti etmek** (29 Ekim, `windows_full.json`: [GPU] bölümü Intel UHD ile koştu,
+      oysa aynı bilgisayarın OpenGL sorgusu RTX 3050 diyordu). Neden: NVIDIA Optimus anahtarı (SHIM_MCCOMPAT)
+      ancak işlem BAŞLARKEN ortamda varsa işe yarıyor; program içinde sonradan koymak (20.3b) yetmedi. Düzeltme:
+      `gpu.relaunch_on_strong_card` — Windows'ta NVIDIA kartı varsa ve kullanıcı "Use NVIDIA" dediyse (benchmark
+      --gpu / --full'da her zaman, `--integrated` hariç) program kendini bir kez daha bu anahtarla başlatıp
+      bekliyor (çıkış kodu aynen; `PFL_STRONG_CARD` ile asla iki kez). Benchmark çizen kart güçlü kart değilse
+      uyarı yazıyor. Test: relaunch kuralları (sahte Windows / kart listesi).
 21. ☐ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,
     dosya yapısı, uyarılar (pyflakes), çok uzun dosyaların bölünmesi, testlerin süresi, README klasör tablosu.
     Ölçüt: tüm testler + verification aynı sonuç
