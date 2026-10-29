@@ -616,6 +616,18 @@ bırakıldı (kullanıcı kararı).
       --gpu / --full'da her zaman, `--integrated` hariç) program kendini bir kez daha bu anahtarla başlatıp
       bekliyor (çıkış kodu aynen; `PFL_STRONG_CARD` ile asla iki kez). Benchmark çizen kart güçlü kart değilse
       uyarı yazıyor. Test: relaunch kuralları (sahte Windows / kart listesi).
+    - ✅ **20.6 Kullanıcının tam ölçümü, gerçek RTX 3050 ile** (30 Ekim 00:09, `benchmarks/windows_full_nvidia.json`;
+      i7-11800H 16 thread, Intel UHD + RTX 3050 Laptop, 144 Hz, 125 %). 20.5b doğrulandı: [GPU] kısmı NVIDIA'da
+      (4.6.0 NVIDIA 591.44, 4× smoothing). Sayılar (işlemci → NVIDIA; parantezde aynı ölçüm Intel UHD'de):
+      plot karesi her katmanla: lifting 15.7 → 9.3 ms, kanal 34.0 → 8.2 (20.8), 8 element 22.1 → 11.7; varsayılan
+      katmanla lifting 17.3 → 5.1. 16 elementli sahnede (en yoğun, tüm katmanlar) pan p95 116 → 67 ms, zoom
+      304 → 71, sürükleme 62 → 35. Animasyon (60 sınırı) her durumda 62 fps; işlemci kısmı pulses 2.1–3.6 → 0.1 ms,
+      particles 2.3–3.3 → 0.5–1.3 ms; 50 000 particle 62 fps. Sınırda (ekranın Hz'i): pulses 52 → **139 fps**,
+      50 000 particle 65 fps. Hesap (çok çekirdek): 8 element streamlines 795 → 535 ms (ölçüm öncesine göre).
+      Kalan zayıf noktalar (sonraki optimizasyon adayları): (1) ağır sahnenin MP4 2× export'u 30.7 s, PNG 4× 2.4 s;
+      (2) açılış: soğuk 13.8 → 18.2 s, sıcak 2.1 → 3.0 s (her şeyin pencereden önce hazırlanmasının bedeli);
+      (3) ağır sahnede pan / zoom p95 ~70 ms (NVIDIA); (4) element eklemeye tepki ~380 ms; (5) 16 element en yoğun
+      streamline hesabı 0.64 s, her şey birden 1.2 s.
 21. ☐ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,
     dosya yapısı, uyarılar (pyflakes), çok uzun dosyaların bölünmesi, testlerin süresi, README klasör tablosu.
     Ölçüt: tüm testler + verification aynı sonuç

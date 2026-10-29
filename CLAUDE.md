@@ -268,6 +268,9 @@ GUI / Qt
   NOT work; only at process start). `gpu.relaunch_on_strong_card()` (main.py when "Use NVIDIA" was chosen;
   benchmark --gpu/--full always unless --integrated) restarts the process once with the switch and waits.
   Not verified on Windows yet — ask him to run `--full` again and check the "graphics card:" line.
+- **30 Oct, 20.6**: his `windows_full_nvidia.json` confirms the relaunch (RTX 3050 draws). Results + the remaining weak
+  spots (heavy MP4 export 30 s, startup 3 s warm / 18 s cold, heavy-scene pan p95 ~70 ms, add-element 380 ms) in
+  ROADMAP 20.6. He will now send his list of small / big issues; then cleanup (21) incl. folder tidy-up.
 - **Next**: his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
   remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
 - Then, in this order (all planned, "as if time were unlimited"):
