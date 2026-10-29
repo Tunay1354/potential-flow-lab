@@ -15,6 +15,7 @@ komut satırı + `--verify` 102 / 102, hata yakalama, otomatik kayıt, kunduz). 
 | Stagnation point | Plot'ta ⊗ sembolü. Tıkla → parlar, içinden geçen dividing streamline'lar (koyu kalın çizgiler) ve x, y kutusu görünür; boş yere tıkla / Esc → kaybolur. Hepsini birden görmek: **Plot settings → Layers → All dividing streamlines** |
 | Seç | Listede ya da plot'ta sembole / duvara tıkla (üst üste binenlerde tekrar tıkla); boş yere tıkla veya Esc → seçim kalkar; sembole çift tık → düzenle |
 | Geçici gizle | Listede elementin tik kutusu |
+| Parametreleri gör | Listede her elementin tüm parametreleri yazar; panele sığmayanlar alt satıra geçer (panel genişleyince yine tek satır) |
 | Çoğalt | **Duplicate** butonu / Ctrl+D (kopya (0.5, 0.5) kaydırılır) |
 | Sil | **Delete** butonu / listede veya plot'ta Delete tuşu |
 | Geri al / yinele | **Edit → Undo / Redo**, Ctrl+Z / Ctrl+Y |

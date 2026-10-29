@@ -1,11 +1,12 @@
 """
 panels.py — right-side panels: Elements list and Plot settings.
 """
-from PySide6.QtCore import QEvent, QModelIndex, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QKeySequence, QShortcut
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox,
-                               QHBoxLayout, QLabel, QPushButton, QScrollArea, QSlider, QTreeWidget,
-                               QTreeWidgetItem, QVBoxLayout, QWidget)
+from PySide6.QtCore import QEvent, QModelIndex, QObject, QRect, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QFontMetrics, QKeySequence, QShortcut
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout,
+                               QGroupBox, QHBoxLayout, QHeaderView, QLabel, QPushButton, QScrollArea, QSlider,
+                               QStyle, QStyledItemDelegate, QStyleOptionViewItem, QTreeWidget, QTreeWidgetItem,
+                               QVBoxLayout, QWidget)
 
 from .canvas import LAYERS
 from .canvas.settings import SLIDERS, PlotSettings, slider
@@ -28,6 +29,106 @@ def element_title(element) -> str:
     if element.TYPE == "wall":
         return "Wall"
     return element.NAME
+
+
+SUMMARY_ROLE = Qt.UserRole + 1          # the element's parameter text (e.summary()) on column 0
+SUMMARY_SEP = ",  "                     # FlowElement.summary() joins its parts with this
+
+
+def wrap_summary(text: str, fm: QFontMetrics, width: int) -> list[str]:
+    """Break a parameter summary into lines no wider than `width` px, only between its parts
+    ("V = 1", "vertex (0, 0)", ...), so a value is never split. A single part that is still too
+    wide is elided (its full text is in the tooltip)."""
+    parts = [p for p in text.split(SUMMARY_SEP) if p] or [""]
+    lines: list[str] = []
+    for part in parts:
+        if lines and fm.horizontalAdvance(lines[-1] + SUMMARY_SEP + part) <= width:
+            lines[-1] += SUMMARY_SEP + part
+        else:
+            lines.append(part)
+    return [ln if fm.horizontalAdvance(ln) <= width else fm.elidedText(ln, Qt.ElideRight, max(width, 1))
+            for ln in lines]
+
+
+class ElementRowDelegate(QStyledItemDelegate):
+    """Draws one element row: check box, icon and '1. Doublet' as before, the parameters in a column at
+    PARAM_COLUMN px (where the old second column started). Parameters that do not fit on the rest of the
+    line wrap onto more lines in that column, between parameters; a name too long to leave room for the
+    column ('Sector (wedge) flow') puts the parameters on the lines below it instead. Nothing is cut off,
+    whatever the panel width; short rows look exactly as with the old two fixed columns."""
+
+    PARAM_COLUMN = 150                   # px from the row's left edge (the old column 0 width)
+    GAP = 8                              # px at least between the name and the parameter column
+    MIN_COLUMN = 90                      # px: a narrower parameter column is not used (lines below instead)
+
+    def __init__(self, tree: QTreeWidget):
+        super().__init__(tree)
+        self.tree = tree
+
+    def _layout(self, option, index, row_rect: QRect):
+        """(text rect, title, parameter x, parameter lines, parameters below the title?)"""
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        opt.rect = row_rect
+        style = opt.widget.style() if opt.widget else self.tree.style()
+        rect = style.subElementRect(QStyle.SE_ItemViewItemText, opt, opt.widget)
+        fm = QFontMetrics(opt.font)
+        title = opt.text
+        summary = index.data(SUMMARY_ROLE) or ""
+        col_x = row_rect.left() + self.PARAM_COLUMN + 2                 # + the item's 2 px side padding (theme)
+        col_w = rect.right() + 1 - col_x
+        beside = (rect.left() + fm.horizontalAdvance(title) + self.GAP <= col_x and col_w >= self.MIN_COLUMN)
+        if not summary:
+            return rect, title, col_x, [], False
+        if beside:
+            return rect, title, col_x, wrap_summary(summary, fm, col_w), False
+        return rect, title, rect.left(), wrap_summary(summary, fm, rect.width()), True
+
+    def sizeHint(self, option, index):
+        base = super().sizeHint(option, index)                       # one text line + the item padding
+        width = max(self.tree.viewport().width(), 1)
+        _, _, _, lines, below = self._layout(option, index, QRect(0, 0, width, base.height()))
+        n_lines = len(lines) + (1 if below else 0)
+        extra = max(0, n_lines - 1) * QFontMetrics(option.font).lineSpacing()
+        return QSize(base.width(), base.height() + extra)
+
+    def paint(self, painter, option, index):
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        style = opt.widget.style() if opt.widget else self.tree.style()
+        rect, title, px, lines, below = self._layout(option, index, option.rect)
+        opt.text = ""
+        style.drawControl(QStyle.CE_ItemViewItem, opt, painter, opt.widget)   # background, check box, icon
+        fm = QFontMetrics(opt.font)
+        ls = fm.lineSpacing()
+        n_lines = max(1, len(lines) + (1 if below else 0))
+        y = rect.top() + max(0, (rect.height() - n_lines * ls) // 2)   # the text block centred like the icon
+        painter.save()
+        painter.setFont(opt.font)
+        painter.setPen(opt.palette.color(opt.palette.ColorGroup.Normal, opt.palette.ColorRole.Text))
+        flags = Qt.AlignLeft | Qt.AlignVCenter
+        painter.drawText(QRect(rect.left(), y, rect.width(), ls), flags, fm.elidedText(title, Qt.ElideRight, rect.width()))
+        if below:
+            y += ls
+        for ln in lines:
+            painter.drawText(QRect(px, y, rect.right() + 1 - px, ls), flags, ln)
+            y += ls
+        painter.restore()
+
+
+class _RelayoutOnWidth(QObject):
+    """Re-measures the rows when the list's width changes (the parameters wrap to the new width)."""
+
+    def __init__(self, tree: QTreeWidget):
+        super().__init__(tree)
+        self.tree = tree
+        self.width = -1
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Resize and self.tree.viewport().width() != self.width:
+            self.width = self.tree.viewport().width()
+            QTimer.singleShot(0, self.tree, self.tree.doItemsLayout)
+        return False
 
 
 class ElementsPanel(QWidget):
@@ -57,7 +158,17 @@ class ElementsPanel(QWidget):
         self.tree.setHeaderHidden(True)
         self.tree.setRootIsDecorated(False)
         self.tree.setAlternatingRowColors(False)
-        self.tree.setColumnWidth(0, 150)
+        # one visible column: name + parameters, wrapped (ElementRowDelegate); column 1 keeps the plain
+        # parameter text (e.summary()) for code that reads it, but is not shown
+        self.tree.setColumnHidden(1, True)
+        self.tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.tree.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.tree.setUniformRowHeights(False)
+        self.tree.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self.row_delegate = ElementRowDelegate(self.tree)
+        self.tree.setItemDelegate(self.row_delegate)
+        self._relayout = _RelayoutOnWidth(self.tree)
+        self.tree.viewport().installEventFilter(self._relayout)
         self.tree.setToolTip("Untick an element to hide it temporarily without deleting it.\n"
                              "Double-click or Enter: edit   ·   Delete: remove   ·   Ctrl+D: duplicate")
         self.tree.itemDoubleClicked.connect(lambda it, _c: self._later(self.edit_requested,
@@ -126,6 +237,7 @@ class ElementsPanel(QWidget):
             it.setIcon(0, element_icon(e, self.theme))
             it.setCheckState(0, Qt.Checked if e.enabled else Qt.Unchecked)
             it.setData(0, Qt.UserRole, e.TYPE)
+            it.setData(0, SUMMARY_ROLE, e.summary())
             it.setToolTip(1, e.summary())
             self.tree.addTopLevelItem(it)
         if elements and current is not None and current >= 0:      # keep / set the selection (none stays none)

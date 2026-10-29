@@ -688,3 +688,34 @@ def test_scene_check_in_the_status_bar_can_be_opened(window, qapp):
     import shiboken6
     assert window.elements_panel.current_row() == 3
     assert not shiboken6.isValid(popup) or not popup.isVisible()                    # closed
+
+
+def test_elements_list_shows_full_names_and_wraps_parameters(shown, qapp):
+    """Elements panel: each row has the full element name on top and ALL its parameters below, wrapped to
+    the list's width between parameters (never cut off), also after the panel gets narrower."""
+    from PySide6.QtGui import QFontMetrics
+    from app.panels import SUMMARY_ROLE, SUMMARY_SEP, wrap_summary
+    shown.load_scene([Uniform(), SectorFlow(V=1.0, theta1=-30.0, theta2=240.0), SymmetryWall(yw=-1.5),
+                      Doublet(mu=1.5, x0=-1.0, y0=0.5, delta=30.0)])
+    qapp.processEvents()
+    panel = shown.elements_panel
+    tree = panel.tree
+    assert tree.isColumnHidden(1)                                   # one visible column
+    for i, e in enumerate(shown.elements):
+        item = tree.topLevelItem(i)
+        assert item.text(1) == e.summary() and item.data(0, SUMMARY_ROLE) == e.summary()
+    fm = QFontMetrics(tree.font())
+    for width in (300, 180, 120):
+        lines = wrap_summary(shown.elements[1].summary(), fm, width)
+        assert all(fm.horizontalAdvance(ln) <= width for ln in lines)
+        # nothing lost: the lines together are the whole summary (as long as no single part is too wide)
+        if all(fm.horizontalAdvance(p) <= width for p in shown.elements[1].summary().split(SUMMARY_SEP)):
+            assert SUMMARY_SEP.join(lines) == shown.elements[1].summary()
+    # the sector row (5 parameters) is taller than the uniform row (2 parameters) and grows when narrower
+    h = lambda k: tree.visualItemRect(tree.topLevelItem(k)).height()        # noqa: E731
+    assert h(1) > h(0)
+    tall = h(1)
+    tree.setFixedWidth(max(140, tree.width() // 2))
+    for _ in range(5):
+        qapp.processEvents()
+    assert h(1) > tall

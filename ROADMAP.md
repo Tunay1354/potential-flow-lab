@@ -402,6 +402,12 @@ bırakıldı (kullanıcı kararı).
     - pytest 9 uyumu: `pytest.approx()` artık iç içe listeleri (ok listesi: (x, y, açı)) kabul etmiyor →
       `test_kernel.py` okları dizi olarak karşılaştırıyor (pytest 8 ve 9'da geçiyor; değerler zaten birebir aynıydı,
       fark 0.0). README'nin "Durum" satırı güncellendi
+    - Elements paneli: uzun isim / parametreler artık kesilmiyor ("Sector (wed…", "θ_w = …"). Parametreler eski
+      sütunda (150 px) duruyor; sığmayan kısım parametre aralarından alt satırlara geçiyor (wall: 2 satır); isim
+      sütuna yer bırakmıyorsa (sector) parametreler ismin altında. Kısa satırlar (uniform, source, vortex)
+      birebir eskisi gibi, 30 px. Panel genişliği değişince yeniden bölünüyor; açık / koyu tema. Bedeli: 6
+      elementli sahnede listede aynı anda 4 yerine 3 satır görünüyor. `app/panels.py` (`ElementRowDelegate`,
+      `wrap_summary`), test: `test_elements_list_shows_full_names_and_wraps_parameters`
 20. ☐ **Optimizasyon (+ Paket E2)**: ölçüm → iyileştirme: açılış ve ilk Numba derleme süresi, sürükleme, zoom /
     pan, animasyon (gerekirse "Use graphics card (OpenGL)", açılamazsa normal çizim), Solid bodies, Surface
     pressure, export süreleri; ölçümler `scripts/` altında, önce / sonra sayılarıyla
