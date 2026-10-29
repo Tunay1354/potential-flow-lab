@@ -83,3 +83,41 @@ def test_field_grids_on_several_cores_are_bit_for_bit_those_of_one_core(monkeypa
         monkeypatch.setenv("PFL_THREADS", "4")
         w4, f4 = complex_velocity(els, Z), complex_potential(els, Z)
         assert w4.shape == Z.shape and np.array_equal(w1, w4, equal_nan=True) and np.array_equal(f1, f4, equal_nan=True)
+
+
+@pytest.mark.parametrize("keep_max", [False, True])
+def test_segments_drawn_in_bands_are_the_same_picture(monkeypatch, keep_max):
+    """Pulses / particles drawn by several cores (bands of rows) = drawn by one, bit for bit."""
+    from physics import kernel
+    rng = np.random.default_rng(3)
+    n = 4000
+    ax, ay = rng.uniform(-5, 405, n), rng.uniform(-5, 305, n)
+    bx, by = ax + rng.uniform(-3, 3, n), ay + rng.uniform(-3, 3, n)
+    band = rng.integers(-1, 4, n)
+    pal = np.array([[200, 30, 30, 0.9], [30, 200, 30, 0.6], [30, 30, 200, 1.0], [90, 90, 90, 0.4]])
+    alpha = rng.uniform(0.1, 1.0, n)
+    one = np.zeros((300, 400, 4), np.uint8)
+    kernel.draw_segments(one, ax, ay, bx, by, band, pal, 1.8, alpha, keep_max)
+    monkeypatch.setenv("PFL_THREADS", "4")
+    many = np.zeros_like(one)
+    kernel.draw_segments_parallel(many, ax, ay, bx, by, band, pal, 1.8, alpha, keep_max)
+    assert one.any() and np.array_equal(one, many)
+
+
+def test_a_task_waiting_in_the_queue_is_done_by_the_caller(monkeypatch):
+    """All cores busy with something long: the caller does the waiting tasks itself instead of waiting."""
+    import threading
+    import time
+    monkeypatch.setenv("PFL_THREADS", "2")
+    parallel.shutdown()
+    release = threading.Event()
+    blockers = [parallel.pool().submit(release.wait) for _ in range(2)]     # both pool threads busy
+    try:
+        t = time.perf_counter()
+        out = parallel.run([lambda: 1, lambda: 2, lambda: 3])
+        assert out == [1, 2, 3] and time.perf_counter() - t < 1.0
+    finally:
+        release.set()
+        for b in blockers:
+            b.result()
+        parallel.shutdown()

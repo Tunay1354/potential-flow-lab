@@ -37,6 +37,7 @@ LINE_PX = 1.7                    # width of a particle's trail line (screen pixe
 MAX_STEP_PX = 24                 # a longer step in one frame (next to a singular point) is not drawn:
                                  # as a straight line it would cut across the curved path
 STATIC_CACHE = QGraphicsItem.DeviceCoordinateCache
+MAX_WAIT_TICKS = 6               # a frame not shown after this many ticks: draw the next anyway (never stuck)
 
 
 def speed_factor(slider: int) -> float:
@@ -52,18 +53,21 @@ class TrailItem(pg.GraphicsObject):
         super().__init__()
         self.image = None
         self.rect = QRectF()
+        self.shown = True                     # the last picture has been painted on the screen
 
     def set_image(self, image, rect):
         if rect != self.rect:
             self.prepareGeometryChange()
             self.rect = QRectF(rect)
         self.image = image
+        self.shown = image is None
         self.update()
 
     def boundingRect(self):
         return self.rect
 
     def paint(self, p, *args):
+        self.shown = True
         if self.image is not None and not self.rect.isEmpty():
             p.drawImage(self.rect, self.image)              # the picture has the view's pixel size
 
@@ -99,6 +103,7 @@ class AnimatedLayer(PlotLayer):
         self._timer.setInterval(self.frame_interval)
         self._timer.timeout.connect(self.frame)
         self.export_scale = None              # recording a GIF / MP4: picture pixels per screen pixel
+        self._waited = 0                      # timer ticks skipped while the last frame was not shown
 
     # ------------------------------------------------------------------ to implement
     def start(self):
@@ -180,6 +185,14 @@ class AnimatedLayer(PlotLayer):
     # ------------------------------------------------------------------ one frame
     def frame(self):
         now = time.perf_counter()
+        if not self.trail.shown and self._waited < MAX_WAIT_TICKS and self.animated:
+            # the last frame is not on the screen yet (the window is busy painting, or waits for the
+            # screen's refresh): drawing another one now would only be thrown away and leave the window
+            # less time to paint — frames shown dropped to ~27 per second at a 144 fps limit. The time
+            # goes on (dt from the last frame drawn), so the speed of the flow stays right.
+            self._waited += 1
+            return
+        self._waited = 0
         dt, self._last = (0.0 if self._last is None else min(now - self._last, 0.1)), now
         if not self.animated:
             return
@@ -206,7 +219,7 @@ class AnimatedLayer(PlotLayer):
         dpr = self.pixel_scale()
         if kernel.HAVE_NUMBA:
             rows = np.frombuffer(image.bits(), np.uint8).reshape(image.height(), image.bytesPerLine() // 4, 4)
-            kernel.draw_segments(rows, ax, ay, bx, by, band, self._palette, 0.5 * width_px * dpr,
+            kernel.draw_segments_parallel(rows, ax, ay, bx, by, band, self._palette, 0.5 * width_px * dpr,
                                  alpha, keep_max)
             return
         painter = QPainter(image)                         # without Numba: Qt draws them (slower)

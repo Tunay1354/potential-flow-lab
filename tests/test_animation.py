@@ -373,7 +373,8 @@ def test_warm_up_compiles_exactly_what_the_plot_uses(win, qapp):
     """After warm_up() the particles, pulses and solid bodies need no new compiled versions (argument
     types alike), so the first click on Particles / Pulses never waits for the compiler."""
     from physics.warmup import warm_up
-    names = ("advect_particles", "draw_segments", "fade_bytes", "label_regions", "velocity_many", "seed_random")
+    names = ("advect_particles", "draw_segments", "draw_segments_rows", "fade_bytes", "label_regions", "velocity_many",
+             "seed_random")
     assert warm_up()
     before = {n: len(getattr(kernel, n).signatures) for n in names}
     cv = win.canvas

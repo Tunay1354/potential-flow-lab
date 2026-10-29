@@ -558,6 +558,25 @@ bırakıldı (kullanıcı kararı).
       plot karesi (her katman) lifting 15.2 → 10.1 ms, kanal 32.5 → 8.3, 8 element 21.4 → 10.7 (CPU kısmı kanal
       30.3 → 5.6); her katmanla zoom kanal 31.0 → 17.4, 8 element 33.3 → 20.6 ms (STUTTER → ok); animasyon
       varsayılan katmanlarla ikisinde de 62 fps (60 sınırı), 8 elementte GPU 48 fps — aynı önbellek taşması.
+    - ✅ **20.3d Pulses yavaş + "saçmalayan" streamline'lar** (29 Ekim, kullanıcının ekran görüntüleri): (1) Pulses'ta
+      element sürükleyince eski konumun çizgileri ekranda kalıyordu. Yeniden üretildi (sahnenin %3'ü): animasyonda
+      resim olarak saklanan bir streamline öğesi yeni veride güncellenmiyordu (Qt'nin kendi geçersiz kılması yetmedi;
+      önceden önbellek taşması bunu gizliyordu). Düzeltme: veri değişince (sigPlotChanged / sigImageChanged) öğenin
+      resmi atılıyor (`layer.drop_picture`) → fark %0. (2) Pulses 144 sınırında 27 fps, 60'ta 61: timer 6 ms'de bir
+      yeni kare çiziyordu, önceki kare daha ekrana çıkmadan; pencere boyamaya zaman bulamıyordu. Kare temposu:
+      son kare boyanmadıysa yeni kare çizilmiyor (`TrailItem.shown`, en çok 6 tik bekleme; akış hızı gerçek zamandan
+      hesaplandığı için değişmiyor). (3) Pulses / particles çizimi (`kernel.draw_segments`, bir pulse karesinin
+      %90'ı: yoğun görünümde 8 ms) tüm çekirdeklerde: resim satır bantlarına bölünüyor (`draw_segments_rows`, nogil),
+      sonuç tek çekirdekle bit bit aynı (test). Bu sunucu 4 thread: 8.0 → 4.3 ms; 16 thread'de ~1 ms bekleniyor.
+      (4) `parallel.run`: hiçbir çekirdeğin başlamadığı işi çağıran kendisi yapıyor (arka plan hesabı varken animasyon
+      karesi kuyrukta beklemiyor). Kullanıcının görünümünü taklit (125 %, 180 streamline, 144 sınır, 4 thread):
+      pulses 65 → 77 fps, particles 77 → 101 fps.
+      Arkadaşının projesi (laurance18/potential-flow-lab, C++20 + OpenGL 3.3 + Dear ImGui) incelendi: hızı her şeyi
+      GPU'nun çizmesinden — particles GPU'da nokta (shader), iz soluklaşması FBO'da bir shader geçişi, dye rake
+      ve streamline'lar her karede ImGui polyline (üçgenleri GPU dolduruyor); CPU sadece köşe noktalarını
+      hazırlıyor, piksel piksel hiçbir şey çizmiyor. Bizde particles / pulses resmi CPU'da piksel piksel çiziliyor ve
+      her karede dokuya yükleniyor. Ayrıca dye rake'te ~9 kaynak var, bizim Pulses'ta görünümdeki tüm streamline'lar
+      (~100) yanıyor. Sonuç → 20.4: particles / pulses'ı GPU'da çizmek (VBO + shader, iz için FBO).
     - ☐ 20.4 GPU particles / pulses + kalibrasyondan üst sınırlar; aynı script'le karşılaştırma (`--gpu`)
 21. ☐ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,
     dosya yapısı, uyarılar (pyflakes), çok uzun dosyaların bölünmesi, testlerin süresi, README klasör tablosu.

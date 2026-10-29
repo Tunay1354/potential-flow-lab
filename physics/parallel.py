@@ -60,9 +60,11 @@ def run(tasks: list) -> list:
         results = [tasks[0]()]
     except BaseException as exc:                     # noqa: BLE001 - raised after the others are done
         results, first_error = [None], exc
-    for f in futures:
+    for f, task in zip(futures, tasks[1:]):
         try:
-            results.append(f.result())
+            # a task no core has started yet (all busy, e.g. with a background computation) is done here at
+            # once: a caller never waits in a queue behind other work (an animation frame would stutter)
+            results.append(task() if f.cancel() else f.result())
         except BaseException as exc:                 # noqa: BLE001
             results.append(None)
             first_error = first_error or exc

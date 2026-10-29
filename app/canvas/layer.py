@@ -38,6 +38,10 @@ class PlotLayer:
         if self.canvas is not None and self.canvas.static_cache:
             from .animation_layer import STATIC_CACHE
             item.setCacheMode(STATIC_CACHE)                 # animating: drawn once, then copied
+        for name in ("sigPlotChanged", "sigImageChanged"):  # new data: the stored picture is thrown away
+            signal = getattr(item, name, None)
+            if signal is not None:
+                signal.connect(lambda *_a, it=item: drop_picture(it))
         self.plot.addItem(item)
         return item
 
@@ -103,3 +107,15 @@ def set_box_text(label: pg.TextItem, theme: dict, html: str, padding: str = "2px
                   f'padding:{padding};">{html}</div>')
     label.fill = pg.mkBrush(theme["panel_bg"])
     label.border = pg.mkPen(theme["border"])
+
+
+def drop_picture(item):
+    """While animating, an item is kept as a picture (DeviceCoordinateCache). Qt's own invalidation on new
+    data was not enough: after dragging an element in the Pulses view, parts of an older picture of the
+    streamlines stayed on the screen (the owner's screenshot, 29 Oct; reproduced: one line item of the
+    old drag position). Switching the cache off and on again throws the picture away for sure."""
+    from PySide6.QtWidgets import QGraphicsItem
+    mode = item.cacheMode()
+    if mode != QGraphicsItem.NoCache:
+        item.setCacheMode(QGraphicsItem.NoCache)
+        item.setCacheMode(mode)

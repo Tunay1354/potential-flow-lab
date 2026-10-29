@@ -162,6 +162,10 @@ GUI / Qt
 - **Animation slow with several layers (23 fps, 26–29 ms per frame)**: the items cached as pictures while
   animating (DeviceCoordinateCache) live in QPixmapCache, default limit 10 MB — plot-sized pictures did not fit,
   so every frame redrew everything. `canvas.ensure_pixmap_cache()` raises the limit when animating (frame 4–5 ms).
+- **Stale streamlines after a drag in Pulses** (pieces of the old position stayed): a cached item picture was not
+  refreshed by Qt on new data → `layer.drop_picture` on sigPlotChanged / sigImageChanged (cache off and on).
+- **Pulses 27 fps at a 144 fps cap (61 at 60)**: the timer drew frames faster than the window could show them →
+  `AnimatedLayer.frame` skips a tick while `TrailItem.shown` is False (≤ 6 ticks).
 - Particle trails stayed on an empty page (last steps redrawn every frame) → no step without flow + clear.
 - **Exceptions in Qt slots / paint events** go to `sys.excepthook` → `app/errors.py` logs them and shows one
   window per distinct error (no floods). Background threads (QThreadPool) never touch widgets; results and
@@ -245,6 +249,9 @@ GUI / Qt
 - **29 Oct, 20.3c**: his Windows numbers came (benchmarks/windows_after_*.json, if he pushed them): the GPU helps
   painting with many layers (channel every layer 32.5 → 8.3 ms), animation was capped at 23 fps by the
   pixmap cache (fixed, see §7). Benchmark anim now reports the frames the plot really showed + paint ms.
+- **29 Oct, 20.3d**: stale-picture fix, frame pacing, `kernel.draw_segments_parallel` (row bands, bit-identical),
+  `parallel.run` does queued tasks itself. Friend's C++ project (laurance18/potential-flow-lab) studied: everything
+  is drawn by the GPU (points / polylines + shaders, trail fade in an FBO); see ROADMAP 20.3d.
 - **Next: 20.4** — particles / pulses with higher maxima where the computer allows it (calibrated), then his
   Windows numbers: `python scripts/benchmark.py --out after_cpu.json` and `--gpu --out after_gpu.json` vs
   `benchmarks/windows_before.json`; rest of item 20 (Solid bodies, Surface pressure, export) from those numbers.

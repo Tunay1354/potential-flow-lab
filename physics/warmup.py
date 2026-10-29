@@ -86,6 +86,9 @@ def warm_up() -> bool:
     kernel.fade_bytes(img.reshape(-1), 200)
     kernel.draw_segments(img, x, x, x[::-1].copy(), x, np.zeros(4, np.int64), np.ones((1, 4)), 1.0,
                          np.ones(4), False)
+    for keep in (False, True):                                       # (the bands of the parallel version)
+        kernel.draw_segments_rows(img, x, x, x[::-1].copy(), x, np.zeros(4, np.int64), np.ones((1, 4)), 1.0,
+                                  np.ones(4), keep, 0, 4)
     travel_times([axis, circle], scene, 0.1, 1e-3)
     body_map(scene, box, (24, 36), [circle, axis])                   # solid bodies
     return True

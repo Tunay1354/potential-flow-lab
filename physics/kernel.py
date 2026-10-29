@@ -668,7 +668,15 @@ def draw_segments(img, ax, ay, bx, by, color_index, palette, radius, alpha, keep
     the color palette[color_index[k]] = (r, g, b, alpha 0…1) with its alpha × alpha[k];
     index < 0: not drawn. keep_max: a pixel keeps the more opaque color instead of blending (pieces of
     one line that overlap at their round ends then do not show darker beads)."""
-    rows, cols = img.shape[0], img.shape[1]
+    draw_segments_rows(img, ax, ay, bx, by, color_index, palette, radius, alpha, keep_max, 0, img.shape[0])
+
+
+@njit(**JIT)
+def draw_segments_rows(img, ax, ay, bx, by, color_index, palette, radius, alpha, keep_max, r0, r1):
+    """draw_segments, only into the picture rows r0 … r1 − 1 (without the interpreter lock): bands of rows
+    drawn on several cores at once give exactly the same picture (every pixel sees the lines in the same
+    order), see draw_segments_parallel."""
+    rows, cols = min(img.shape[0], r1), img.shape[1]
     for k in range(ax.size):
         ci = color_index[k]
         if ci < 0:
@@ -683,8 +691,10 @@ def draw_segments(img, ax, ay, bx, by, color_index, palette, radius, alpha, keep
         L2 = dx * dx + dy * dy
         i0 = max(int(math.floor(min(x0, x1) - radius - 1.0)), 0)
         i1 = min(int(math.ceil(max(x0, x1) + radius + 1.0)), cols - 1)
-        j0 = max(int(math.floor(min(y0, y1) - radius - 1.0)), 0)
+        j0 = max(int(math.floor(min(y0, y1) - radius - 1.0)), r0)
         j1 = min(int(math.ceil(max(y0, y1) + radius + 1.0)), rows - 1)
+        if j1 < j0:
+            continue
         for j in range(j0, j1 + 1):
             py = j + 0.5
             for i in range(i0, i1 + 1):
@@ -710,6 +720,19 @@ def draw_segments(img, ax, ay, bx, by, color_index, palette, radius, alpha, keep
                 img[j, i, 1] = int(cg * a + img[j, i, 1] * inv + 0.5)
                 img[j, i, 2] = int(cr * a + img[j, i, 2] * inv + 0.5)
                 img[j, i, 3] = int(255.0 * a + img[j, i, 3] * inv + 0.5)
+
+
+def draw_segments_parallel(img, ax, ay, bx, by, color_index, palette, radius, alpha, keep_max):
+    """draw_segments on all cores: the picture is cut into bands of rows (physics.parallel), each band drawn
+    by one core. The same picture as draw_segments, bit for bit."""
+    from . import parallel
+    rows = img.shape[0]
+    bands = parallel.chunks(rows, 48)
+    if len(bands) <= 1:
+        draw_segments(img, ax, ay, bx, by, color_index, palette, radius, alpha, keep_max)
+        return
+    parallel.run([lambda a=a, b=b: draw_segments_rows(img, ax, ay, bx, by, color_index, palette, radius, alpha,
+                                                       keep_max, a, b) for a, b in bands])
 
 
 @njit(**QUICK)
