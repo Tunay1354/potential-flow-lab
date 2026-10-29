@@ -88,12 +88,13 @@ STEPS = [
          "cases.", "menu:File", where="below"),
     Step("Help: Run verification checks the program against the theory, and this tour lives there too.",
          "menu:Help", where="below"),
-    Step("The GPU box: tick it and your graphics card draws the plot. Smoother and faster, above all the "
-         "animations. Untick it any time to go back.", "gpu", where="below"),
+    Step("The GPU box: your graphics card draws the plot, smoother and faster, and the sliders reach "
+         "further. The program restarts in seconds, your work stays. The arrow beside it: frame rate.", "gpu",
+         where="below"),
     Step("And me! Drag me onto the plot for fun, and click me (or press P) whenever you need help. You'll find "
          "me on my shelf. Have fun!", "perch", where="perch"),
 ]
-GPU_OFF_TEXT = " (This computer can't use it: point at it to see why.)"
+GPU_OFF_TEXT = " (Not on this computer: point at it to see why.)"
 
 # what the beaver says beside an open element dialog
 DIALOG_TEXT = {

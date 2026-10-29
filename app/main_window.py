@@ -32,7 +32,7 @@ from .element_specs import spec_for
 from .gpu_panel import GpuPanel
 from .hardware import load_profile
 from .icons import make_app_icon, make_palette_icon
-from .panels import ElementsPanel, SettingsPanel, element_title
+from .panels import ElementsPanel, LimitSlider, SettingsPanel, element_title
 from .recent_files import RecentFiles
 from .surface_panel import SurfacePanel
 from .theme import DEFAULT_THEME, LAYOUT, build_stylesheet
@@ -97,10 +97,10 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         self.dock_settings = self._dock("Plot settings", self.settings_panel)
         self.surface_panel = SurfacePanel(self.theme)
         self.dock_surface = self._dock("Surface pressure", self.surface_panel)
-        self.gpu_panel = GpuPanel()                      # shown while the graphics card draws (app/window/graphics.py)
-        self.dock_gpu = self._dock("Graphics card", self.gpu_panel)
-        self.dock_gpu.widget().setMaximumHeight(LAYOUT["gpu_panel_max_height"])     # Plot settings keeps the room
         self._default_dock_layout()
+        # the Graphics card panel: over the right part of the window, opened with the arrow beside the GPU
+        # box (app/gpu_panel.py, app/window/graphics.py); not a side panel
+        self.gpu_panel = GpuPanel(self)
 
         self._build_palette()
         self._build_menus()
@@ -128,6 +128,11 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         if first and on:
             settings.setValue("beaver/tour_offered", True)
         QTimer.singleShot(1200, self, lambda: self.beaver.start_session(first))
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if getattr(self, "gpu_panel", None) is not None:
+            self._place_gpu_panel()                      # (it lies over the window's right part)
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -228,6 +233,8 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         self._update_issues()
         self._update_edit_actions()
         self._update_title()
+        if getattr(self, "_gpu_guard", None) is not None:
+            self.gpu_redraw()
 
     def _update_edit_actions(self):
         m = self.model
@@ -432,7 +439,7 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
 
     # ------------------------------------------------------------------ window
     def closeEvent(self, event):
-        if not self.maybe_save():
+        if not getattr(self, "_restarting", False) and not self.maybe_save():     # (a restart keeps it all)
             event.ignore()
             return
         QApplication.instance().removeEventFilter(self)
@@ -447,6 +454,9 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
 
     def apply_theme(self, theme):
         self.theme = theme
+        LimitSlider.mark_color = theme["ink"]
+        if getattr(self, "gpu_panel", None) is not None:
+            self.gpu_panel.apply_theme(theme)
         if getattr(self, "_guide", None) is not None:
             self._guide.apply_theme(theme)
         app = QApplication.instance()

@@ -1,8 +1,14 @@
 """
-gpu_panel.py — the "Graphics card" side panel, shown while the plot is drawn by the graphics card (the GPU
-box in the header): which card draws, frames per second (live), the frame rate limit of the animations.
-A laptop whose program runs on the power-saving card gets a note with a button to switch
-(MainWindow.offer_strong_card, app/window/graphics.py).
+gpu_panel.py — the "Graphics card" panel: opened with the small arrow beside the GPU box in the header, it lies
+OVER the right part of the window (where Elements and Plot settings are by default, wherever the panels were
+moved; app/window/graphics.py places it) and is closed with the same arrow. No side panel: the layout stays
+as the user left it.
+
+It works with and without the graphics card:
+  - which card draws (or "the processor"), frames per second (live) and how long a frame takes to draw
+  - Frame rate of the animations (remembered for each mode)
+  - WITH THE GRAPHICS CARD (greyed while the processor draws): Higher limits in Plot settings, and the
+    limits themselves; on a laptop running on its power-saving card, the button for the faster one
 """
 from __future__ import annotations
 
@@ -10,39 +16,99 @@ import html
 import time
 
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QFont
-from PySide6.QtWidgets import (QComboBox, QFormLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout,
-                               QWidget)
+from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QFormLayout, QFrame, QHBoxLayout, QLabel, QPushButton,
+                               QVBoxLayout)
 
 from . import gpu
-from .chrome import button_font, font, themed_combo
+from .chrome import button_font, font, heading_font, themed_combo
 
 REFRESH_MS = 500
+WIDTH = 333                                  # px (the right side panels' card)
 
 
-class GpuPanel(QWidget):
+class GpuPanel(QFrame):
     cap_changed = Signal(str)                 # gpu.FPS_CAPS key
-    switch_requested = Signal()               # "Use <strong card>…"
+    switch_requested = Signal()               # "Use <faster card>…"
+    higher_changed = Signal(bool)             # Higher limits ticked / unticked
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setObjectName("DockBody")
+        self.setObjectName("GpuOverlay")
         self.setAttribute(Qt.WA_StyledBackground, True)
+        self.theme = None
+        self.on_card = False
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(10, 0, 10, 10)
-        lay.setSpacing(2)
+        lay.setContentsMargins(16, 12, 16, 14)
+        lay.setSpacing(4)
 
-        self.card = QLabel("—")                   # which card draws
+        head = QLabel("GRAPHICS CARD")
+        head.setObjectName("GpuHead")
+        head.setFont(heading_font(11))
+        lay.addWidget(head)
+        lay.addSpacing(10)                     # (the rule under the heading is painted)
+
+        self.mode = QLabel("")                 # who draws: the card / the processor
+        self.mode.setObjectName("GpuMode")
+        self.mode.setFont(font("mono", 9, QFont.DemiBold, caps=True, spacing_pct=106))
+        self.card = QLabel("—")
         self.card.setWordWrap(True)
         self.card.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.detail = QLabel("")
-        self.detail.setObjectName("LayerNote")
+        self.detail.setObjectName("Muted")
         self.detail.setWordWrap(True)
-        lay.addSpacing(6)
-        lay.addWidget(self.card)
-        lay.addWidget(self.detail)
-        self.weak_note = QLabel("")                # a laptop on its power-saving card: the faster one
-        self.weak_note.setObjectName("LayerNote")
+        for w in (self.mode, self.card, self.detail):
+            lay.addWidget(w)
+        lay.addSpacing(8)
+
+        row = QHBoxLayout()                    # frames per second, live
+        row.setSpacing(10)
+        self.fps = QLabel("—")
+        self.fps.setFont(font("mono", 17, QFont.DemiBold))
+        self.fps_note = QLabel("")
+        self.fps_note.setObjectName("Muted")
+        self.fps_note.setWordWrap(True)
+        row.addWidget(self.fps)
+        row.addWidget(self.fps_note, 1)
+        lay.addLayout(row)
+        f = QFormLayout()
+        f.setContentsMargins(0, 6, 0, 0)
+        self.cap = themed_combo(QComboBox())
+        self.cap.setToolTip("How often the animations (Particles, Pulses) draw a new frame")
+        for key, text in gpu.FPS_CAPS:
+            self.cap.addItem(text, key)
+        self.cap.currentIndexChanged.connect(lambda _i: self.cap_changed.emit(self.cap.currentData()))
+        f.addRow("Frame rate", self.cap)
+        lay.addLayout(f)
+        self.cap_note = QLabel("")
+        self.cap_note.setObjectName("Muted")
+        self.cap_note.setWordWrap(True)
+        self.cap_note.setVisible(False)
+        lay.addWidget(self.cap_note)
+
+        lay.addSpacing(12)
+        self.gpu_only = QFrame()               # greyed while the processor draws
+        self.gpu_only.setObjectName("GpuOnly")
+        g = QVBoxLayout(self.gpu_only)
+        g.setContentsMargins(10, 8, 10, 10)
+        g.setSpacing(4)
+        sub = QLabel("WITH THE GRAPHICS CARD")
+        sub.setObjectName("GpuSub")
+        sub.setFont(heading_font(9.5))
+        g.addWidget(sub)
+        self.higher = QCheckBox("Higher limits in Plot settings")
+        self.higher.setToolTip("The sliders reach further (more lines, particles, longer trails …).\n"
+                               "A small mark on a slider shows the processor's limit.")
+        self.higher.setChecked(gpu.higher_limits())
+        self.higher.toggled.connect(self.higher_changed)
+        g.addWidget(self.higher)
+        self.limits = QLabel("")               # what the sliders reach with the card
+        self.limits.setObjectName("Muted")
+        self.limits.setTextFormat(Qt.RichText)
+        self.limits.setWordWrap(True)
+        g.addWidget(self.limits)
+        self.weak_note = QLabel("")            # a laptop on its power-saving card: the faster one
+        self.weak_note.setObjectName("Muted")
         self.weak_note.setWordWrap(True)
         self.weak_note.setTextFormat(Qt.RichText)
         self.btn_switch = QPushButton("Use the faster card…")
@@ -51,44 +117,57 @@ class GpuPanel(QWidget):
         self.btn_switch.clicked.connect(self.switch_requested)
         for w in (self.weak_note, self.btn_switch):
             w.setVisible(False)
-            lay.addWidget(w)
+            g.addWidget(w)
+        lay.addWidget(self.gpu_only)
+        self.off_note = QLabel("Tick GPU in the header to draw with the graphics card: the program restarts "
+                               "in a few seconds, your scene stays as it is.")
+        self.off_note.setObjectName("Muted")
+        self.off_note.setWordWrap(True)
         lay.addSpacing(6)
-        row = QHBoxLayout()                        # frames per second, live
-        row.setSpacing(10)
-        self.fps = QLabel("—")
-        self.fps.setFont(font("mono", 17, QFont.DemiBold))
-        self.fps_note = QLabel("")
-        self.fps_note.setObjectName("LayerNote")
-        self.fps_note.setWordWrap(True)
-        row.addWidget(self.fps)
-        row.addWidget(self.fps_note, 1)
-        lay.addLayout(row)
-        f = QFormLayout()                          # how often the animations draw
-        self.cap = themed_combo(QComboBox())
-        self.cap.setToolTip("How often the animations (Particles, Pulses) draw a new frame")
-        for key, text in gpu.FPS_CAPS:
-            self.cap.addItem(text, key)
-        self.cap.currentIndexChanged.connect(lambda _i: self.cap_changed.emit(self.cap.currentData()))
-        f.addRow("Frame rate", self.cap)
-        lay.addLayout(f)
-        self.limits = QLabel("")                   # what the card allows more (Particles → Count)
-        self.limits.setObjectName("LayerNote")
-        self.limits.setWordWrap(True)
-        lay.addWidget(self.limits)
-        self.cap_note = QLabel("")
-        self.cap_note.setObjectName("LayerNote")
-        self.cap_note.setWordWrap(True)
-        self.cap_note.setVisible(False)
-        lay.addWidget(self.cap_note)
-        lay.addStretch(1)
+        lay.addWidget(self.off_note)
 
         self.meter = None                     # FrameMeter of the plot (set by the window)
         self.screen_hz = 60.0
         self.timer = QTimer(self)
         self.timer.setInterval(REFRESH_MS)
         self.timer.timeout.connect(self.refresh)
+        self.setFixedWidth(WIDTH)
+        self.hide()
+
+    # ------------------------------------------------------------------ look
+    def apply_theme(self, theme: dict):
+        self.theme = t = theme
+        self.setStyleSheet(f"""
+            QFrame#GpuOverlay {{ background: {t['panel_bg']}; border: 2px solid {t['ink']}; }}
+            QFrame#GpuOverlay QLabel {{ background: transparent; }}
+            QLabel#GpuMode {{ color: {t['accent']}; }}
+            QFrame#GpuOnly {{ background: {t['window_bg']}; border: 1px solid {t['border_soft']}; }}
+            QFrame#GpuOnly:disabled QLabel, QFrame#GpuOnly QLabel:disabled {{ color: {t['text_disabled']}; }}
+        """)
+        self.update()
+
+    def paintEvent(self, e):
+        super().paintEvent(e)
+        if self.theme is None:
+            return
+        p = QPainter(self)
+        p.setPen(QPen(QColor(self.theme["ink"]), 1.5))           # the rule under the heading, as on the panels
+        y = 12 + self.layout().itemAt(0).widget().height() + 5.5
+        p.drawLine(16, int(y), self.width() - 16, int(y))
+        p.end()
 
     # ------------------------------------------------------------------ filled by the window
+    def set_mode(self, on_card: bool, possible: bool = True, why: str = ""):
+        """Who draws now; the GPU-only part usable only with the card."""
+        self.on_card = bool(on_card)
+        self.mode.setText("The graphics card draws" if on_card else "The processor draws")
+        if not on_card:
+            self.card.setText("No graphics card is used now.")
+            self.detail.setText("" if possible else f"The graphics card cannot be used here: {why}")
+        self.gpu_only.setEnabled(on_card)
+        self.off_note.setVisible(not on_card and possible)
+        self.adjustSize()
+
     def set_card(self, info: dict | None, weak: dict | None = None):
         """What draws (PlotGLViewport.info) and, on a laptop running on its power-saving card, the faster one."""
         if not info:
@@ -105,9 +184,21 @@ class GpuPanel(QWidget):
         if weak is not None:
             self.weak_note.setText(f"This computer also has <b>{html.escape(weak['name'])}</b>, which is faster.")
             self.btn_switch.setText(f"Use {short_name(weak['name'])}…")
+        self.adjustSize()
+
+    def set_limits(self, rows: list[tuple[str, str, str]]):
+        """[(setting, processor's limit, with the card)]: what Higher limits gives."""
+        cells = "".join(f"<tr><td>{html.escape(a)}</td><td align='right'>&nbsp;{html.escape(b)}</td>"
+                        f"<td>&nbsp;→&nbsp;</td><td><b>{html.escape(c)}</b></td></tr>" for a, b, c in rows)
+        self.limits.setText(f"<table cellspacing='0' cellpadding='1'>{cells}</table>")
 
     def set_particles_max(self, n: int):
-        self.limits.setText(f"Particles: up to {n:,} (measured on this computer)".replace(",", " "))
+        self.particles_max = n
+
+    def set_higher(self, on: bool):
+        self.higher.blockSignals(True)
+        self.higher.setChecked(bool(on))
+        self.higher.blockSignals(False)
 
     def set_cap(self, cap: str):
         i = self.cap.findData(cap)

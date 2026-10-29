@@ -6,7 +6,8 @@ import math
 
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen, QPixmap
-from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QLabel, QMenuBar, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (QCheckBox, QHBoxLayout, QLabel, QMenuBar, QSizePolicy, QToolButton, QVBoxLayout,
+                               QWidget)
 
 from ..theme import FONT, LAYOUT
 from .style import color, font
@@ -86,6 +87,17 @@ class Plank(QWidget):
         self.gpu.setCursor(Qt.PointingHandCursor)
         self.gpu.setFocusPolicy(Qt.NoFocus)    # (Space belongs to the plot: pause)
         lay.addWidget(self.gpu)
+        lay.addSpacing(-8)
+        self.gpu_more = QToolButton()           # opens / closes the Graphics card panel (app/gpu_panel.py)
+        self.gpu_more.setObjectName("PlankGpuMore")
+        self.gpu_more.setCheckable(True)
+        self.gpu_more.setText("\u25be")
+        self.gpu_more.setFont(font("mono", FONT["menu_size_pt"] + 2, QFont.DemiBold))
+        self.gpu_more.setCursor(Qt.PointingHandCursor)
+        self.gpu_more.setFocusPolicy(Qt.NoFocus)
+        self.gpu_more.setToolTip("Graphics card: frame rate, frames per second, limits")
+        self.gpu_more.toggled.connect(lambda on: self.gpu_more.setText("\u25b4" if on else "\u25be"))
+        lay.addWidget(self.gpu_more)
 
     def apply_theme(self, theme):
         self.theme = theme

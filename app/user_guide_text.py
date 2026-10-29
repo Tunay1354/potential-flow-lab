@@ -206,17 +206,31 @@ and the numbers. <b>Open full report</b> shows everything in the browser; the sa
 
     ("gpu", "Graphics card (GPU)", """
 <h2>Graphics card (GPU)</h2>
-<p>The <b>GPU</b> box in the header lets the graphics card draw the plot (OpenGL): smoother and faster,
-above all the animations and busy scenes. It is off on the first start; the choice is remembered. Exports are
-the same with and without it.</p>
+<p>The <b>GPU</b> box in the header lets the graphics card draw the plot (OpenGL): smoother and faster, above
+all the animations and busy scenes. It is off on the first start; the choice is remembered. Exports are the
+same with and without it.</p>
 <ul>
+<li><b>Ticking or unticking the box restarts the program</b> (a few seconds): a program can choose its
+graphics card only when it starts. Everything comes back as it was — the scene, its file name, unsaved
+changes (still unsaved), the view, the layers, the animation. Nothing has to be saved first.</li>
+<li>Laptops with an NVIDIA card: with the box ticked the program starts on the NVIDIA card. If Windows still
+gives it the power-saving card, the program says so once and shows how to choose the card in Windows
+(Settings → System → Display → Graphics). A laptop with another fast card (AMD): the program offers to switch
+and restarts.</li>
+<li>With the card the <b>Plot settings sliders reach further</b>: more streamlines, more particles (as many as
+this computer moves in time), faster animations, longer trails and pulses. The bar keeps its length; a short
+mark on it shows the limit without the card. Without the card the values above the mark come back to it.</li>
 <li>The box is greyed out when the computer has no usable graphics card (point at it to see why).</li>
 <li>If the card does not start drawing within a few seconds, the program goes back to drawing with the
 processor by itself and says so; nothing is lost. If the program ever closes while the card draws, the next
 start begins without it.</li>
-<li>Laptops with two cards: if Windows gives the program the power-saving card, the program offers to use the
-faster one.</li>
 </ul>
+<h3>The Graphics card panel</h3>
+<p>The small arrow beside the box (or View → Panels → Graphics card) opens a panel over the right part of the
+window; the same arrow closes it. It works with and without the card: who draws, the frames per second (live)
+and how long a frame takes, and the animations' <b>Frame rate</b> (Match screen, 60, 120, 144 — each mode
+remembers its own). Its lower part only works with the card: <b>Higher limits in Plot settings</b> (on by
+default) and the limits themselves.</p>
 """),
 
     ("beaver", "The beaver", """

@@ -170,7 +170,6 @@ LAYOUT = {
     "palette_button": (68, 58),     # size of one palette button (icon + name)
     "right_panel_width": 340,
     "surface_panel_width": 330,            # Surface pressure panel (left of the plot when opened), by default
-    "gpu_panel_max_height": 250,           # Graphics card panel: its contents, never more (Plot settings keeps the room)
     "elements_panel_min_height": 210,
     "plot_initial_range": {"x": (-4.0, 4.0), "y": (-2.6, 2.6)},
     "dividing_streamline_width": 2.4,
@@ -237,6 +236,9 @@ def build_stylesheet(t: dict) -> str:
     QCheckBox#PlankGpu::indicator:checked:hover {{ background: {t['plank_text']}; }}
     QCheckBox#PlankGpu:disabled {{ color: {t['plank_edge']}; }}
     QCheckBox#PlankGpu::indicator:disabled {{ border-color: {t['plank_edge']}; }}
+    QToolButton#PlankGpuMore {{ color: {t['plank_text']}; background: transparent; border: none; padding: 0px 5px; }}
+    QToolButton#PlankGpuMore:hover, QToolButton#PlankGpuMore:checked {{ background: {t['plank_edge']};
+        color: {t['panel_bg']}; }}
     QLabel#RulerScale {{ color: {t['ruler_text']}; font-family: "{mono}"; }}
 
     QWidget#ElementPalette QToolButton {{ padding: 6px 0 5px 0; border: 1px solid transparent;

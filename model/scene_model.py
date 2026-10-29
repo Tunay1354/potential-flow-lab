@@ -181,6 +181,10 @@ class SceneModel:
         return self._redo[-1].text if self._redo else ""
 
     # ------------------------------------------------------------------ saved / modified (File menu, 2b)
+    def mark_modified(self):
+        """Unsaved, whatever the history says (a scene carried over a restart that was not saved)."""
+        self._clean_id = -1
+
     def mark_clean(self):
         self._clean_id = self._undo[-1].id if self._undo else None
 

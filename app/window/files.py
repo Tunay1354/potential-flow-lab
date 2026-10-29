@@ -148,6 +148,43 @@ class FilesMixin:
         self._flash_done()
 
     # ------------------------------------------------------------------ after a crash
+    def resume_from(self, path: str) -> bool:
+        """After a restart (the GPU box, app/restart.py): the scene exactly as the previous program had it —
+        its file name, title, unsaved changes (still unsaved), view, plot settings, layers, view mode,
+        selection. True if it worked (else the program starts as usual and says so)."""
+        from .. import restart
+        log = logging.getLogger("pflab")
+        try:
+            doc, state = restart.read_state(path)
+        except (OSError, ValueError, SceneFileError) as exc:
+            log.warning("restart state not read (%s): %s", path, exc)
+            self.flash("The scene of the previous start could not be restored (details in the log).")
+            return False
+        self._apply_document(doc)
+        f = state.get("file")
+        self.current_path = f if f and os.path.exists(f) else None
+        self.scene_title = str(state.get("title") or doc.title or "untitled")
+        if state.get("modified"):
+            self.model.mark_modified()
+        sp = self.settings_panel
+        for key, on in (state.get("layers") or {}).items():
+            if key in sp.layer_boxes:
+                sp.layer_boxes[key].setChecked(bool(on))
+        mode = state.get("view_mode")
+        if mode in ("static", "particles", "pulses"):
+            self.canvas.set_view_mode(mode)
+        row = state.get("selected")
+        if isinstance(row, int) and 0 <= row < len(self.elements):
+            self.select_element(row)
+        if state.get("gpu_panel"):
+            QTimer.singleShot(300, self, lambda: self.show_gpu_panel(True))
+        self._update_title()
+        log.info("restarted with the previous state (%d elements, %s)", len(doc.elements),
+                 "graphics card" if self.canvas.gpu else "processor")
+        self.flash("Restarted: " + ("the graphics card draws" if self.canvas.gpu else "the processor draws")
+                   + " — your scene is as it was.")
+        return True
+
     def offer_recovery(self, folder: str | None = None, ask=None) -> bool:
         """At start: a scene left unsaved by a session that did not end normally → "Restore it?". It comes
         back as an unsaved change (Undo returns to the start scene), with its file name if it had one.

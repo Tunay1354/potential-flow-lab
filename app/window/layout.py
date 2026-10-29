@@ -15,7 +15,7 @@ from PySide6.QtWidgets import QDockWidget
 from ..chrome import PanelBody, PanelTitle
 from ..theme import LAYOUT
 
-LAYOUT_STATE_VERSION = 2          # bump when the dock layout changes incompatibly (old saved layouts ignored)
+LAYOUT_STATE_VERSION = 3          # bump when the dock layout changes incompatibly (old saved layouts ignored)
 SIDE_AREAS = (Qt.LeftDockWidgetArea, Qt.RightDockWidgetArea)
 DEFAULT_ELEMENTS_HEIGHT = 260     # px: the Elements panel of the default layout (Plot settings gets the rest)
 SURFACE_WIDTH_KEY = "layout/surface_width"
@@ -40,7 +40,7 @@ class LayoutMixin:
         return d
 
     def _docks(self):
-        return self.dock_elements, self.dock_settings, self.dock_surface, self.dock_gpu
+        return self.dock_elements, self.dock_settings, self.dock_surface
 
     def _place_dock_card(self, d):
         """Paper margin between the card and the window edge, depending on where the dock is."""
@@ -55,26 +55,23 @@ class LayoutMixin:
         d.widget().set_outer(body)
 
     def _default_dock_layout(self):
-        """Elements above Plot settings on the right, Graphics card under them (only while the graphics card
-        draws); Surface pressure on the left (the graph needs the height), hidden: View → Panels, or it
-        opens with the Surface pressure layer. The heights are set again once the window has its final size
-        (_default_heights; Qt shares out the extra room of a maximized window)."""
-        de, ds, du, dg = self._docks()
-        for d in (de, ds, du, dg):
+        """Elements above Plot settings on the right; Surface pressure on the left (the graph needs the
+        height), hidden: View → Panels, or it opens with the Surface pressure layer. The heights are set again
+        once the window has its final size (_default_heights; Qt shares out the extra room of a maximized
+        window)."""
+        de, ds, du = self._docks()
+        for d in (de, ds, du):
             self.removeDockWidget(d)
         self.addDockWidget(Qt.RightDockWidgetArea, de)
         self.addDockWidget(Qt.RightDockWidgetArea, ds)
         self.addDockWidget(Qt.LeftDockWidgetArea, du)
         self.splitDockWidget(de, ds, Qt.Vertical)
-        self.splitDockWidget(ds, dg, Qt.Vertical)
-        for d in (de, ds, du, dg):
+        for d in (de, ds, du):
             d.show()
             self._place_dock_card(d)
         self.resizeDocks([de, ds, du], [LAYOUT["right_panel_width"], LAYOUT["right_panel_width"],
                                         LAYOUT["surface_panel_width"]], Qt.Horizontal)
         du.hide()
-        if not getattr(getattr(self, "canvas", None), "gpu", False):
-            dg.hide()
         self._default_heights()
         self._layout_is_default = True
 
@@ -200,7 +197,6 @@ class LayoutMixin:
             for d in self._docks():
                 self._place_dock_card(d)
         self.dock_surface.hide()             # its place is kept; it opens with its layer (or View → Panels)
-        self.dock_gpu.setVisible(self.canvas.gpu)  # only while the graphics card draws
         self.set_palette_side(str(s.value("layout/palette_side", "left")))
         hidden = str(s.value("layout/hidden_sections", "") or "").split(",")
         for key in self.settings_panel.sections:

@@ -1,23 +1,32 @@
 """
 graphics.py — part of MainWindow: drawing the plot with the graphics card (the GPU box in the header, View →
-Draw with the graphics card, the Graphics card panel), safely.
+Draw with the graphics card) and the Graphics card panel (the arrow beside the box), safely.
 
     off on a first start; remembered (app/gpu.py)
+    ticking / unticking the box restarts the program (app/restart.py): the graphics card — on a laptop the
+        NVIDIA card, gpu.relaunch_on_strong_card — can only be chosen when a program starts, and a window that
+        once had OpenGL in it keeps it. The scene, its file name, unsaved changes, the view, the layers and
+        the view mode come back exactly; nothing has to be saved first
     can be ticked only where OpenGL 2.0+ comes from a real graphics card (gpu.support; the box explains)
-    on: the plot gets an OpenGL viewport (PlotCanvas.set_gpu) and the Graphics card panel opens
+    a start with the box ticked: the plot gets an OpenGL viewport (set_gpu, also used live by tests and the
+        benchmark)
     no picture within START_TIMEOUT_MS (the window visible) or no OpenGL context -> back to the normal
-        drawing, with a message; the box stays usable
+        drawing at once, with a message
     a program that ended abnormally while the graphics card drew (gpu.SessionGuard) -> the next start
         begins with the normal drawing and says why
-    a laptop running the program on its power-saving card: offer the faster one (Windows setting +
-        restart); after the restart the program checks whether Windows did it, else shows how by hand
+    a laptop still on its power-saving card: NVIDIA was asked at the start already -> how to do it by hand
+        in Windows (once); another faster card (AMD) -> offered (Windows setting + restart)
+    with the card the Plot settings sliders reach further (gpu.GPU_LIMITS, Particles measured per computer;
+        a mark on each bar shows the processor's limit); without it they come back, values above the limit
+        come down to it
 """
 from __future__ import annotations
 
 import html
 import logging
+import os
 
-from PySide6.QtCore import QProcess, QSettings, Qt, QTimer, QUrl
+from PySide6.QtCore import QSettings, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -32,18 +41,20 @@ PARTICLES_GPU_MAX = 100_000          # ... at most (the slider's upper end)
 PARTICLE_PROBE = 20_000              # particles timed once per computer for that
 START_TIMEOUT_MS = 6000              # no frame shown this long after switching on (window visible): failed
 CHECK_MS = 1500                      # looked at this often while starting; no OpenGL context by then: failed
+LIMIT_NAMES = {"density": "Density", "particles": "Particles", "anim_speed": "Particle speed",
+               "trail": "Trail length", "pulse_speed": "Pulse speed", "pulse_length": "Pulse length",
+               "pulse_spacing": "Pulse spacing"}
 
 
 class GraphicsMixin:
 
     # ------------------------------------------------------------------ build
     def _build_graphics(self):
-        """The Graphics card panel (a side panel), the header box, the View menu action; then the
-        remembered state (called once the menus and the layout exist)."""
+        """The header box and its arrow, the View menu action, the panel; then the remembered state (called
+        once the menus and the layout exist)."""
         self._gpu_guard = gpu.SessionGuard()
         self._gpu_frames = 0
         self._gpu_weak = None                    # the faster card, while the program runs on the other one
-        self._gpu_offer = False                  # offer the faster card when this switch-on succeeded
         self._gpu_timer = QTimer(self)
         self._gpu_timer.setSingleShot(True)
         self._gpu_timer.setInterval(CHECK_MS)
@@ -51,12 +62,15 @@ class GraphicsMixin:
         self._gpu_timer.timeout.connect(self._gpu_check_started)
         panel = self.gpu_panel
         panel.meter = self.canvas.plot.meter
-        panel.set_cap(gpu.fps_cap())
         panel.cap_changed.connect(self.set_fps_cap)
         panel.switch_requested.connect(self.offer_strong_card)
-        box = self.header.plank.gpu
-        box.toggled.connect(lambda on: self.set_gpu(on))
-        self.act_gpu.toggled.connect(lambda on: self.set_gpu(on))
+        panel.higher_changed.connect(self.set_higher_limits)
+        panel.set_higher(gpu.higher_limits())
+        plank = self.header.plank
+        plank.gpu.toggled.connect(self.gpu_box_changed)
+        self.act_gpu.toggled.connect(self.gpu_box_changed)
+        plank.gpu_more.toggled.connect(self.show_gpu_panel)
+        self.act_gpu_panel.toggled.connect(self.show_gpu_panel)
         self._update_gpu_controls()
 
         crashed = self._gpu_guard.crashed_before()
@@ -70,9 +84,10 @@ class GraphicsMixin:
                 "card again."), 1500)
         ok, _why = gpu.support(self.hardware)
         if gpu.enabled() and ok:
-            self.set_gpu(True, user=False)
+            self.set_gpu(True)
         else:
-            self.dock_gpu.hide()
+            self._apply_fps_cap()
+            self._apply_limits()
         self._when_shown(self._gpu_check_switch, 2500)
 
     def _when_shown(self, fn, delay_ms: int, tries: int = 120):
@@ -95,18 +110,64 @@ class GraphicsMixin:
             w.setEnabled(ok or on)
             w.blockSignals(False)
         if on:
-            box.setToolTip("The graphics card draws the plot (OpenGL). Untick to draw with the processor.")
+            box.setToolTip("The graphics card draws the plot (OpenGL). Untick to draw with the processor "
+                           "(the program restarts in a few seconds; your scene stays as it is).")
         elif ok:
-            box.setToolTip(f"Draw the plot with the graphics card: {why}")
+            box.setToolTip(f"Draw the plot with the graphics card: {why}\n"
+                           "The program restarts in a few seconds; your scene stays as it is.")
         else:
             box.setToolTip(f"Graphics card drawing is not possible on this computer.\n{why}")
         self.act_gpu.setToolTip(box.toolTip())
-        self.dock_gpu.toggleViewAction().setEnabled(on)
+        self.gpu_panel.set_mode(on, ok, why)
+        self._place_gpu_panel()
 
-    # ------------------------------------------------------------------ on / off
-    def set_gpu(self, on: bool, user: bool = True) -> bool:
-        """Draw the plot with the graphics card (True) or the processor. user: the box was ticked (a
-        message if it cannot work, the faster card offered). Returns whether it is on now."""
+    # ------------------------------------------------------------------ the box: switch = restart
+    def gpu_box_changed(self, on: bool):
+        """The user ticked / unticked GPU: remember it and start the program again (asked first)."""
+        on = bool(on)
+        if on == self.canvas.gpu:
+            self._update_gpu_controls()
+            return
+        if on:
+            ok, why = gpu.support(self.hardware)
+            if not ok:
+                self._update_gpu_controls()
+                self._notify_user("information", "Graphics card drawing", why)
+                return
+        if not self._ask_restart(on):
+            self._update_gpu_controls()              # (the box goes back)
+            return
+        before = gpu.enabled()
+        gpu.set_enabled(on)
+        if on:
+            QSettings().remove(gpu.KEY_WEAK_TOLD)    # (a new try: the laptop help may come once more)
+        log.info("graphics card drawing %s: restarting", "on" if on else "off")
+        if not self.restart_program():
+            gpu.set_enabled(before)                  # could not start again: everything stays as it was
+            self._update_gpu_controls()
+
+    def _ask_restart(self, on: bool) -> bool:
+        """"Restart now?" (Tests replace it.)"""
+        box = QMessageBox(self)
+        box.setWindowTitle("Draw with the graphics card" if on else "Draw with the processor")
+        box.setIcon(QMessageBox.Question)
+        box.setText(("The graphics card will draw the plot." if on else "The processor will draw the plot.")
+                    + " For that the program starts again (a few seconds).")
+        box.setInformativeText("Your scene, the view and the settings stay as they are; unsaved changes stay "
+                               "unsaved. Nothing has to be saved first.")
+        b_go = box.addButton("Restart now", QMessageBox.AcceptRole)
+        box.addButton("Cancel", QMessageBox.RejectRole)
+        box.setDefaultButton(b_go)
+        box.exec()
+        clicked = box.clickedButton()
+        box.deleteLater()
+        return clicked is b_go
+
+    # ------------------------------------------------------------------ the viewport (live)
+    def set_gpu(self, on: bool, user: bool = False) -> bool:
+        """Draw the plot with the graphics card (True) or the processor, in this running program (at the
+        start; the tests and the benchmark). The box restarts instead (gpu_box_changed). user: a message if
+        it cannot work. Returns whether it is on now."""
         on = bool(on)
         if on == self.canvas.gpu:
             self._update_gpu_controls()
@@ -122,7 +183,6 @@ class GraphicsMixin:
             self._gpu_frames = 0
             self._gpu_waited = 0
             self._gpu_fail_told = False
-            self._gpu_offer = user
             try:
                 vp = self.canvas.set_gpu(True, gpu.MSAA_SAMPLES)
                 vp.ready.connect(self._gpu_ready)
@@ -138,44 +198,20 @@ class GraphicsMixin:
             if vp.info:
                 self._gpu_ready(vp.info)
             self._gpu_timer.start()
-            self._show_gpu_panel()
             gpu.set_enabled(True)
             log.info("graphics card drawing on")
         else:
             self._gpu_timer.stop()
             self.canvas.set_gpu(False)
             self._gpu_guard.release()
-            self.dock_gpu.hide()
             if user:
                 gpu.set_enabled(False)
             log.info("graphics card drawing off")
-        self._apply_fps_cap()
-        self._apply_particle_limit()
         self._update_gpu_controls()
+        self._apply_fps_cap()
+        self._apply_limits()
         QTimer.singleShot(0, self, self._after_viewport_switch)
         return self.canvas.gpu
-
-    def _show_gpu_panel(self):
-        """The Graphics card panel, only as tall as its contents (the panel above keeps the rest)."""
-        d = self.dock_gpu
-        d.show()
-        QTimer.singleShot(0, self, self._fit_gpu_panel)
-
-    def _fit_gpu_panel(self):
-        d = self.dock_gpu
-        if not d.isVisible():
-            return
-        need = d.titleBarWidget().sizeHint().height() + d.widget().sizeHint().height()
-        # the room it does not need goes to the panel above it in the same column (usually Plot settings)
-        same = [o for o in self._docks() if o is not d and o.isVisible() and not o.isFloating()
-                and self.dockWidgetArea(o) == self.dockWidgetArea(d)
-                and abs(o.geometry().center().x() - d.geometry().center().x()) < 40
-                and o.geometry().bottom() <= d.geometry().top() + 2]
-        if same:
-            above = max(same, key=lambda o: o.geometry().bottom())
-            self.resizeDocks([above, d], [above.height() + d.height() - need, need], Qt.Vertical)
-        else:
-            self.resizeDocks([d], [need], Qt.Vertical)
 
     def _after_viewport_switch(self):
         """Windows may give the window a new native handle when OpenGL joins: its title bar colour again."""
@@ -185,14 +221,29 @@ class GraphicsMixin:
         self.canvas.gpu_info = info
         self._gpu_weak = self._weak_card(info)
         self.gpu_panel.set_card(info, self._gpu_weak)
+        self._place_gpu_panel()
 
     def _gpu_frame(self):
         self._gpu_frames += 1
         if self._gpu_frames == 2:                    # pictures arrive: started
             self._gpu_timer.stop()
-            if self._gpu_offer and self._gpu_weak is not None:
-                self._gpu_offer = False
-                QTimer.singleShot(300, self, self.offer_strong_card)
+            if self._gpu_weak is not None and not QSettings().value(gpu.KEY_WEAK_TOLD, False, bool):
+                QSettings().setValue(gpu.KEY_WEAK_TOLD, True)
+                QTimer.singleShot(600, self, self._still_on_weak_card)
+
+    def _still_on_weak_card(self):
+        """The card that draws is a laptop's power-saving one: NVIDIA was asked for at the start already (it
+        did not work: the manual way), another faster card is offered."""
+        strong = self._gpu_weak
+        if strong is None or not self.isVisible():
+            return
+        nvidia_tried = hardware.vendor_of(strong["name"]) == "nvidia" and bool(
+            os.environ.get(gpu.SHIM_ENV) or os.environ.get(gpu.RELAUNCH_ENV))
+        if nvidia_tried:
+            drawn = (self.canvas.gpu_info or {}).get("renderer", "the power-saving card")
+            self._manual_switch_help(f"Windows still gives the program {drawn}, the power-saving card.")
+        else:
+            self.offer_strong_card()
 
     def _gpu_check_started(self):
         """Every CHECK_MS after switching on, until pictures come: no OpenGL context once the window could
@@ -220,11 +271,10 @@ class GraphicsMixin:
             self._gpu_timer.stop()
             self.canvas.set_gpu(False)
         self._gpu_guard.release()
-        self.dock_gpu.hide()
         gpu.set_enabled(False)
         self._update_gpu_controls()
         self._apply_fps_cap()
-        self._apply_particle_limit()
+        self._apply_limits()
         if getattr(self, "_gpu_fail_told", False):
             return                                   # (one message per switch-on)
         self._gpu_fail_told = True
@@ -232,6 +282,52 @@ class GraphicsMixin:
             "warning", "Graphics card drawing did not start",
             f"The graphics card could not draw the plot ({reason}).\n\nThe program draws with the processor "
             "again; nothing was lost. Updating the graphics driver may help."))
+
+    def gpu_redraw(self):
+        """With the card: draw the whole plot anew (after the scene changed; a cheap safety net against a
+        stale picture on some drivers)."""
+        if getattr(self.canvas, "gpu", False):
+            self.canvas.plot.viewport().update()
+
+    # ------------------------------------------------------------------ the Graphics card panel
+    def show_gpu_panel(self, on: bool):
+        """The arrow beside the box (or View → Panels → Graphics card): the panel over the right part of the
+        window, wherever the side panels are."""
+        on = bool(on)
+        for w in (self.header.plank.gpu_more, self.act_gpu_panel):
+            if w.isChecked() != on:
+                w.blockSignals(True)
+                w.setChecked(on)
+                w.blockSignals(False)
+        plank = self.header.plank.gpu_more
+        plank.setText("▴" if on else "▾")
+        p = self.gpu_panel
+        if on:
+            self._apply_fps_cap()
+            p.show()
+            p.raise_()
+            self._place_gpu_panel()
+        else:
+            p.hide()
+
+    def _place_gpu_panel(self):
+        """Over the right part of the window — where Elements and Plot settings are by default, wherever they
+        are now: right-aligned, from the top of the plot card down, as tall as its contents."""
+        p = getattr(self, "gpu_panel", None)
+        if p is None or not p.isVisible():
+            return
+        g = 16
+        top = self.desk.mapTo(self, self.desk.rect().topLeft()).y()
+        bottom = self.height() - (self.statusBar().height() if self.statusBar().isVisible() else 0) - g
+        lay = p.layout()
+        need = lay.totalHeightForWidth(p.width()) if lay.hasHeightForWidth() else lay.sizeHint().height()
+        h = min(max(need, lay.minimumSize().height()) + 14, max(120, bottom - top))   # (+ rich text slack)
+        p.setGeometry(self.width() - g - p.width(), top, p.width(), h)
+        p.raise_()
+        if getattr(self, "beaver", None) is not None:
+            for w in (self.beaver.sprite, self.beaver.bubble):   # (the beaver stays in front)
+                if w.isVisible():
+                    w.raise_()
 
     # ------------------------------------------------------------------ frame rate limit
     def screen_hz(self) -> float:
@@ -243,24 +339,23 @@ class GraphicsMixin:
         return hz if hz > 1 else 60.0
 
     def set_fps_cap(self, cap: str):
-        gpu.set_fps_cap(cap)
-        self.gpu_panel.set_cap(gpu.fps_cap())
+        """The animations' frame rate limit of the mode the program is in (each mode remembers its own)."""
+        gpu.set_fps_cap(cap, self.canvas.gpu)
         self._apply_fps_cap()
 
     def _apply_fps_cap(self):
         hz = self.screen_hz()
+        cap = gpu.fps_cap(self.canvas.gpu)
         self.gpu_panel.set_screen_hz(hz)
-        ms = gpu.frame_ms(gpu.fps_cap(), hz) if self.canvas.gpu else gpu.RASTER_FRAME_MS
-        self.canvas.set_frame_interval(ms)
+        self.gpu_panel.set_cap(cap)
+        self.canvas.set_frame_interval(gpu.frame_ms(cap, hz))
 
-    # ------------------------------------------------------------------ more particles with the card
+    # ------------------------------------------------------------------ higher slider limits with the card
     def particles_max(self) -> int:
-        """Particles → Count, the slider's upper end: 5000 drawn by the processor; with the graphics card as
-        many as this computer moves in PARTICLE_BUDGET_MS per frame (measured once per computer)."""
+        """Particles → Count with the graphics card: as many as this computer moves in PARTICLE_BUDGET_MS per
+        frame (measured once per computer), at least the processor's limit."""
         from ..canvas.settings import slider
         cpu = slider("particles").hi
-        if not self.canvas.gpu:
-            return cpu
         s = QSettings()
         fp = str((self.hardware or {}).get("fingerprint", ""))
         known = int(s.value("gpu/particles_max", 0) or 0)
@@ -279,17 +374,52 @@ class GraphicsMixin:
         s.setValue("gpu/particles_fp", fp)
         return m
 
-    def _apply_particle_limit(self):
-        m = self.particles_max()
-        self.settings_panel.set_slider_max("particles", m)
-        self.gpu_panel.set_particles_max(m)
-        self._limit_particles()
+    def gpu_limits(self) -> dict:
+        """{slider key: upper end with the card} (gpu.GPU_LIMITS + the measured particles)."""
+        return dict(gpu.GPU_LIMITS, particles=self.particles_max())
 
-    def _limit_particles(self):
-        """No more particles than the slider allows (also for a scene saved with more on another computer)."""
-        m = self.settings_panel.sliders["particles"].maximum()
-        if self.canvas.settings.particles > m:
-            self.canvas.set_particles(m)
+    def set_higher_limits(self, on: bool):
+        gpu.set_higher_limits(on)
+        self._apply_limits()
+
+    def _apply_limits(self):
+        """The sliders' upper ends for the mode: with the card (and Higher limits) further, with a mark at the
+        processor's limit; without, the processor's. Values above come down (setting_changed / _limit_sliders)."""
+        from ..canvas.settings import slider
+        high = self.canvas.gpu and gpu.higher_limits()
+        limits = self.gpu_limits()
+        rows = []
+        for key in self.settings_panel.sliders:
+            spec = slider(key)
+            hi = limits.get(key, spec.hi)
+            self.settings_panel.set_slider_max(key, hi if high else spec.hi, spec.hi if high else None)
+            if key in limits:
+                rows.append((LIMIT_NAMES.get(key, key), self._limit_text(key, spec.hi),
+                             self._limit_text(key, hi)))
+        self.gpu_panel.set_limits(rows)
+        self.gpu_panel.set_particles_max(limits.get("particles", slider("particles").hi))
+        self._limit_sliders()
+        self._place_gpu_panel()
+
+    @staticmethod
+    def _limit_text(key: str, position: int) -> str:
+        from ..canvas.settings import slider
+        v = slider(key).value(position)
+        if key == "particles":
+            return f"{int(v):,}".replace(",", " ")
+        return f"{v:g}"
+
+    def _limit_sliders(self):
+        """No setting beyond its slider's end (also a scene saved with more, with the card or elsewhere)."""
+        from ..canvas.settings import slider
+        sp, cv = self.settings_panel, self.canvas
+        for key, w in sp.sliders.items():
+            spec = slider(key)
+            if spec.position(getattr(cv.settings, key)) > w.maximum() or \
+                    int(round((getattr(cv.settings, key) - spec.offset) / spec.step)) > w.maximum():
+                getattr(cv, f"set_{key}")(spec.value(w.maximum()))
+
+    _limit_particles = _limit_sliders                # (the older name, files.py)
 
     # ------------------------------------------------------------------ the faster card (laptops)
     def _weak_card(self, info: dict) -> dict | None:
@@ -320,8 +450,8 @@ class GraphicsMixin:
         box.setText(f"Windows lets this program draw with <b>{html.escape(drawn)}</b>, the power-saving card. "
                     f"This computer also has <b>{html.escape(strong['name'])}</b>, which is much faster.")
         box.setInformativeText("The program can ask Windows to always give it the faster card (the same setting "
-                               "as Settings → Display → Graphics). The program then starts again; if the scene "
-                               "has unsaved changes you are asked to save them first.")
+                               "as Settings → Display → Graphics). The program then starts again; your scene "
+                               "stays as it is.")
         b_yes = box.addButton(f"Use {short_name(strong['name'])} and restart", QMessageBox.AcceptRole)
         b_win = box.addButton("Windows settings…", QMessageBox.HelpRole)
         box.addButton("Not now", QMessageBox.RejectRole)
@@ -337,13 +467,11 @@ class GraphicsMixin:
             self._manual_switch_help(message)
             return
         s = QSettings()
-        if hardware.vendor_of(strong["name"]) == "nvidia":
-            s.setValue(gpu.KEY_OPTIMUS, True)             # also NVIDIA's own switch (gpu.apply_startup_env)
         s.setValue(gpu.KEY_SWITCHING, strong["name"])
         s.setValue(gpu.KEY_REPROBE, True)             # main.py: ask OpenGL again at the next start
         s.sync()
         if not self.restart_program():
-            s.remove(gpu.KEY_SWITCHING)               # (cancelled: the setting stays for the next start)
+            s.remove(gpu.KEY_SWITCHING)               # (not restarted: the setting stays for the next start)
             self.flash(f"Windows will use {short_name(strong['name'])} from the next start of the program.")
 
     def _gpu_check_switch(self):
@@ -377,7 +505,8 @@ class GraphicsMixin:
                     "<li>Click it → <b>Options</b> → <b>High performance</b> → Save</li>"
                     "<li>Start the program again.</li></ol>"
                     "Some computers set this in the NVIDIA Control Panel instead (Manage 3D settings → "
-                    "Program Settings → High-performance NVIDIA processor)."
+                    "Program Settings → High-performance NVIDIA processor).<br><br>Until then the program "
+                    "draws with the power-saving card, which works too, only slower."
                     + ("<br><br><b>Note:</b> this Python comes from the Microsoft Store; Windows often cannot set "
                        "the graphics card for it. Python from python.org (or the program's own exe, later) "
                        "does not have this problem." if gpu.store_python() else ""))
@@ -394,16 +523,38 @@ class GraphicsMixin:
 
     # ------------------------------------------------------------------ restart
     def restart_program(self) -> bool:
-        """Close (unsaved changes: the usual question) and start the program again with the same scene
-        file. False if the user cancelled closing."""
-        if not self.close():
+        """Start the program again with everything as it is now (app/restart.py) and close this one, without
+        the "unsaved changes" question (they come back unsaved). False if the new program could not start
+        (then nothing happens)."""
+        from .. import restart
+        try:
+            path = restart.write_state(self._document(), self.restart_state())
+        except Exception as exc:                          # noqa: BLE001
+            log.exception("restart state not written")
+            self._notify_user("warning", "Cannot restart", f"The program could not prepare the restart ({exc}).")
             return False
-        program, args = gpu.restart_command(self.current_path)
-        if not QProcess.startDetached(program, args):
-            log.error("restart failed: %s %s", program, args)
-            QMessageBox.warning(None, "Start the program again",
-                                "The program could not start itself again. Please start it yourself.")
+        if not self._start_again(path):
+            restart.discard(path)
+            self._notify_user("warning", "Cannot restart",
+                              "The program could not start itself again. Nothing has changed; you can close "
+                              "it and start it yourself.")
+            return False
+        self._restarting = True
+        self.close()
         return True
+
+    def _start_again(self, path: str) -> bool:
+        """(Tests replace it.)"""
+        from .. import restart
+        return restart.start_again(path)
+
+    def restart_state(self) -> dict:
+        """What a restart keeps besides the scene file (app/restart.py)."""
+        sp = self.settings_panel
+        return {"file": self.current_path, "title": self.scene_title, "modified": self.model.is_modified,
+                "layers": {k: b.isChecked() for k, b in sp.layer_boxes.items()},
+                "view_mode": self.canvas.view_mode, "selected": self.elements_panel.current_row(),
+                "gpu_panel": self.gpu_panel.isVisible()}
 
     # ------------------------------------------------------------------ closing
     def _gpu_closing(self):

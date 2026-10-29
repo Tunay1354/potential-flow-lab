@@ -2,7 +2,7 @@
 panels.py — right-side panels: Elements list and Plot settings.
 """
 from PySide6.QtCore import QEvent, QModelIndex, QObject, QRect, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QFontMetrics, QKeySequence, QShortcut
+from PySide6.QtGui import QColor, QFontMetrics, QKeySequence, QPainter, QPen, QShortcut
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout,
                                QGroupBox, QHBoxLayout, QHeaderView, QLabel, QPushButton, QScrollArea, QSlider,
                                QStyle, QStyledItemDelegate, QStyleOptionViewItem, QTreeWidget, QTreeWidgetItem,
@@ -275,6 +275,45 @@ class ElementsPanel(QWidget):
             self._later(self.delete_requested, self.current_row())
 
 
+class LimitSlider(QSlider):
+    """A Plot settings slider that may reach further with the graphics card: the bar keeps its length, a short
+    vertical mark shows where the processor's limit (`mark`) is."""
+    mark_color = "#211A12"                  # the theme's ink (MainWindow.apply_theme)
+
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.mark = None                    # slider position of the processor's limit; None: no mark
+
+    def set_mark(self, position):
+        self.mark = position
+        self.update()
+
+    def mark_x(self) -> float | None:
+        """Where the mark is (widget px), None when it is not shown (no higher limit)."""
+        from PySide6.QtWidgets import QStyle, QStyleOptionSlider
+        if self.mark is None or self.mark >= self.maximum():
+            return None
+        opt = QStyleOptionSlider()
+        self.initStyleOption(opt)
+        st = self.style()
+        groove = st.subControlRect(QStyle.CC_Slider, opt, QStyle.SC_SliderGroove, self)
+        handle = st.subControlRect(QStyle.CC_Slider, opt, QStyle.SC_SliderHandle, self)
+        span = max(1, groove.width() - handle.width())
+        return groove.x() + handle.width() / 2.0 + QStyle.sliderPositionFromValue(
+            self.minimum(), self.maximum(), int(self.mark), span)
+
+    def paintEvent(self, e):
+        super().paintEvent(e)
+        x = self.mark_x()
+        if x is None:
+            return
+        p = QPainter(self)
+        p.setPen(QPen(QColor(self.mark_color), 1.5))
+        c = self.height() / 2.0
+        p.drawLine(int(round(x)), int(c - 7), int(round(x)), int(c + 7))
+        p.end()
+
+
 class SettingsPanel(QScrollArea):
     """Plot limits, streamline density, layers, animation, computation quality."""
     message = Signal(str)
@@ -512,16 +551,22 @@ class SettingsPanel(QScrollArea):
         self.s_vref.setEnabled(custom)
         self.cp_reference_changed.emit(self.s_vref.value() if custom else None)
 
-    def set_slider_max(self, key: str, hi: int):
-        """A slider's maximum (Particles → Count: higher while the graphics card draws). A value above it
-        comes down to it (setting_changed is emitted then)."""
-        self.sliders[key].setMaximum(int(hi))
+    def set_slider_max(self, key: str, hi: int, mark: int | None = None):
+        """A slider's maximum (higher while the graphics card draws; `mark`: the processor's limit, shown as a
+        short line on the bar). A value above it comes down to it (setting_changed is emitted then)."""
+        s = self.sliders[key]
+        s.setMaximum(int(hi))
+        s.set_mark(mark if mark is not None and mark < hi else None)
+        tip = slider(key).tip
+        if s.mark is not None:
+            tip = (tip + "\n" if tip else "") + "Beyond the mark: only with the graphics card (GPU)."
+        s.setToolTip(tip)
 
     def _add_slider(self, form, key):
         """The slider of a setting (settings.SLIDERS), at the default value; moving it emits
         setting_changed(key, value)."""
         spec = slider(key)
-        s = QSlider(Qt.Horizontal)
+        s = LimitSlider(Qt.Horizontal)
         s.setRange(spec.lo, spec.hi)
         s.setValue(spec.position(getattr(PlotSettings(), key)))
         s.setToolTip(spec.tip)

@@ -654,8 +654,24 @@ bırakıldı (kullanıcı kararı).
       Testler `MainWindow.START_SCENE` ile eskisi gibi lifting cylinder'la başlıyor (conftest); gerçek açılış
       ayrı testte. Yeni testler: boş açılış + Elements yüksekliği, panel genişliği / reset / tik, ızgara, F1 + arama,
       Sign conventions kartları, ilk açılış imzası.
-    - ☐ 20.7C GPU: aç / kapa = yeniden başlat (iş kaybolmadan), sağ alana açılan Graphics card paneli, GPU ile
-      genişleyen slider sınırları, eklenen elementin görünmemesi (madde 9, 10, 11, 12, 13, 17)
+    - ✅ **20.7C GPU** (madde 9 cevap, 10, 11, 12, 13, 17): GPU kutusu iki yönde de programı yeniden başlatıyor
+      ("Restart now / Cancel"; `app/restart.py`: sahne dosyası + durum JSON'u veri klasörüne, yeni program
+      `--resume` ile açıp siliyor; dosya adı, kaydedilmemiş değişiklik, görünüm, ayarlar, katmanlar, mod, seçim, açık
+      panel aynen; kaydet sorusu yok; yeni program başlatılamazsa hiçbir şey değişmiyor). Kaldırınca "bir şey
+      değişmiyordu" çünkü OpenGL bir kez giren pencere öyle kalıyor ve NVIDIA ortamı süreçte kalıyordu; artık temiz
+      bir işlemci süreci. NVIDIA laptop'ta kutu işaretliyse her açılışta NVIDIA anahtarıyla yeniden başlama ("Use
+      NVIDIA" sorusu kalktı; yine Intel'deyse bir kez elle nasıl yapılacağı). Graphics card dock'u kaldırıldı: başlıktaki
+      okla açılan, sağ tarafın üstüne binen panel (`GpuPanel`, CPU'da da: FPS, frame rate — mod başına ayrı, işlemcide
+      60), "WITH THE GRAPHICS CARD" bölümü GPU kapalıyken gri. GPU + Higher limits: Density 10 → 15 (2 → 3), Particles
+      ölçülen (≤ 100 000), Speed 10 → 13, Trail 10 → 14, Pulse speed 13, length 14, spacing 14 (`gpu.GPU_LIMITS`);
+      `LimitSlider` işlemci sınırında kısa çizgi; GPU kapalıyken değerler sınıra iniyor (`_limit_sliders`, açılan
+      sahnelerde de). Madde 17 (GPU'da eklenen elementin sembolü görünmüyordu, yeniden başlatınca düzeldi): bu sunucuda
+      (Mesa, 100 % / 125 %, Static / Particles / Pulses, açılışta / sonradan açılan GPU) tekrar edilemedi; muhtemel
+      neden çalışırken OpenGL'e geçen pencere (şimdi GPU hep açılışta başlıyor = onun "yeniden başlatınca düzeldi"
+      durumu) + güvenlik ağı: sahne her değişince GPU'da tüm plot yeniden çiziliyor (`gpu_redraw`). Windows'ta
+      kontrol edilecek. Düzen sürümü 3 (dock_gpu yok). Testler: yeniden başlatma (iptal, başlatılamama, her şeyin geri
+      gelmesi), kaldırınca da yeniden başlatma, panel (taşınmış panellerde de sağda), sınırlar + çizgi + açılan
+      sahnede indirme, `--resume` ayrıştırma.
 21. ☐ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,
     dosya yapısı, uyarılar (pyflakes), çok uzun dosyaların bölünmesi, testlerin süresi, README klasör tablosu.
     Ölçüt: tüm testler + verification aynı sonuç

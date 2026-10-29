@@ -154,25 +154,35 @@ Sonuçlar tek çekirdekle bit bit aynıdır. Kaç çekirdeğin kullanıldığı:
 
 ### Ekran kartı (GPU)
 
-Başlıktaki **GPU** kutusu (sağ üst, "SHEET" yazısının yanında; aynısı View → Draw with the graphics card):
-işaretlenince plot **ekran kartıyla (OpenGL)** çizilir, kaldırınca eskisi gibi işlemciyle. İlk açılışta kapalıdır,
-seçim hatırlanır. Görünüş aynıdır (çizgiler ekran kartında 4× MSAA ile yumuşatılır); export'lar hiç etkilenmez.
+Başlıktaki **GPU** kutusu (sağ üst; aynısı View → Draw with the graphics card): işaretlenince plot **ekran kartıyla
+(OpenGL)** çizilir. İlk açılışta kapalıdır, seçim hatırlanır. Görünüş aynıdır (ekran kartında 4× MSAA); export'lar
+hiç etkilenmez.
+- **Kutuyu işaretlemek de kaldırmak da programı yeniden başlatır** (birkaç saniye; önce "Restart now / Cancel" sorar).
+  Neden: bir program ekran kartını sadece başlarken seçebiliyor (laptop'ta NVIDIA anahtarı), ve OpenGL bir kez
+  pencereye girince pencere öyle kalıyor (eskiden kutuyu kaldırınca "hiçbir şey değişmiyordu"). Hiçbir şey
+  kaybolmaz ve kaydetmen istenmez: sahne, dosya adı, kaydedilmemiş değişiklikler (yine kaydedilmemiş olarak), görünüm,
+  plot ayarları, katmanlar, animasyon modu, seçili element, açık Graphics card paneli aynen geri gelir
+  (`app/restart.py`: durum veri klasörüne yazılır, yeni program `--resume` ile açıp siler).
+- **Laptop'ta NVIDIA**: kutu işaretliyken program her açılışta kendini NVIDIA anahtarıyla bir kez daha başlatır
+  (artık "Use NVIDIA" sorusu yok). Windows yine de güç tasarruflu kartı verirse program bunu bir kez söyler ve Windows
+  ayarından elle nasıl seçileceğini gösterir (Open Windows settings). Başka hızlı kart (AMD) varsa geçmeyi önerir.
 - Kutu sadece gerçek bir ekran kartı OpenGL 2.0+ verdiğinde işaretlenebilir; yoksa gri kalır ve üstüne gelince
   nedenini söyler (ör. sürücü yok, yazılım OpenGL).
-- Açıkken sağda **Graphics card** paneli çıkar: çizen kart, saniyedeki kare (FPS, canlı), bir karenin çizim süresi,
-  animasyonların **Frame rate** sınırı: Match screen (monitörün Hz'i) / 60 / 120 / 144. Monitör daha azını
-  gösteriyorsa panel söyler. GPU kapalıyken animasyon eskisi gibi ~60 fps.
-- GPU açıkken **Particles ve Pulses da ekran kartında çizilir** (işlemci sadece noktaların yerini hesaplar);
-  **Particles → Count** üst sınırı 5000'den bu bilgisayarın kaldırabileceği kadara çıkar (bir kez ölçülür, en çok
-  100 000; panelde yazar). GPU kapatılınca sınır ve sayı 5000'e döner.
+- **Graphics card paneli**: kutunun yanındaki küçük **ok** (ya da View → Panels → Graphics card) açar, aynı ok kapatır.
+  Yan panel değil: pencerenin sağ tarafının üstüne açılır (paneller nereye taşınmış olursa olsun, gerekirse plotun
+  üstüne), boyu içeriği kadar. GPU kapalıyken de çalışır: kimin çizdiği, saniyedeki kare (FPS, canlı), bir karenin
+  çizim süresi, animasyonların **Frame rate** sınırı (Match screen / 60 / 120 / 144; her mod kendi seçimini
+  hatırlar, işlemcide varsayılan 60). Alttaki **WITH THE GRAPHICS CARD** bölümü sadece GPU açıkken kullanılır (kapalıyken
+  gri): **Higher limits in Plot settings** (varsayılan açık) ve sınırların listesi.
+- **Genişleyen slider sınırları** (GPU + Higher limits): Density 2 → 3, Particles 5000 → bu bilgisayarın kaldırdığı
+  kadar (bir kez ölçülür, en çok 100 000), Particle speed 10 → 13, Trail length 10 → 14, Pulse speed 10 → 13, Pulse
+  length 10 → 14, Pulse spacing 10 → 14. Çubuğun boyu aynı kalır; üstünde kısa dikey bir **çizgi** işlemcinin
+  sınırını gösterir. GPU kapanınca sınırlar geri döner, üstündeki değerler sınıra iner (o ayarlarla kaydedilmiş bir
+  sahne GPU'suz açılınca da).
+- GPU açıkken **Particles ve Pulses da ekran kartında çizilir** (işlemci sadece noktaların yerini hesaplar).
 - **Güvenlik**: açıldıktan sonra birkaç saniye içinde ekran kartından resim gelmezse ya da OpenGL başlamazsa
   program kendiliğinden işlemciyle çizmeye döner ve bir mesajla söyler (hiçbir şey kaybolmaz). Ekran kartı
   çizerken program anormal kapanırsa (ör. sürücü çökmesi), bir sonraki açılış GPU kapalı başlar ve nedenini söyler.
-- **Laptop'ta iki kart (Intel + NVIDIA)**: Windows programa güç tasarruflu kartı (Intel) verdiyse, GPU
-  işaretlenince program sorar: **Use NVIDIA and restart** → Windows'a "bu programa yüksek performanslı kartı ver"
-  der (Settings → Display → Graphics'teki ayarın aynısı; sadece bu kullanıcı için, yönetici izni gerekmez),
-  sahneyi kaydetmeyi sorup yeniden açılır ve kartın gerçekten değiştiğini kontrol eder. Değişmediyse adım adım
-  elle nasıl yapılacağını gösterir (**Open Windows settings**). Panelde de **Use NVIDIA…** düğmesi vardır.
 
 ### Bir hata olursa
 
@@ -236,7 +246,7 @@ ve `--gpu`'lu iki çalıştırma karşılaştırılır (paint / interact / anim 
 | `packaging/` | Exe yapımı (PyInstaller spec) |
 | `presets/` | Hazır sahneler (`.pflow` dosyaları, klasör = menüdeki grup) |
 | `app/main_window.py` | Ana pencere: parçaları birleştirir, sinyalleri bağlar, element komutları (ekle / düzenle / taşı / sil, undo / redo) |
-| `app/window/` | Ana pencerenin parçaları: `layout.py` (yan paneller, palette sağ/sol, düzeni hatırlama), `menus.py` (palette, menüler, kısayollar), `files.py` (New / Open / Save, preset'ler), `exporting.py` (figür ve CSV export), `status.py` (durum çubuğu, probe, sahne kontrolü, başlıklar), `graphics.py` (GPU kutusu, Graphics card paneli, OpenGL başlamazsa geri dönüş, laptop'ta güçlü karta geçiş + yeniden başlatma) |
+| `app/window/` | Ana pencerenin parçaları: `layout.py` (yan paneller, palette sağ/sol, düzeni hatırlama), `menus.py` (palette, menüler, kısayollar), `files.py` (New / Open / Save, preset'ler), `exporting.py` (figür ve CSV export), `status.py` (durum çubuğu, probe, sahne kontrolü, başlıklar), `graphics.py` (GPU kutusu = yeniden başlatma, Graphics card paneli, genişleyen slider sınırları, OpenGL başlamazsa geri dönüş, laptop'ta güçlü kart) |
 | `app/canvas/` | Plot kartı. `canvas.py` ortak durumu tutar (elementler, ayarlar, katman anahtarları, seçim) ve her olayı katmanlara iletir. Katmanlar: `streamline_layer.py` (arka planda hesap), `stagnation_layer.py`, `field_layer.py` (φ, \|V\|, Cp; `contours.py`, `legend.py`), `element_layer.py` (semboller, duvarlar, seçme), `animation_layer.py` + `particle_layer.py` + `pulse_layer.py` (animasyonlar: particle'lar, streamline üstünde darbeler), `body_layer.py` (cisimlerin içi dolu: Solid bodies), `surface_layer.py` (yüzeyler Cp renginde: Surface pressure). `interaction.py`: fare modları, sürükleme, palette'ten bırakma. `settings.py`: Plot settings slider'larının tablosu. `gl_viewport.py`: ekran kartıyla çizim yüzeyi (OpenGL viewport) ve kare sayacı (FPS). `gl_animation.py`: Particles / Pulses'ın ekran kartında çizimi (shader'lar, frame buffer) |
 | `app/export/` | `figure.py` (PNG / SVG / PDF), `data.py` (CSV, Qt'siz), `dialogs.py` |
 | `app/chrome/` | Pencerenin "çizim kağıdı" görünümü: `style.py` (font, renk), `header.py` (logo, tahta şerit, cetvel + menüler), `cards.py` (panel kartları, title block), `palette.py` (element paleti) |
@@ -245,10 +255,11 @@ ve `--gpu`'lu iki çalıştırma karşılaştırılır (paint / interact / anim 
 | `physics/parallel.py` | İşlemci çekirdekleri: iş havuzu (thread − 1), parçalara bölme; sonuçlar tek çekirdekle bit bit aynı |
 | `app/startup.py` | Uygulama ayarları (sayı biçimi, fontlar, stil) — hafif: yükleme ekranı ağır modüllerden önce çıkabilsin |
 | `app/splash.py` | Yükleme ekranı (`LoadingScreen`: adım, donanım satırları, ilerleme, ilk açılışta çubuğun üstünde not; uzun işler thread'de, ekran donmaz). `app/startup.py`: uygulama ayarları + ilk açılış imzası |
+| `app/restart.py` | Programı her şeyiyle yeniden başlatma (GPU kutusu): durum dosyası yaz / oku, `--resume`, NVIDIA anahtarsız ortam |
 | `app/hardware.py` | Bu bilgisayar: işlemci / çekirdek, ekran kartları (Windows kayıt defteri), OpenGL (ayrı işlemde), ekranlar (Hz); profil QSettings'te, fingerprint değişince yeniden |
 | `app/hardware_dialog.py` | Help → Your computer… |
-| `app/gpu.py` | Ekran kartıyla çizim kuralları: ne zaman açılabilir, fps sınırı, çökme koruması (kilit dosyası), Windows'ta güçlü kart ayarı (kayıt defteri), yeniden başlatma komutu |
-| `app/gpu_panel.py` | Graphics card paneli (çizen kart, canlı FPS, frame rate sınırı, "Use NVIDIA…") |
+| `app/gpu.py` | Ekran kartıyla çizim kuralları: ne zaman açılabilir, fps sınırları (mod başına), GPU sınırları (`GPU_LIMITS`), çökme koruması (kilit dosyası), Windows'ta güçlü kart (kayıt defteri, NVIDIA'da açılışta yeniden başlama) |
+| `app/gpu_panel.py` | Graphics card paneli (başlıktaki okla açılır, sağ tarafın üstüne): çizen kart, canlı FPS, frame rate, Higher limits + sınırlar, "Use AMD…" |
 | `app/errors.py` | Beklenmeyen hatalar: log dosyası, hata penceresi (program açık kalır), çökme dosyası |
 | `app/beaver/` | Kunduz: `art.py` (koddan çizilen piksel art, her poz / açı keskin), `bubble.py` (piksel konuşma balonu, seçenekli diyaloglar), `lines.py` (İngilizce metinler), `faq.py` (soru–cevap), `tour.py` (tanıtım turu adımları), `spotlight.py` (turdaki vurgu), `beaver.py` (davranış: raf, tıklama menüsü, sürükleme, cam, akış, pulse, eve dönüş, tuşlar) |
 | `app/recovery.py` | Otomatik kopya ve çökme sonrası sahneyi geri getirme |

@@ -51,7 +51,8 @@ class HardwareDialog(QDialog):
         note = ""
         if weak is not None:
             note = (f"<p><b>Note:</b> this computer also has <b>{html.escape(weak['name'])}</b>, but OpenGL runs on "
-                    f"the other card. When you tick <b>GPU</b> in the header, the program offers to switch.</p>")
+                    f"the other card. With <b>GPU</b> ticked in the header the program asks for the faster card when it "
+                    f"starts (and tells you if Windows does not give it).</p>")
         when = html.escape(str(p.get("date", "?")))
         self.text.setText(f"<p>What the program found (checked {when}; again automatically when the computer "
                           f"changes):</p><ul>{rows}</ul>{note}")

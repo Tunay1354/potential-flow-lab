@@ -20,14 +20,15 @@ PULSE_STEP_PX = 2.0              # pulses: streamlines cut into pieces of about 
 
 
 def pulse_length(slider: int) -> float:
-    """Pulse length slider 0 … 10 -> lit part of a pulse period (0: short dashes … 10: long comets)."""
-    return 0.06 + 0.064 * min(max(slider, 0), 10)
+    """Pulse length slider 0 … 10 (14 with the graphics card) -> lit part of a pulse period (0: short dashes
+    … 10: long comets, 0.70 … 14: 0.96, nearly a continuous line)."""
+    return 0.06 + 0.064 * min(max(slider, 0), 14)
 
 
 def pulse_spacing(slider: int) -> float:
-    """Spacing slider 1 … 10 -> distance between pulses at the typical speed, in streamline spacings
-    (4 -> 4)."""
-    return 1.0 + 0.75 * min(max(slider, 1), 10)
+    """Spacing slider 1 … 10 (14 with the graphics card) -> distance between pulses at the typical speed, in
+    streamline spacings (4 -> 4)."""
+    return 1.0 + 0.75 * min(max(slider, 1), 14)
 
 
 class PulseLayer(AnimatedLayer):

@@ -288,7 +288,18 @@ GUI / Qt
   `startup.is_first_start / mark_prepared` (signature of version + Python + physics/ files). New:
   `app/user_guide.py` + `user_guide_text.py` (F1, non-modal, `win._guide`), `app/conventions_dialog.py`.
   The plot card needs ~840 px: on a 1400 px window the Surface panel can only get ~255 px.
-- **Next**: 20.7C, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
+- **30 Oct, 20.7C (GPU)**: the GPU box (and View → Draw with the graphics card) = `gpu_box_changed` → ask
+  (`_ask_restart`, tests replace it) → `gpu.set_enabled` → `restart_program()` → `app/restart.py` writes scene +
+  state JSON, `start_again` (QProcess.startDetached, env without SHIM / PFL_STRONG_CARD; tests replace
+  `_start_again`), `_restarting` skips the save question in closeEvent; main.py `split_resume` →
+  `win.resume_from(path)` (files.py). `set_gpu(on)` is still the LIVE switch (start-up, tests, benchmark);
+  default user=False now. `gpu.wants_strong_card()` = GPU enabled (no KEY_OPTIMUS any more). Panel:
+  `GpuPanel(QFrame)` child of the window, placed by `_place_gpu_panel` (right, from the desk's top; resizeEvent),
+  opened by `plank.gpu_more` / `act_gpu_panel` (`show_gpu_panel`). Fps cap per mode (`gpu.fps_cap(on_card)`).
+  Limits: `gpu.GPU_LIMITS` + `particles_max()` (measured, cached per fingerprint) → `_apply_limits()` →
+  `SettingsPanel.set_slider_max(key, hi, mark)`; `LimitSlider.mark_x/paintEvent`; `_limit_sliders` (old name
+  `_limit_particles` kept as alias). pulse_length / pulse_spacing clamp at 14 now. Item 17 not reproducible here.
+- **Next**: his Windows check of 20.7 (A, B, C), then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
   remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
 - Then, in this order (all planned, "as if time were unlimited"):
   21 code cleanup without behaviour change (dead / duplicate code, names, docstrings, pyflakes, long files) →

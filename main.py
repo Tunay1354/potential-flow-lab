@@ -3,6 +3,7 @@ Potential Flow Lab
 Run:  python main.py                 (starts with an empty plot; Presets has ready-made scenes)
       python main.py scene.pflow     (opens a saved scene; also used when a file is double-clicked)
       python main.py --first-run     (starts as for a first-time user: the beaver offers the tour)
+      (internal) --resume FILE       a restart (GPU box): the state the previous program left (app/restart.py)
 
 Without a window (app/cli):
       python main.py --verify [--out DIR]                    verification report (Markdown + CSV + figures)
@@ -17,7 +18,8 @@ import sys
 
 
 def main():
-    args = sys.argv[1:]
+    from app.restart import split_resume
+    args, resume = split_resume(sys.argv[1:])        # (a restart: everything as the previous program left it)
     if "--probe-gpu" in args:                        # the OpenGL check, in its own process
         i = args.index("--probe-gpu")
         from app.hardware import run_probe
@@ -55,6 +57,8 @@ def main():
     if splash is not None:
         app.processEvents()
         splash.close()
+    if resume:
+        win.resume_from(resume)                    # the restart's scene, view, layers … (before anything else)
     QTimer.singleShot(0, win.offer_recovery)       # a scene left unsaved by a crash: "Restore it?"
     files = [a for a in args if not a.startswith("-")]
     if files:

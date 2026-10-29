@@ -164,7 +164,9 @@ class MenusMixin:
         panels.addAction(self.dock_elements.toggleViewAction())
         panels.addAction(self.dock_settings.toggleViewAction())
         panels.addAction(self.dock_surface.toggleViewAction())
-        panels.addAction(self.dock_gpu.toggleViewAction())
+        self.act_gpu_panel = panels.addAction("Graphics card")      # = the arrow beside the GPU box
+        self.act_gpu_panel.setCheckable(True)
+        self.act_gpu_panel.setToolTip("Frame rate, frames per second and the graphics card's limits")
         panels.addSeparator()
         # sections of Plot settings (the same menu opens with a right-click on the panel's title)
         self.sections_menu = panels.addMenu("Plot settings sections")

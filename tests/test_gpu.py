@@ -112,11 +112,14 @@ def test_windows_card_setting_with_a_fake_registry():
 
 
 def test_program_paths_and_restart_command():
+    from app import restart
     paths = gpu.program_paths()
     assert paths[0] == os.path.abspath(sys.executable)
-    program, args = gpu.restart_command("/x/scene.pflow")
-    assert program == sys.executable and args[-1] == "/x/scene.pflow" and args[0].endswith("main.py")
-    assert gpu.restart_command(None)[1] == [args[0]]
+    program, args = restart.command("/x/state.json")
+    assert program == sys.executable and args[-2:] == ["--resume", "/x/state.json"] and args[0].endswith("main.py")
+    assert restart.split_resume(["a.pflow", "--resume", "/x/s.json", "--first-run"]) == \
+        (["a.pflow", "--first-run"], "/x/s.json")
+    assert restart.split_resume(["a.pflow"]) == (["a.pflow"], None)
 
 
 def test_store_python_and_optimus_switch(qapp, monkeypatch):
@@ -127,11 +130,11 @@ def test_store_python_and_optimus_switch(qapp, monkeypatch):
     monkeypatch.delenv("SHIM_MCCOMPAT", raising=False)
     monkeypatch.setattr(sys, "platform", "win32")
     gpu.apply_startup_env()
-    assert "SHIM_MCCOMPAT" not in os.environ                   # only after "Use NVIDIA"
-    QSettings().setValue(gpu.KEY_OPTIMUS, True)
+    assert "SHIM_MCCOMPAT" not in os.environ                   # only with the GPU box ticked
+    gpu.set_enabled(True)
     gpu.apply_startup_env()
     assert os.environ.pop("SHIM_MCCOMPAT") == "0x800000001"
-    QSettings().remove(gpu.KEY_OPTIMUS)
+    QSettings().remove(gpu.KEY_ENABLED)
 
 
 def test_strong_and_weak_cards():
@@ -192,9 +195,12 @@ def test_gpu_box_off_where_it_cannot_work(window):
     box = w.header.plank.gpu
     assert not box.isChecked() and not box.isEnabled() and not w.act_gpu.isEnabled()
     assert "without a graphics card" in box.toolTip()
-    assert not w.set_gpu(True) and not w.canvas.gpu
+    assert not w.set_gpu(True, user=True) and not w.canvas.gpu
     assert w.messages and "without a graphics card" in w.messages[-1][2]
-    assert not w.dock_gpu.isVisible() and not w.dock_gpu.toggleViewAction().isEnabled()
+    n = len(w.messages)
+    w.header.plank.gpu.setEnabled(True)
+    w.header.plank.gpu.setChecked(True)                      # (ticked anyway): a message, no restart
+    assert len(w.messages) == n + 1 and not w.header.plank.gpu.isChecked()
     w.hardware = GL_PROFILE
     w._update_gpu_controls()
     assert box.isEnabled() and "NVIDIA" in box.toolTip()
@@ -207,11 +213,11 @@ def test_switching_on_fails_cleanly_without_opengl(window, qapp):
     w.show()
     qapp.processEvents()
     assert w.set_gpu(True)                                   # the viewport is made …
-    assert w.canvas.gpu and gpu.enabled() and w.dock_gpu.isVisible()
+    assert w.canvas.gpu and gpu.enabled()
     assert os.path.exists(w._gpu_guard.path)                 # … and the crash guard is held
     w._gpu_check_started()                                   # (the timer's look after CHECK_MS)
     assert not w.canvas.gpu and not gpu.enabled()
-    assert not w.dock_gpu.isVisible() and not w.header.plank.gpu.isChecked()
+    assert not w.header.plank.gpu.isChecked()
     assert not os.path.exists(w._gpu_guard.path)
     qapp.processEvents()
     assert w.messages and w.messages[-1][1] == "Graphics card drawing did not start"
@@ -236,12 +242,14 @@ def test_viewport_switch_keeps_the_mouse_handling(window, qapp):
 
 
 def test_fps_cap_setting(window):
+    """Each mode remembers its own frame rate; without the card 60 by default (as before)."""
     w = window
-    w.set_fps_cap("120")
-    assert gpu.fps_cap() == "120" and w.gpu_panel.cap.currentData() == "120"
-    assert w.canvas.particles.frame_interval == gpu.RASTER_FRAME_MS        # GPU off: as before
+    assert gpu.fps_cap(False) == "60" and w.canvas.particles.frame_interval == gpu.RASTER_FRAME_MS
+    w.set_fps_cap("120")                                                   # (the processor draws now)
+    assert gpu.fps_cap(False) == "120" and w.gpu_panel.cap.currentData() == "120"
+    assert w.canvas.particles.frame_interval == 8 and gpu.fps_cap(True) == gpu.DEFAULT_CAP
     w.set_fps_cap("nonsense")
-    assert gpu.fps_cap() == gpu.DEFAULT_CAP
+    assert gpu.fps_cap(False) == gpu.DEFAULT_CAP_CPU
     w.gpu_panel.set_screen_hz(60)
     w.gpu_panel.set_cap("144")
     assert w.gpu_panel.cap_note.text().startswith("Your screen shows at most 60")
@@ -281,7 +289,7 @@ def test_faster_card_offer_and_check_after_restart(window, monkeypatch):
     assert asked and restarted
     s = QSettings()
     assert s.value(gpu.KEY_SWITCHING) == GL_PROFILE["adapters"][1]["name"]
-    assert s.value(gpu.KEY_REPROBE, False, bool) and s.value(gpu.KEY_OPTIMUS, False, bool)     # NVIDIA: also Optimus
+    assert s.value(gpu.KEY_REPROBE, False, bool)
     # after the restart: the new profile says NVIDIA -> a note, the flag is gone
     flashed = []
     w.flash = flashed.append
@@ -481,19 +489,19 @@ def test_more_particles_with_the_card(window, monkeypatch):
     w, cv = window, window.canvas
     QSettings().remove("gpu/particles_max")
     s = w.settings_panel.sliders["particles"]
-    assert w.particles_max() == slider("particles").hi == 5000
+    assert s.maximum() == slider("particles").hi == 5000          # the processor draws
     _gpu_on(monkeypatch, cv)
     import physics.particles as P
     monkeypatch.setattr(P, "step_ms", lambda n=20000, repeats=3: 2.0)       # 20 000 in 2 ms -> 40 000 in 4 ms
     assert w.particles_max() == 40000
     monkeypatch.setattr(P, "step_ms", lambda n=20000, repeats=3: 0.01)      # (remembered: not measured again)
     assert w.particles_max() == 40000
-    w._apply_particle_limit()
+    w._apply_limits()
     assert s.maximum() == 40000 and "40 000" in w.gpu_panel.limits.text()
     s.setValue(30000)
     assert cv.settings.particles == 30000
     monkeypatch.setattr(type(cv), "gpu", property(lambda self: False))
-    w._apply_particle_limit()                                  # GPU off: back to 5000, the count with it
+    w._apply_limits()                                          # GPU off: back to 5000, the count with it
     assert s.maximum() == 5000 and cv.settings.particles == 5000
     QSettings().remove("gpu/particles_max")
 
@@ -603,7 +611,7 @@ w.model.mark_clean(); w.close()
 
 
 def test_relaunch_on_the_nvidia_card(qapp, monkeypatch):
-    """Laptop + "Use NVIDIA": the program starts itself once more with SHIM_MCCOMPAT at the start (set inside the
+    """Laptop + GPU box ticked: the program starts itself once more with SHIM_MCCOMPAT at the start (set inside the
     running process the window still got the Intel card — his benchmark, 29 Oct)."""
     from PySide6.QtCore import QSettings
     import app.hardware as hw
@@ -613,9 +621,10 @@ def test_relaunch_on_the_nvidia_card(qapp, monkeypatch):
     monkeypatch.delenv(gpu.RELAUNCH_ENV, raising=False)
     monkeypatch.setattr(sys, "platform", "win32")
     monkeypatch.setattr(hw, "display_adapters", lambda: GL_PROFILE["adapters"])
-    monkeypatch.setattr(gpu, "wants_strong_card", lambda: QSettings().value(gpu.KEY_OPTIMUS, False, bool))
-    assert gpu.relaunch_on_strong_card(call=call) is None and not calls        # not chosen: nothing
-    QSettings().setValue(gpu.KEY_OPTIMUS, True)
+    gpu.set_enabled(False)
+    monkeypatch.setattr(gpu, "wants_strong_card", gpu.enabled)                 # (the app's settings in tests)
+    assert gpu.relaunch_on_strong_card(call=call) is None and not calls        # GPU box off: nothing
+    gpu.set_enabled(True)
     try:
         assert gpu.relaunch_on_strong_card(call=call) == 7                    # chosen: started again, its exit code
         cmd, env = calls[-1]
@@ -627,6 +636,136 @@ def test_relaunch_on_the_nvidia_card(qapp, monkeypatch):
         assert gpu.relaunch_on_strong_card(call=call) is None                  # no NVIDIA card: nothing
         assert gpu.relaunch_on_strong_card(force=True, call=call) is None
     finally:
-        QSettings().remove(gpu.KEY_OPTIMUS)
+        QSettings().remove(gpu.KEY_ENABLED)
     monkeypatch.setattr(sys, "platform", "linux")
     assert gpu.relaunch_on_strong_card(force=True, call=call) is None          # not Windows
+
+
+
+# ---------------------------------------------------------------- 20.7C: the box restarts, the panel, the limits
+def test_the_gpu_box_restarts_with_everything_kept(window, qapp, tmp_path):
+    """His list (30 Oct): ticking AND unticking GPU start the program again (the card is chosen at the start);
+    the scene, its file, unsaved changes, layers, view mode and selection come back; nothing is asked to save."""
+    from app import restart
+    from app.main_window import MainWindow
+    from physics.elements import Doublet, Uniform
+    w = window
+    w.hardware = GL_PROFILE
+    w._update_gpu_controls()
+    path = str(tmp_path / "mine.pflow")
+    w.model.reset([Uniform(alpha=10.0), Doublet(mu=2.0, delta=10.0)])
+    assert w._write(path)
+    w.model.add(Uniform(V=0.5))                                       # an unsaved change
+    w.settings_panel.layer_boxes["bodies"].setChecked(True)
+    w.canvas.set_view_mode("pulses")
+    w.select_element(1)
+    asked, started = [], []
+    w._ask_restart = lambda on: asked.append(on) or False             # Cancel: nothing happens
+    w.header.plank.gpu.setChecked(True)
+    assert asked == [True] and not gpu.enabled() and not w.header.plank.gpu.isChecked()
+    w._ask_restart = lambda on: True
+    w._start_again = lambda p: False                                  # could not start: nothing changes
+    before = set(os.listdir(restart.folder())) if os.path.isdir(restart.folder()) else set()
+    w.header.plank.gpu.setChecked(True)
+    assert not gpu.enabled() and not w.header.plank.gpu.isChecked()
+    assert w.messages[-1][1] == "Cannot restart" and set(os.listdir(restart.folder())) == before
+    w._ask_save_changes = lambda: pytest.fail("a restart must not ask to save")
+    w._start_again = lambda p: started.append(p) or True
+    w.header.plank.gpu.setChecked(True)
+    assert gpu.enabled() and len(started) == 1 and w._restarting
+    w2 = MainWindow()                                                  # the program started again
+    try:
+        assert w2.resume_from(started[0])
+        assert [e.TYPE for e in w2.elements] == ["uniform", "doublet", "uniform"]
+        assert w2.current_path == os.path.abspath(path) and w2.model.is_modified
+        assert w2.settings_panel.layer_boxes["bodies"].isChecked() and w2.canvas.view_mode == "pulses"
+        assert w2.elements_panel.current_row() == 1
+        assert not os.path.exists(started[0])                          # (read once, then gone)
+        assert not w2.resume_from(started[0])                          # (a second time: nothing, no crash)
+    finally:
+        w2._ask_save_changes = lambda: "discard"
+        w2.canvas.set_view_mode("static")
+        w2.close()
+        w2.deleteLater()
+
+
+def test_unticking_gpu_restarts_too(window, monkeypatch):
+    from app.canvas.canvas import PlotCanvas
+    w = window
+    w.hardware = GL_PROFILE
+    monkeypatch.setattr(PlotCanvas, "gpu", property(lambda self: True))
+    w._update_gpu_controls()
+    assert w.header.plank.gpu.isChecked()
+    gpu.set_enabled(True)
+    started = []
+    w._ask_restart = lambda on: on is False
+    w._start_again = lambda p: started.append(p) or True
+    w.header.plank.gpu.setChecked(False)
+    assert started and not gpu.enabled()
+    from app import restart
+    restart.discard(started[0])
+
+
+def test_graphics_card_panel_over_the_right_side(window, qapp):
+    """The arrow beside the box opens the panel over the right part (also when the panels were moved left),
+    the same arrow closes it; it works with the processor too (fps, frame rate), the card's part greyed."""
+    from PySide6.QtCore import Qt
+    w = window
+    w.resize(1536, 830)
+    w.show()
+    qapp.processEvents()
+    w.removeDockWidget(w.dock_elements)
+    w.addDockWidget(Qt.LeftDockWidgetArea, w.dock_elements)
+    w.dock_elements.show()
+    arrow = w.header.plank.gpu_more
+    arrow.setChecked(True)
+    qapp.processEvents()
+    p = w.gpu_panel
+    assert p.isVisible() and w.act_gpu_panel.isChecked()
+    assert abs(p.geometry().right() - (w.width() - 16)) <= 1 and p.y() >= w.menuWidget().height()
+    assert not p.gpu_only.isEnabled() and p.cap.isEnabled() and "processor" in p.mode.text().lower()
+    p.cap.setCurrentIndex(p.cap.findData("120"))
+    assert gpu.fps_cap(False) == "120"
+    arrow.setChecked(False)
+    assert not p.isVisible() and not w.act_gpu_panel.isChecked()
+    w.act_gpu_panel.setChecked(True)                                  # (View → Panels → Graphics card)
+    assert p.isVisible() and arrow.isChecked()
+    w.act_gpu_panel.setChecked(False)
+
+
+def test_higher_limits_with_the_card_and_back(window, qapp, monkeypatch):
+    """His list (30 Oct): with the card the sliders reach further (same bar, a mark at the processor's limit);
+    without it they come back and values above the limit come down to it."""
+    from PySide6.QtCore import QSettings
+    from app.canvas.canvas import PlotCanvas
+    from app.canvas.settings import slider
+    import physics.particles as P
+    w, cv, sp = window, window.canvas, window.settings_panel
+    QSettings().remove("gpu/particles_max")
+    monkeypatch.setattr(P, "step_ms", lambda n=20000, repeats=3: 2.0)
+    d = sp.sliders["density"]
+    assert d.maximum() == slider("density").hi and d.mark is None and d.mark_x() is None
+    monkeypatch.setattr(PlotCanvas, "gpu", property(lambda self: True))
+    w._apply_limits()
+    assert d.maximum() == gpu.GPU_LIMITS["density"] and d.mark == slider("density").hi
+    w.show()
+    qapp.processEvents()
+    assert d.mark_x() is not None and 0 < d.mark_x() < d.width()
+    d.grab()                                                          # (the mark paints)
+    assert "only with the graphics card" in d.toolTip()
+    d.setValue(d.maximum())
+    sp.sliders["trail"].setValue(14)
+    assert cv.settings.density == slider("density").value(15) and cv.settings.trail == 14
+    w.gpu_panel.higher.setChecked(False)                              # Higher limits off: the processor's
+    assert d.maximum() == slider("density").hi and cv.settings.density == slider("density").value(10)
+    w.gpu_panel.higher.setChecked(True)
+    d.setValue(d.maximum())
+    monkeypatch.setattr(PlotCanvas, "gpu", property(lambda self: False))
+    w._apply_limits()                                                  # the processor again
+    assert d.maximum() == 10 and cv.settings.density == slider("density").value(10) and cv.settings.trail == 10
+    doc = w._document()                                                # a scene saved with the card's values …
+    doc.settings["density"] = slider("density").value(15)
+    doc.settings["pulse_length"] = 14.0
+    w._apply_document(doc)                                             # … opened without it: brought down
+    assert cv.settings.density == slider("density").value(10) and cv.settings.pulse_length == 10
+    QSettings().remove("gpu")

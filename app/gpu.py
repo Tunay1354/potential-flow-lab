@@ -4,9 +4,15 @@ the Windows part (which card a laptop gives this program). No widgets here; the 
 app/canvas/gl_viewport.py, the panel app/gpu_panel.py, the window's part app/window/graphics.py.
 
 Settings (QSettings)
-    gpu/enabled     the box is ticked (off on a first start)
-    gpu/fps_cap     "screen" (match the screen's refresh rate), "60", "120", "144"
-    gpu/switching   name of the card the user chose (Intel -> NVIDIA); checked after the restart
+    gpu/enabled         the box is ticked (off on a first start); a change restarts the program (app/restart.py)
+    gpu/fps_cap         frame rate of the animations with the card: "screen" (the screen's refresh rate), "60" …
+    gpu/fps_cap_cpu     … and without it (60 by default, as before)
+    gpu/higher_limits   with the card, Plot settings sliders reach further (GPU_LIMITS; on by default)
+    gpu/switching       name of the card the user chose (Intel -> AMD / NVIDIA); checked after the restart
+    gpu/weak_told       the "Windows gives the program the power-saving card" help was shown (once per switch-on)
+
+Laptops with an NVIDIA card: with the box ticked the program always starts on the NVIDIA card
+(relaunch_on_strong_card: NVIDIA's Optimus switch only works at the start of a process).
 
 Crash guard (SessionGuard): while the graphics card draws, the program holds a lock file; a lock left by a
 program that is gone means it ended abnormally while drawing with the graphics card (a driver crash) ->
@@ -34,12 +40,19 @@ log = logging.getLogger("pflab")
 KEY_ENABLED = "gpu/enabled"
 KEY_CAP = "gpu/fps_cap"
 KEY_SWITCHING = "gpu/switching"
-KEY_OPTIMUS = "gpu/optimus"               # the user chose the NVIDIA card: SHIM_MCCOMPAT at start
+KEY_CAP_CPU = "gpu/fps_cap_cpu"
+KEY_HIGHER = "gpu/higher_limits"
+KEY_WEAK_TOLD = "gpu/weak_told"
 SHIM_ENV, SHIM_VALUE = "SHIM_MCCOMPAT", "0x800000001"      # NVIDIA Optimus: run this process on the NVIDIA card
 KEY_REPROBE = "hardware/reprobe"          # main.py: find the OpenGL renderer again at the next start
 
 FPS_CAPS = (("screen", "Match screen"), ("60", "60 fps"), ("120", "120 fps"), ("144", "144 fps"))
 DEFAULT_CAP = "screen"
+DEFAULT_CAP_CPU = "60"
+# Plot settings sliders with the card (and "higher limits" on): their upper ends; the processor's are in
+# app/canvas/settings.SLIDERS. Particles → Count is measured per computer (app/window/graphics.particles_max).
+GPU_LIMITS = {"density": 15, "anim_speed": 13, "trail": 14, "pulse_speed": 13, "pulse_length": 14,
+              "pulse_spacing": 14}
 RASTER_FRAME_MS = 16                      # the animation without the graphics card: ~60 fps (as before)
 MSAA_SAMPLES = 4                          # smooth lines on the graphics card (multisampling)
 MIN_GL = (2, 0)                           # Qt's OpenGL painter needs OpenGL 2.0
@@ -63,13 +76,24 @@ def set_enabled(on: bool):
     _settings().setValue(KEY_ENABLED, bool(on))
 
 
-def fps_cap() -> str:
-    cap = str(_settings().value(KEY_CAP, DEFAULT_CAP) or DEFAULT_CAP)
-    return cap if cap in dict(FPS_CAPS) else DEFAULT_CAP
+def fps_cap(on_card: bool = True) -> str:
+    """The animations' frame rate limit, with the graphics card or without it (each remembered)."""
+    key, default = (KEY_CAP, DEFAULT_CAP) if on_card else (KEY_CAP_CPU, DEFAULT_CAP_CPU)
+    cap = str(_settings().value(key, default) or default)
+    return cap if cap in dict(FPS_CAPS) else default
 
 
-def set_fps_cap(cap: str):
-    _settings().setValue(KEY_CAP, cap if cap in dict(FPS_CAPS) else DEFAULT_CAP)
+def set_fps_cap(cap: str, on_card: bool = True):
+    key, default = (KEY_CAP, DEFAULT_CAP) if on_card else (KEY_CAP_CPU, DEFAULT_CAP_CPU)
+    _settings().setValue(key, cap if cap in dict(FPS_CAPS) else default)
+
+
+def higher_limits() -> bool:
+    return _settings().value(KEY_HIGHER, True, bool)
+
+
+def set_higher_limits(on: bool):
+    _settings().setValue(KEY_HIGHER, bool(on))
 
 
 # ------------------------------------------------------------------------------------------------- rules
@@ -128,11 +152,11 @@ def store_python(paths=None) -> bool:
 
 
 def apply_startup_env():
-    """At the very start (main.py, before any graphics): after "Use NVIDIA" on a laptop, also ask NVIDIA's
-    Optimus layer directly for the NVIDIA card (environment variable SHIM_MCCOMPAT; ignored by other cards).
-    Inherited by the OpenGL check's process and a restart."""
+    """At the very start (main.py, before any graphics): with the box ticked, also ask NVIDIA's Optimus layer
+    for the NVIDIA card (environment variable SHIM_MCCOMPAT; ignored by other cards; inherited by the OpenGL
+    check's process). On its own this is too late for the window (relaunch_on_strong_card does it right)."""
     try:
-        if sys.platform == "win32" and _settings().value(KEY_OPTIMUS, False, bool):
+        if sys.platform == "win32" and enabled():
             os.environ.setdefault(SHIM_ENV, SHIM_VALUE)
     except Exception as exc:                          # noqa: BLE001
         log.info("startup environment not set: %s", exc)
@@ -142,11 +166,11 @@ RELAUNCH_ENV = "PFL_STRONG_CARD"           # set in the process started by relau
 
 
 def wants_strong_card() -> bool:
-    """Before any QApplication exists: the user chose "Use NVIDIA" (gpu/optimus)."""
+    """Before any QApplication exists: the GPU box is ticked (the program draws with the graphics card)."""
     try:
         from PySide6.QtCore import QSettings
         from app_info import APP_NAME, ORGANIZATION
-        return QSettings(ORGANIZATION, APP_NAME).value(KEY_OPTIMUS, False, bool)
+        return QSettings(ORGANIZATION, APP_NAME).value(KEY_ENABLED, False, bool)
     except Exception:                                 # noqa: BLE001
         return False
 
@@ -154,7 +178,7 @@ def wants_strong_card() -> bool:
 def relaunch_on_strong_card(force: bool = False, call=None) -> int | None:
     """NVIDIA's Optimus switch (SHIM_MCCOMPAT) only works when it is there AT THE START of the process: set
     inside the running program (apply_startup_env) the window still got the Intel card (his benchmark of 29 Oct:
-    "Intel(R) UHD Graphics"). So on a Windows computer with an NVIDIA card, when the user chose it (or force),
+    "Intel(R) UHD Graphics"). So on a Windows computer with an NVIDIA card, with the GPU box ticked (or force),
     the program starts itself once more with the switch and waits for it; returns its exit code. None: nothing
     to do (not Windows, no NVIDIA card, already started that way) — go on normally."""
     if sys.platform != "win32" or os.environ.get(SHIM_ENV) or os.environ.get(RELAUNCH_ENV):
@@ -288,13 +312,3 @@ class SessionGuard:
                 other.unlock()
                 found = True
         return found
-
-
-# --------------------------------------------------------------------------------------------- restart
-def restart_command(scene_path: str | None = None) -> tuple[str, list[str]]:
-    """(program, arguments) that start the program again, with the open scene file (if saved)."""
-    extra = [scene_path] if scene_path else []
-    if getattr(sys, "frozen", False):
-        return sys.executable, extra
-    main = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "main.py")
-    return sys.executable, [main] + extra
