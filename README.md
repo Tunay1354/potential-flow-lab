@@ -128,6 +128,14 @@ Program açılırken bir **yükleme ekranı** çıkar: ahşap başlık, ne yapı
 - **Help → Your computer…**: bulunanlar (işlemci, ekran kartları, OpenGL, ekranlar); **Check again** yeniden
   bulur. Laptop'ta OpenGL zayıf (Intel) kartta çalışıyorsa not düşer.
 
+### Çok çekirdek
+
+Program bilgisayarın işlemci çekirdeklerini kendisi kullanır (ayar yok): thread sayısının bir eksiği hesaplara,
+biri pencereye. Hızlanan: streamline izleme (kalabalık sahnelerde en çok) ve renk bantları / φ / CSV ızgaraları.
+Sonuçlar tek çekirdekle bit bit aynıdır. Kaç çekirdeğin kullanıldığı: yükleme ekranı ve **Help → Your computer…**
+("16 threads (15 for computing)"). Karşılaştırmak için: `PFL_THREADS=1 python main.py` (PowerShell:
+`$env:PFL_THREADS=1; python main.py`).
+
 ### Bir hata olursa
 
 Yakalanmamış bir hata programı kapatmaz: "Unexpected error" penceresi çıkar (ayrıntılar, Copy details, Open log
@@ -190,6 +198,7 @@ zoom / sürükleme, tepki süreleri, animasyon, export, verification — ~6 dk; 
 | `app/chrome/` | Pencerenin "çizim kağıdı" görünümü: `style.py` (font, renk), `header.py` (logo, tahta şerit, cetvel + menüler), `cards.py` (panel kartları, title block), `palette.py` (element paleti) |
 | `app/panels.py`, `app/dialogs.py` | Elements / Plot settings panelleri; parametre penceresi (alanlar `app/element_specs.py`'den otomatik) |
 | `app/surface_panel.py` | Surface pressure paneli: Cp grafiği, kuvvetler, CSV |
+| `physics/parallel.py` | İşlemci çekirdekleri: iş havuzu (thread − 1), parçalara bölme; sonuçlar tek çekirdekle bit bit aynı |
 | `app/startup.py` | Uygulama ayarları (sayı biçimi, fontlar, stil) — hafif: yükleme ekranı ağır modüllerden önce çıkabilsin |
 | `app/splash.py` | Yükleme ekranı (`LoadingScreen`: adım, donanım satırları, ilerleme; uzun işler thread'de, ekran donmaz) |
 | `app/hardware.py` | Bu bilgisayar: işlemci / çekirdek, ekran kartları (Windows kayıt defteri), OpenGL (ayrı işlemde), ekranlar (Hz); profil QSettings'te, fingerprint değişince yeniden |

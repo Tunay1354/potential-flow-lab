@@ -493,7 +493,17 @@ bırakıldı (kullanıcı kararı).
       + ilk tıklamalarda derleme), sonraki açılışlar 1.2 / 1.3 s. Testler: `tests/test_hardware.py` (12: sahte
       kayıt defteri, laptop Intel / NVIDIA durumu, fingerprint, gerçek alt işlemle OpenGL yokken çökmeme, takılan /
       düşen sorgu, profil hatırlama / yenileme, bozuk profil, yükleme ekranı, açılış, Your computer)
-    - ☐ 20.2 Çok çekirdekli hesap (her zaman açık)
+    - ✅ **20.2 Çok çekirdekli hesap** (29 Ekim, her zaman açık, ayar yok): `physics/parallel.py` (iş havuzu: thread
+      sayısı − 1, biri pencereye; `PFL_THREADS=1` ile tek çekirdek). (a) Streamline izleme (`level._integrate`,
+      zamanın %60–84'ü): 8+ seed'lik gruplar parçalara bölünüp derlenmiş tracer'la (nogil) aynı anda izleniyor;
+      birden fazla çekirdekte ileri ve geri yön de aynı anda (`_integrate_both`). (b) Büyük ızgaralar (renk
+      bantları, φ, CSV: `field.complex_velocity / complex_potential`, 20 000+ nokta) satır parçalarına bölünüyor.
+      Sonuçlar **bit bit aynı**: 21 preset + 25 rastgele sahnede 3457 streamline dizisi, 21 preset × 4 ızgara
+      PFL_THREADS=1 ile 4 arasında ve eski koda göre birebir. Ölçüm (bu sunucu: 2 hyper-thread, en fazla ~1.3–1.9×):
+      8 elementli sahne 1044 → 734 ms, 600 × 400 ızgara (w + φ) kanal 162 → 93 ms, 8 element 91 → 47 ms. Tahmin
+      (her seed'in gerçek süresinden): izleme en uzun streamline'ı beklediği için 4 thread'den sonra doyuyor —
+      kullanıcının 16 thread'inde streamline'lar ~1.4–2.5× (kalabalık sahnede en çok), ızgaralar 4–8×; gerçek sayılar
+      kullanıcının benchmark'ında. Testler: `tests/test_parallel.py` (9); tüm test suite PFL_THREADS=4 ile de
     - ☐ 20.3 GPU kutusu + OpenGL çizim + Graphics card paneli (FPS, fps seçimi) + Intel → NVIDIA
     - ☐ 20.4 GPU particles / pulses + kalibrasyondan üst sınırlar; aynı script'le karşılaştırma (`--gpu`)
 21. ☐ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,

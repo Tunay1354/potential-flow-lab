@@ -10,7 +10,7 @@ from typing import Callable, Sequence
 
 import numpy as np
 
-from .. import kernel
+from .. import kernel, parallel
 from ..base import FlowElement
 from ..field import active, complex_potential, complex_velocity, fluid_mask, singular_points
 from ..images import resolve
@@ -20,6 +20,8 @@ from .common import (BASE_LINES_ACROSS, BATCH_SIZE, BOX_MARGIN_RATIO, Cancelled,
                      _Line, _line_ids)
 from .rasters import _OwnerRaster, _Raster
 from .seeds import _boundary_lines, _grid_seeds, _inflow_seeds, _line_range, _neighbour_seeds, _priority_seeds
+
+PARALLEL_MIN_SEEDS = 3                 # seeds per core at least (fewer: not worth a thread)
 
 
 # ---------------------------------------------------------------------- one spacing level
@@ -208,22 +210,58 @@ class StreamlineField:
     # ------------------------------------------------------------------ integration
     def _integrate(self, seeds, sign, self_ids=None, close_to=None):
         """Lines from all seeds in one direction: (point arrays, closed, near_end, left_box)."""
+        seeds, self_ids, close_to = self._trace_args(seeds, self_ids, close_to)
+        self._check_cancel()
+        if self.compiled is not None:
+            tasks, combine = self._trace_tasks(seeds, sign, self_ids, close_to)
+            return combine(parallel.run(tasks))
+        traj, closed, near_end, left_box = self._integrate_numpy(seeds, sign, self_ids, close_to)
+        return self._finish(_columns(traj), closed, near_end, left_box, close_to)
+
+    def _integrate_both(self, seeds):
+        """Both directions of every seed at once (several cores): (forward, backward), each as _integrate
+        returns it. The backward lines of seeds whose forward line closed are not needed (the caller
+        drops them); tracing them anyway costs nothing extra in time on several cores, and every line
+        is exactly the one _integrate would trace."""
+        seeds, self_ids, close_to = self._trace_args(seeds, None, None)
+        self._check_cancel()
+        t_fwd, c_fwd = self._trace_tasks(seeds, +1.0, self_ids, close_to)
+        t_bwd, c_bwd = self._trace_tasks(seeds, -1.0, self_ids, close_to)
+        res = parallel.run(t_fwd + t_bwd)
+        return c_fwd(res[:len(t_fwd)]), c_bwd(res[len(t_fwd):])
+
+    def _trace_args(self, seeds, self_ids, close_to):
         seeds = np.asarray(seeds, dtype=np.complex128)
         B = seeds.size
         self_ids = np.full(B, -1, np.int32) if self_ids is None else np.asarray(self_ids, np.int32)
         close_to = seeds.copy() if close_to is None else np.asarray(close_to, np.complex128)
+        return seeds, self_ids, close_to
+
+    def _trace_tasks(self, seeds, sign, self_ids, close_to):
+        """The compiled tracer for pieces of the seeds (tasks for parallel.run) and the function that puts
+        the pieces' results together. The seeds are independent (the raster of the other lines is only
+        read): pieces on different cores give exactly the lines of one call."""
+        F, R, W = self.compiled
+        ns = self.near_stop
         bx0, bx1, by0, by1 = self.box
-        self._check_cancel()
-        if self.compiled is not None:
-            F, R, W = self.compiled
-            ns = self.near_stop
+
+        def trace(a, b):
             pts, offsets, closed, near_end, left_box = kernel.trace_batch(
-                seeds, float(sign), F, R, W, self.sing, self.r_sing, self.h, self.n_max, self.v_min,
-                MAX_TURN_COS, self.d, ns.a, self_ids, close_to, bx0, bx1, by0, by1, ns.x0, ns.y0, ns.c)
-            lines = [pts[offsets[j]:offsets[j + 1]] for j in range(B)]
-        else:
-            traj, closed, near_end, left_box = self._integrate_numpy(seeds, sign, self_ids, close_to)
-            lines = _columns(traj)
+                seeds[a:b], float(sign), F, R, W, self.sing, self.r_sing, self.h, self.n_max, self.v_min,
+                MAX_TURN_COS, self.d, ns.a, self_ids[a:b], close_to[a:b], bx0, bx1, by0, by1,
+                ns.x0, ns.y0, ns.c)
+            return [pts[offsets[j]:offsets[j + 1]] for j in range(b - a)], closed, near_end, left_box
+
+        def combine(parts):
+            lines = [ln for p in parts for ln in p[0]]
+            closed, near_end, left_box = (np.concatenate([p[k] for p in parts]) for k in (1, 2, 3))
+            return self._finish(lines, closed, near_end, left_box, close_to)
+
+        tasks = [lambda a=a, b=b: trace(a, b) for a, b in parallel.chunks(seeds.size, PARALLEL_MIN_SEEDS)]
+        return tasks, combine
+
+    @staticmethod
+    def _finish(lines, closed, near_end, left_box, close_to):
         # closed loops end exactly at the point they came back to (their seed, or the other end of a
         # continued line)
         lines = [np.append(ln, close_to[j]) if closed[j] else ln for j, ln in enumerate(lines)]
@@ -429,17 +467,23 @@ class StreamlineField:
                         break
                 if seeds is None:
                     break
-            fwd, closed, fwd_near, fwd_box = self._integrate(seeds, +1.0)
             bwd = [np.array([s]) for s in seeds]
             bwd_near = np.zeros(seeds.size, dtype=bool)
             bwd_box = np.zeros(seeds.size, dtype=bool)
-            need_back = np.nonzero(~closed)[0]
-            if need_back.size:
-                back_lines, _, back_near, back_box = self._integrate(seeds[need_back], -1.0)
-                for k, j in enumerate(need_back):
-                    bwd[j] = back_lines[k]
-                    bwd_near[j] = back_near[k]
-                    bwd_box[j] = back_box[k]
+            if self.compiled is not None and parallel.workers() > 1 and seeds.size >= PARALLEL_MIN_SEEDS:
+                (fwd, closed, fwd_near, fwd_box), (back_all, _, back_near, back_box) = self._integrate_both(seeds)
+                need_back = np.nonzero(~closed)[0]
+                for j in need_back:
+                    bwd[j], bwd_near[j], bwd_box[j] = back_all[j], back_near[j], back_box[j]
+            else:
+                fwd, closed, fwd_near, fwd_box = self._integrate(seeds, +1.0)
+                need_back = np.nonzero(~closed)[0]
+                if need_back.size:
+                    back_lines, _, back_near, back_box = self._integrate(seeds[need_back], -1.0)
+                    for k, j in enumerate(need_back):
+                        bwd[j] = back_lines[k]
+                        bwd_near[j] = back_near[k]
+                        bwd_box[j] = back_box[k]
 
             for j in range(seeds.size):
                 if self.near_seed.test(seeds[j:j + 1])[0]:

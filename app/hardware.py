@@ -299,7 +299,12 @@ def refresh_hz(p: dict) -> float:
 
 def summary_lines(p: dict) -> list[str]:
     """Short lines for the loading screen, the log and Help → Your computer."""
-    lines = [f"Processor: {p.get('cpu', '?')} — {p.get('cores', '?')} threads"]
+    try:
+        from physics.parallel import workers
+        used = f" ({workers()} for computing)"
+    except Exception:                                 # noqa: BLE001
+        used = ""
+    lines = [f"Processor: {p.get('cpu', '?')} — {p.get('cores', '?')} threads{used}"]
     ads = p.get("adapters") or []
     if ads:
         lines.append("Graphics cards: " + ", ".join(

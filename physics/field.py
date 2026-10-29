@@ -15,8 +15,12 @@ from typing import Iterable, Sequence
 
 import numpy as np
 
+from . import parallel
 from .base import FlowElement, as_complex_array
 from .images import resolve
+
+
+PARALLEL_MIN_POINTS = 20_000            # smaller arrays: one core (a thread costs more than it saves)
 
 
 # ---------------------------------------------------------------------------
@@ -28,13 +32,29 @@ def active(elements: Iterable[FlowElement]) -> list[FlowElement]:
 
 
 def complex_velocity(elements: Iterable[FlowElement], z) -> np.ndarray:
-    """w(z) = Σ w_k(z) = u − i v   (sum over flow elements and their wall images)."""
+    """w(z) = Σ w_k(z) = u − i v   (sum over flow elements and their wall images).
+    A large array of points (a field-layer grid) is split over the processor's cores (parallel.py): every
+    point is computed exactly as on one core."""
     z = as_complex_array(z)
     flows = resolve(elements)
+    return _on_cores(lambda part: _velocity_sum(flows, part), z)
+
+
+def _velocity_sum(flows, z) -> np.ndarray:
     w = np.zeros(z.shape, dtype=np.complex128)
     for cls, group in flows.groups.items():
         w += cls.batch_complex_velocity(group, z)
     return w
+
+
+def _on_cores(fn, z) -> np.ndarray:
+    """fn(z) for an array of points, in pieces on several cores when it is large (results in the original
+    order and shape; each point's value does not depend on the piece it is in)."""
+    if z.size < PARALLEL_MIN_POINTS or parallel.workers() <= 1:
+        return fn(z)
+    flat = z.reshape(-1)
+    parts = parallel.run([lambda a=a, b=b: fn(flat[a:b]) for a, b in parallel.chunks(flat.size, PARALLEL_MIN_POINTS // 2)])
+    return np.concatenate(parts).reshape(z.shape)
 
 
 def velocity(elements: Iterable[FlowElement], x, y) -> tuple[np.ndarray, np.ndarray]:
@@ -46,10 +66,14 @@ def velocity(elements: Iterable[FlowElement], x, y) -> tuple[np.ndarray, np.ndar
 def complex_potential(elements: Iterable[FlowElement], z) -> np.ndarray:
     """F(z) = Σ F_k(z) = φ + i ψ  (ψ of sources and φ of vortices contain branch cuts)."""
     z = as_complex_array(z)
-    F = np.zeros(z.shape, dtype=np.complex128)
-    for e in resolve(elements):
-        F += e.complex_potential(z)
-    return F
+    flows = resolve(elements)
+
+    def potential(part):
+        F = np.zeros(part.shape, dtype=np.complex128)
+        for e in flows:
+            F += e.complex_potential(part)
+        return F
+    return _on_cores(potential, z)
 
 
 # ---------------------------------------------------------------------------

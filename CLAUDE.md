@@ -219,6 +219,11 @@ GUI / Qt
   panel (FPS, fps cap Match screen / 60 / 120 / 144) + Intel → NVIDIA (write HKCU\Software\Microsoft\DirectX\
   UserGpuPreferences "GpuPreference=2;" for the exe / python.exe after asking, restart, check the renderer;
   fallback: open ms-settings:display-advancedgraphics), 20.4 GPU particles / pulses + calibrated maxima.
+- **29 Oct, 20.2 multi-core (always on)**: `physics/parallel.py` (pool of cpu_threads − 1, `PFL_THREADS`, nested
+  calls run serially, results in order). Used by `level._integrate` / `_integrate_both` (seed pieces of the nogil
+  tracer; both directions at once on several cores) and `field.complex_velocity / complex_potential` (≥ 20 000
+  points). Bit-identical to one core (3457 line arrays, 84 grids; tests/test_parallel.py). This server has 2
+  hyper-threads → workers() = 1 by default: run tests with PFL_THREADS=4 to exercise the parallel code.
 - **Next: item 20 — optimization (+ E2)**: measure first, then improve: start-up and first Numba compile,
   dragging, zoom / pan, animation (maybe an "Use graphics card (OpenGL)" option with a fallback), Solid bodies,
   Surface pressure, export times; scripts in `scripts/`, before / after numbers in ROADMAP.
