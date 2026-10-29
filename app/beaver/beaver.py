@@ -56,6 +56,7 @@ PULSE_DODGE_S = 0.6                   # … when the next one is still at least 
 RUN_FRACTION_S = 0.22                 # running: this part of the view width per second
 PAUSED_LEAVE_S = 8.0
 DRAG_PX = 6                           # a press that moves further than this is a drag, otherwise a click
+TOUR_MOUSE = (QEvent.MouseButtonPress, QEvent.MouseButtonDblClick, QEvent.Wheel, QEvent.ContextMenu)   # (the lock)
 MENU = ["Questions & answers  (P)", "Show me around (tour)", "Tell me a fun fact", "Nothing, thanks"]
 
 
@@ -161,12 +162,14 @@ class Beaver(QObject):
         self.sprite.pressed.connect(self._pressed)
         self.sprite.released.connect(self._released)
         self.bubble.clicked.connect(self._bubble_clicked)
+        self.bubble.button_clicked.connect(self._bubble_button)
         self.spotlight = Spotlight(window)
         self.tour = Tour(self, window, self.spotlight)
         self.dialog = None              # an open dialog bubble: "menu", "faq", "answer", "ask_tour"
         self._press = None              # global position of a press that is not (yet) a drag
         self.sprite.wheel.connect(self._forward_wheel)
         self.cv.view_mode_changed.connect(self.mode_changed)
+        self.cv.mode_changed.connect(lambda m: self.notify("mouse_mode", m))
         QApplication.instance().installEventFilter(self)
         self.set_theme(window.theme)
         self.timer.start()
@@ -395,6 +398,8 @@ class Beaver(QObject):
             return True
         if t == QEvent.KeyPress and self._keys(obj, event):
             return True
+        if t in TOUR_MOUSE and self._tour_blocks(obj, event):
+            return True                                     # the tour: only what the step asks for
         if t in (QEvent.MouseMove, QEvent.MouseButtonPress, QEvent.KeyPress, QEvent.Wheel):
             self.last_input = self.clock
             if t == QEvent.MouseMove:
@@ -409,9 +414,24 @@ class Beaver(QObject):
             QTimer.singleShot(0, self._release)
         return False
 
+    def _tour_blocks(self, obj, event) -> bool:
+        """The tour is on: a mouse press / double-click / wheel / right-click in the window reaches only
+        what the step allows (Tour.allows); the beaver and his bubble always take it. Other windows (an
+        element dialog) are not touched; hovering is never blocked."""
+        if not (self.enabled and self.tour.active) or not isinstance(obj, QWidget) or obj.window() is not self.win:
+            return False
+        if QApplication.activeModalWidget() is not None:
+            return False
+        for own in (self.sprite, self.bubble):
+            if obj is own or own.isAncestorOf(obj):
+                return False
+        return not self.tour.allows(obj, event)
+
     def _keys(self, obj, event, act: bool = True) -> bool:
         """Keys for the tour and the dialog bubbles (not while another window or a text field has them).
-        act=False: only whether the key is ours."""
+        act=False: only whether the key is ours.
+        The tour takes Enter / Space (next, skip) and Esc (end) wherever the focus is in the window and
+        swallows every other key, except the ones its step asks for (Tour.allows_key)."""
         if not self.enabled or not (self.tour.active or self.dialog):
             return False
         from PySide6.QtWidgets import QAbstractSpinBox, QLineEdit
@@ -419,18 +439,18 @@ class Beaver(QObject):
             return False
         if not isinstance(obj, QWidget) or obj.window() is not self.win:
             return False
-        if isinstance(QApplication.focusWidget(), (QLineEdit, QAbstractSpinBox)):
-            return False
         k = event.key()
         if self.tour.active:
-            if k in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space, Qt.Key_Right):
-                if act:
+            if k in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space):
+                if act and not event.isAutoRepeat():
                     self.tour.next()
                 return True
             if k == Qt.Key_Escape:
                 if act:
                     self.tour.end(completed=False)
                 return True
+            return not self.tour.allows_key(k)          # True: swallowed (no shortcut, no typing)
+        if isinstance(QApplication.focusWidget(), (QLineEdit, QAbstractSpinBox)):
             return False
         b = self.bubble
         if not act:
@@ -466,7 +486,7 @@ class Beaver(QObject):
 
     def _pressed(self, gpos: QPointF):
         if self.tour.active:
-            self.tour.next()                                # clicking him goes on in the tour
+            self.tour.click()                               # clicking him: next (a reading step)
             return
         self._press = QPointF(gpos)
         self._mouse = QPointF(gpos)
@@ -525,11 +545,15 @@ class Beaver(QObject):
 
     def _bubble_clicked(self, k: int):
         if self.tour.active:
-            self.tour.next()
+            self.tour.click()
         elif self.dialog == "answer":
             self.open_faq()
         elif k >= 0:
             self._choose(k)
+
+    def _bubble_button(self, k: int):
+        if self.tour.active:
+            self.tour.button(k)
 
     def _choose(self, k: int):
         kind = self.dialog
@@ -1094,9 +1118,18 @@ class Beaver(QObject):
         if self.state == "perch" or (self.state == "tour" and self.data.get("feet") is None):
             anchor, tail = self.center + QPointF(13 * S, -3 * S), "left"
         elif self.state == "tour":
-            anchor, tail = self.center + QPointF(12 * S, -6 * S), "left"
-            if anchor.x() + 360 > self.win.width():
-                anchor, tail = self.center + QPointF(-12 * S, -6 * S), "right"
+            # beside him, but never over what the tour shows (the highlighted part)
+            sides = [(QPointF(12 * S, -6 * S), "left"), (QPointF(-12 * S, -6 * S), "right"),
+                     (QPointF(2 * S, 16 * S), "up"), (QPointF(2 * S, -HEAD_TOP * S), "down")]
+            if self.center.x() + 12 * S + 360 > self.win.width():
+                sides[0], sides[1] = sides[1], sides[0]
+            avoid = self.tour.avoid_rect()
+            anchor, tail = self.center + sides[0][0], sides[0][1]
+            if avoid is not None:
+                for off, side in sides:
+                    if not self.bubble.box_at(self.center + off, side, bounds).intersects(avoid):
+                        anchor, tail = self.center + off, side
+                        break
         else:
             anchor, tail = self.center + QPointF(2 * S, -HEAD_TOP * S), "down"
             if anchor.y() - 70 < self.ruler_bottom():

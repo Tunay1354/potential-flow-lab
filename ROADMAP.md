@@ -408,6 +408,28 @@ bırakıldı (kullanıcı kararı).
       birebir eskisi gibi, 30 px. Panel genişliği değişince yeniden bölünüyor; açık / koyu tema. Bedeli: 6
       elementli sahnede listede aynı anda 4 yerine 3 satır görünüyor. `app/panels.py` (`ElementRowDelegate`,
       `wrap_summary`), test: `test_elements_list_shows_full_names_and_wraps_parameters`
+19c. ✅ **Tanıtım turu: kilit + düzeltmeler** (29 Ekim, kullanıcının Windows'ta turu adım adım denemesinden)
+    - Kilit: tur sürerken pencerede tıklama / çift tıklama / tekerlek / sağ tık sadece adımın istediğine gider
+      (`Step.allow`, `Tour.allows`, `Beaver._tour_blocks`): okuma adımlarında hiçbir şey, plot adımlarında zoom / pan
+      (çift tık ve sağ tık yok), "Your turn!" adımlarında sadece gösterilen şey (UNIFORM / DOUBLET düğmesi, doublet
+      satırına çift tık — tik kutusu değil, MOVE düğmesi ya da M, plot'ta doublet'i sürükleme, Density slider'ı,
+      PARTICLES). Hover ve tooltip'ler her yerde çalışır; kunduz ve balonu her zaman tıklanır; açık element penceresi
+      (ayrı pencere) etkilenmez
+    - Tuşlar: Enter / Space = sonraki (eylem adımında atla), Esc = bitir — odak bir yazı kutusundayken de (önceden
+      odak Plot settings'teki x / y kutusundaysa Enter oraya gidiyordu: "balona tıklamak gerekiyor" sorunu). Diğer
+      tüm tuşlar tur boyunca yutulur (Move adımında M hariç); sağ ok artık "sonraki" değil
+    - Balonda tıklanabilir **End tour (Esc)** ve **Next (Enter)** / **Skip (Enter)** düğmeleri; balona / kunduza
+      tıklama sadece okuma adımında "sonraki" (eylem adımını yanlışlıkla atlamaz)
+    - Alt adımlar: palette'ten sürüklerken plot aydınlanır ("Now let go over the plot"); element penceresi açılınca
+      kunduz pencerenin yanındaki boş tarafa geçer, pencere vurgulanır, ne yapılacağını söyler (Apply → devam, Cancel
+      → adıma geri); edit'te değişiklik yoksa "Nothing changed!" der ve bekler. Edit adımı artık pencere açılınca
+      değil Apply ile geçiyor. MOVE'a basınca yeni adım: "doublet'i sürükle" (plot vurgulu), taşıyınca geçer
+    - Plot settings adımından sonra yeni "Your turn!": Density slider'ı (tur bitince eski değerine döner)
+    - Balon gösterdiği yerin üstüne binmez (sağ / sol / alt / üst denenir); Elements ve Plot settings adımlarında
+      metnin paneli kapatması düzeldi; slider adımında kunduz panelin dışında. Metinlerde "press OK" → Apply
+    - Tur 16 → 18 adım; bitişte Select modu. Testler: `test_beaver.py` +5 (kilit, tuşlar, düğmeler, balonun yeri her
+      adımda, sürükleme / pencere alt adımları); ayrıca gerçek fare / tuş olaylarıyla 18 adımın baştan sona denemesi
+      (43 kontrol) offscreen yapıldı — Windows'ta denenmedi
 20. ☐ **Optimizasyon (+ Paket E2)**: ölçüm → iyileştirme: açılış ve ilk Numba derleme süresi, sürükleme, zoom /
     pan, animasyon (gerekirse "Use graphics card (OpenGL)", açılamazsa normal çizim), Solid bodies, Surface
     pressure, export süreleri; ölçümler `scripts/` altında, önce / sonra sayılarıyla

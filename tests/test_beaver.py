@@ -460,19 +460,174 @@ def test_the_whole_tour_needs_the_actions_and_ends_on_an_empty_plot(win, qapp):
         ev, val = s.wait
         if ev == "added":
             win.model.add(Uniform() if val == "uniform" else Doublet(mu=1.0))
-        elif ev == "edit":
-            b.notify("edit", "doublet")
+        elif ev == "edited":
+            b.notify("edited", "doublet")
+        elif ev == "mouse_mode":
+            win.canvas.set_mode(val)
         elif ev == "moved":
             b.notify("moved", "doublet")
+        elif ev == "setting":
+            sl = win.settings_panel.sliders[val]
+            sl.setValue(sl.value() + 1)
         elif ev == "view_mode":
             win.canvas.set_view_mode(val)
         run(qapp, win, 1.5)                                         # "Nice!", then the next step
         assert b.tour.i == i + 1 or not b.tour.active
     assert not b.tour.active and win.elements == [] and win.canvas.view_mode == "static"
-    assert not b.spotlight.isVisible()
+    assert win.canvas.mode == "select" and not b.spotlight.isVisible()
     run(qapp, win, 3)
     assert b.state == "perch"
     assert len(STEPS) >= 12
+
+
+def _tour_at(b, win, qapp, index):
+    """Start the tour and go to step `index` (typing finished)."""
+    win.activateWindow()
+    win.model.mark_clean()
+    b.start_tour()
+    while b.tour.i < index:
+        b.bubble.finish_typing()
+        b.tour.next()
+    b.bubble.finish_typing()
+    run(qapp, win, 0.3)
+    b.bubble.finish_typing()
+
+
+def _bubble_box(b):
+    from PySide6.QtCore import QPointF
+    return b.bubble._box.translated(QPointF(b.bubble.geometry().topLeft()) + b.bubble._offset)
+
+
+def test_the_tour_locks_the_window_except_what_the_step_asks_for(win, qapp, monkeypatch):
+    """Tour: a click only reaches what the step asks for (here: nothing, then the plot's zoom / pan, then the
+    UNIFORM button); the beaver, his bubble and hovering keep working."""
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtGui import QWheelEvent
+    from PySide6.QtTest import QTest
+    b = win.beaver
+    calls = []
+    monkeypatch.setattr(win, "add_element_dialog", lambda key, at=None: calls.append(key))
+    pal = {x.property("element_key"): x for x in win.element_toolbar.findChildren(type(win.canvas.bar.btn_move))
+           if x.property("element_key")}
+    bar, vp = win.canvas.bar, win.canvas.plot.viewport()
+    _tour_at(b, win, qapp, 0)                                        # welcome: nothing
+    for wdg in (pal["uniform"], bar.btn_particles, bar.btn_move, win.elements_panel.btn_edit):
+        QTest.mouseClick(wdg, Qt.LeftButton)
+    qapp.processEvents()
+    assert calls == [] and win.canvas.view_mode == "static" and win.canvas.mode == "select"
+    _tour_at(b, win, qapp, 1)                                        # the plot: zoom / pan only
+    v0 = win.canvas.view()
+    qapp.sendEvent(vp, QWheelEvent(QPointF(300, 200), QPointF(vp.mapToGlobal(QPoint(300, 200))), QPoint(0, 0),
+                                   QPoint(0, 240), Qt.NoButton, Qt.NoModifier, Qt.NoScrollPhase, False))
+    run(qapp, win, 0.2)
+    assert win.canvas.view() != v0
+    QTest.mouseClick(bar.btn_particles, Qt.LeftButton)
+    assert win.canvas.view_mode == "static"
+    _tour_at(b, win, qapp, 3)                                        # drag a UNIFORM flow: only that button
+    QTest.mouseClick(pal["source"], Qt.LeftButton)
+    QTest.mouseClick(pal["uniform"], Qt.LeftButton)
+    qapp.processEvents()
+    assert calls == ["uniform"]
+    b.tour.end(completed=False)
+    QTest.mouseClick(pal["source"], Qt.LeftButton)                   # after the tour: everything again
+    qapp.processEvents()
+    assert calls == ["uniform", "source"]
+
+
+def test_tour_keys_work_from_a_text_field_and_other_keys_are_swallowed(win, qapp):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QLineEdit
+    b = win.beaver
+    _tour_at(b, win, qapp, 1)
+    field = next(f for f in win.settings_panel.findChildren(QLineEdit) if f.isVisible())
+    field.setFocus()
+    qapp.processEvents()
+    QTest.keyClick(field, Qt.Key_Return)                              # Enter in a text field: next
+    qapp.processEvents()
+    assert b.tour.i == 2
+    QTest.keyClick(win, Qt.Key_M)                                     # a shortcut: swallowed (not the Move step)
+    QTest.keyClick(win, Qt.Key_Right)                                 # (not "next" any more)
+    qapp.processEvents()
+    assert win.canvas.mode == "select" and b.tour.i == 2
+    _tour_at(b, win, qapp, 8)                                         # the Move step: M works there
+    assert b.tour.step.wait == ("mouse_mode", "move")
+    QTest.keyClick(win, Qt.Key_M)
+    run(qapp, win, 1.5)
+    assert win.canvas.mode == "move" and b.tour.step.wait == ("moved", None)    # on to "drag the doublet"
+    b.tour.end(completed=False)
+    assert win.canvas.mode == "select"
+
+
+def test_tour_bubble_has_buttons_and_a_click_only_goes_on_in_a_reading_step(win, qapp):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    from app.beaver.tour import END_BUTTON, NEXT_BUTTON, SKIP_BUTTON
+    b = win.beaver
+    _tour_at(b, win, qapp, 2)
+    assert b.bubble.buttons == [END_BUTTON, NEXT_BUTTON]
+    QTest.mouseClick(b.bubble, Qt.LeftButton, pos=b.bubble.button_rect(1).center().toPoint())   # Next
+    qapp.processEvents()
+    assert b.tour.i == 3 and b.bubble.buttons == [END_BUTTON, SKIP_BUTTON]
+    b.bubble.finish_typing()
+    b.bubble.clicked.emit(-1)                                          # a click on an action step's text …
+    b._pressed(b.center)                                               # … or on the beaver: no skip
+    assert b.tour.i == 3
+    b.bubble.button_clicked.emit(1)                                    # Skip
+    assert b.tour.i == 4
+    b.bubble.button_clicked.emit(0)                                    # End tour
+    assert not b.tour.active
+
+
+def test_tour_bubble_never_covers_what_it_shows(win, qapp):
+    """Elements list, plot settings, the slider, buttons, menus: the bubble is beside them, not on them."""
+    from app.beaver.tour import STEPS
+    b = win.beaver
+    for k, s in enumerate(STEPS):
+        if s.where in ("inside", "perch") or s.target is None:
+            continue
+        _tour_at(b, win, qapp, k)
+        run(qapp, win, 1.0)
+        avoid = b.tour.avoid_rect()
+        assert avoid is not None and not _bubble_box(b).intersects(avoid), s.target
+        b.tour.end(completed=False)
+
+
+def test_tour_sub_steps_drag_and_dialog(win, qapp):
+    """Dragging from the palette highlights the plot; an open dialog gets the beaver beside it (Apply goes on,
+    Cancel back to the step); an edit that changes nothing says so and waits."""
+    from app.dialogs import ElementDialog
+    from app.element_specs import spec_for
+    b = win.beaver
+    _tour_at(b, win, qapp, 3)
+    b.notify("palette_drag", "uniform")
+    assert b.tour.sub == "drag" and b.spotlight.target.contains(b.plot_rect().center())
+    b.notify("palette_drag_end", "uniform")
+    run(qapp, win, 0.5)
+    assert b.tour.sub is None and b.tour.i == 3                        # let go elsewhere: back
+    spec = spec_for("uniform")
+    dlg = ElementDialog(spec, win.theme, False, win, values={p.key: p.default for p in spec.params})
+    dlg.setModal(False)
+    dlg.show()
+    qapp.processEvents()
+    b.notify("dialog_open", ("add", "uniform", dlg))
+    run(qapp, win, 1.0)
+    b.bubble.finish_typing()
+    run(qapp, win, 0.1)
+    r = b.tour.target_rect()
+    assert b.tour.sub == "dialog" and r is not None and not _bubble_box(b).intersects(r)
+    b.notify("dialog_closed", (False, False))                          # Cancel
+    assert b.tour.sub is None and b.tour.i == 3
+    dlg.close()
+    dlg.deleteLater()
+    _tour_at(b, win, qapp, 7)                                          # edit the doublet
+    b.notify("dialog_open", ("edit", "doublet", None))
+    b.notify("dialog_closed", (True, False))                           # Apply without a change
+    assert b.tour.i == 7 and b.tour.note is not None and "Nothing changed" in b.bubble.text
+    b.notify("edited", "doublet")
+    run(qapp, win, 1.5)
+    assert b.tour.i == 8
+    b.tour.end(completed=False)
 
 
 def test_esc_ends_the_tour(win, qapp):

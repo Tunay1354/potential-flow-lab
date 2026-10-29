@@ -8,6 +8,8 @@ Two kinds:
   a dialog      say(text, choices=[...], hint=..., sticky=True): stays until it is answered; the choices
                 (numbered rows, shown when the text is typed) can be clicked or picked with the keys (the
                 beaver handles the keys); a click elsewhere on it gives clicked(-1) ("next" in the tour)
+  buttons       say(..., buttons=["End tour (Esc)", "Next (Enter)"]): pixel buttons in a row at the bottom
+                right (the tour); a click on one gives button_clicked(k) — they work while it still types
 """
 from __future__ import annotations
 
@@ -28,6 +30,8 @@ PAD = 9                          # text margin inside the frame (logical px)
 TAIL = 10                        # tail length (logical px)
 MAX_TEXT_W = 340                 # longer lines wrap
 ROW_GAP = 4
+BTN_PAD_X, BTN_PAD_Y = 7, 3      # text margin inside a button (logical px)
+BTN_GAP = 8                      # between two buttons
 
 
 def _font(px):
@@ -56,6 +60,7 @@ def wrap(text: str, fm: QFontMetricsF, width: float) -> list[str]:
 
 class SpeechBubble(QWidget):
     clicked = Signal(int)            # a choice (0, 1 …) or −1 (the text) of a dialog
+    button_clicked = Signal(int)     # one of the buttons (0, 1 …)
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -67,6 +72,8 @@ class SpeechBubble(QWidget):
         self.text = ""
         self.choices: list[str] = []
         self.hint = ""
+        self.buttons: list[str] = []
+        self.hover_btn = -1              # button under the mouse
         self.sticky = False
         self.sel = -1                    # highlighted choice (keys / mouse)
         self.shown = 0.0                 # characters typed so far
@@ -76,6 +83,7 @@ class SpeechBubble(QWidget):
                        "muted": QColor("#4E4434"), "sel": QColor("#EFE3CE")}
         self._lines = []
         self._rows = []                  # choice rows: (rect in box coordinates)
+        self._btns = []                  # buttons: (rect in box coordinates)
         self._box = QRectF()
         self._anchor = QPointF()
         self._offset = QPointF()
@@ -107,10 +115,13 @@ class SpeechBubble(QWidget):
                        "sel": QColor(theme["accent_soft"])}
         self.update()
 
-    def say(self, text: str, typed: bool = True, choices=None, hint: str = "", sticky: bool = False):
+    def say(self, text: str, typed: bool = True, choices=None, hint: str = "", sticky: bool = False,
+            buttons=None):
         self.text = text
         self.choices = list(choices or [])
         self.hint = hint
+        self.buttons = list(buttons or [])
+        self.hover_btn = -1
         self.sticky = bool(sticky)
         self.sel = 0 if self.choices else -1
         self.after = 0.0
@@ -131,11 +142,23 @@ class SpeechBubble(QWidget):
         if self.hint:
             h += 4 + hm.lineSpacing()
             w = max(w, hm.horizontalAdvance(self.hint))
+        widths = [hm.horizontalAdvance(b) + 2 * BTN_PAD_X for b in self.buttons]
+        bh = hm.lineSpacing() + 2 * BTN_PAD_Y
+        if self.buttons:
+            h += 8 + bh
+            w = max(w, sum(widths) + BTN_GAP * (len(widths) - 1))
         w += 2 * PAD + 6
         h += 2 * PAD - 2
         self._box = QRectF(0, 0, math.ceil(w / a) * a, math.ceil(h / a) * a)
         for r in self._rows:
             r.setWidth(self._box.width() - 2 * (PAD - 4))
+        self._btns = []                                    # right-aligned at the bottom
+        x = self._box.width() - PAD
+        y = self._box.height() - PAD + 2 - bh
+        for bw in reversed(widths):
+            x -= bw
+            self._btns.insert(0, QRectF(round(x / a) * a, round(y / a) * a, math.ceil(bw / a) * a, math.ceil(bh / a) * a))
+            x -= BTN_GAP
         self.setAttribute(Qt.WA_TransparentForMouseEvents, not self.dialog)
         self.update()
 
@@ -149,6 +172,8 @@ class SpeechBubble(QWidget):
     def clear(self):
         self.text = ""
         self.choices = []
+        self.buttons = []
+        self._btns = []
         self.sticky = False
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.hide()
@@ -186,28 +211,47 @@ class SpeechBubble(QWidget):
                 return k
         return -1
 
+    def _button_at(self, pos) -> int:
+        p = pos - self._offset
+        for k, r in enumerate(self._btns):
+            if r.contains(p):
+                return k
+        return -1
+
+    def button_rect(self, k: int) -> QRectF:
+        """Button k in this widget's coordinates (tests)."""
+        return self._btns[k].translated(self._offset)
+
     def mouseMoveEvent(self, e):
         k = self._row_at(e.position())
         if k >= 0 and k != self.sel:
             self.sel = k
             self.update()
-        self.setCursor(Qt.PointingHandCursor if k >= 0 or self.sticky else Qt.ArrowCursor)
+        b = self._button_at(e.position())
+        if b != self.hover_btn:
+            self.hover_btn = b
+            self.update()
+        self.setCursor(Qt.PointingHandCursor if k >= 0 or b >= 0 or self.sticky else Qt.ArrowCursor)
+
+    def leaveEvent(self, _e):
+        if self.hover_btn >= 0:
+            self.hover_btn = -1
+            self.update()
 
     def mousePressEvent(self, e):
         if e.button() == Qt.LeftButton and self.dialog:
-            if self.typing:
+            b = self._button_at(e.position())
+            if b >= 0:
+                self.button_clicked.emit(b)
+            elif self.typing:
                 self.finish_typing()
             else:
                 self.clicked.emit(self._row_at(e.position()))
         e.accept()
 
     # ------------------------------------------------------------------ placement
-    def place(self, anchor: QPointF, tail: str, bounds: QRectF):
-        """Put the tail tip at `anchor` (parent coordinates), bubble on the other side of the tail, kept
-        inside `bounds`."""
-        if not self.text:
-            return
-        self.tail = tail
+    def box_at(self, anchor: QPointF, tail: str, bounds: QRectF) -> QRectF:
+        """Where the box would be (parent coordinates) for place(anchor, tail, bounds)."""
         bw, bh = self._box.width(), self._box.height()
         if tail == "down":
             x, y = anchor.x() - 22, anchor.y() - bh - TAIL
@@ -219,6 +263,16 @@ class SpeechBubble(QWidget):
             x, y = anchor.x() - bw - TAIL, anchor.y() - bh / 2
         x = min(max(x, bounds.left() + 2), bounds.right() - bw - 6)
         y = min(max(y, bounds.top() + 2), bounds.bottom() - bh - 6)
+        return QRectF(x, y, bw, bh)
+
+    def place(self, anchor: QPointF, tail: str, bounds: QRectF):
+        """Put the tail tip at `anchor` (parent coordinates), bubble on the other side of the tail, kept
+        inside `bounds`."""
+        if not self.text:
+            return
+        self.tail = tail
+        box = self.box_at(anchor, tail, bounds)
+        x, y, bw, bh = box.x(), box.y(), box.width(), box.height()
         m = TAIL + 6
         self._anchor = anchor - QPointF(x - m, y - m)                   # tail tip in widget coordinates
         self.setGeometry(int(x - m), int(y - m), int(bw + 2 * m), int(bh + 2 * m))
@@ -268,11 +322,24 @@ class SpeechBubble(QWidget):
                 p.fillRect(QRectF(row.left(), row.top(), a, row.height() - 1), ink)
             p.setPen(ink)
             p.drawText(QPointF(row.left() + 6, row.top() + ROW_GAP / 2 + fm.ascent()), f"{(k + 1) % 10}  {c}")
+        hm = QFontMetricsF(self.hint_font)
         if self.hint:
-            hm = QFontMetricsF(self.hint_font)
+            hint_bottom = y0 + h - PAD + 2 - (self._btns[0].height() + 8 if self._btns else 0)
             p.setFont(self.hint_font)
             p.setPen(self.colors["muted"])
-            p.drawText(QPointF(x0 + PAD + 1, y0 + h - PAD + 2 - hm.descent()), self.hint)
+            p.drawText(QPointF(x0 + PAD + 1, hint_bottom - hm.descent()), self.hint)
+        # buttons: a pixel frame, filled when the mouse is over it
+        p.setFont(self.hint_font)
+        for k, (label, rr) in enumerate(zip(self.buttons, self._btns)):
+            br = rr.translated(o)
+            p.fillRect(br, self.colors["sel"] if k == self.hover_btn else paper)
+            for edge in (QRectF(br.left() + a, br.top(), br.width() - 2 * a, a),
+                         QRectF(br.left() + a, br.bottom() - a, br.width() - 2 * a, a),
+                         QRectF(br.left(), br.top() + a, a, br.height() - 2 * a),
+                         QRectF(br.right() - a, br.top() + a, a, br.height() - 2 * a)):
+                p.fillRect(edge, ink)
+            p.setPen(ink)
+            p.drawText(QPointF(br.left() + BTN_PAD_X, br.top() + BTN_PAD_Y + hm.ascent()), label)
         p.end()
 
     def _tail(self, p, a, x0, y0, w, h, ink, paper):

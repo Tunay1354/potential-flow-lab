@@ -1,6 +1,7 @@
 """
 spotlight.py — the tour's highlight: the rest of the window slightly dimmed, a blinking pixel frame round
-the part being explained. Never takes the mouse (everything stays usable).
+the part being explained. It never takes the mouse itself: what the user may click during the tour is decided
+by Tour.allows (the lock, checked in Beaver.eventFilter).
 """
 from __future__ import annotations
 

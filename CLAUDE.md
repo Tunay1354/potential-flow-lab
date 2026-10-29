@@ -180,6 +180,17 @@ GUI / Qt
   ~50 min here (run it in the background). Also: the Elements list no longer cuts names / parameters off
   (`app/panels.py`, `ElementRowDelegate`: parameters in the old 150 px column, wrapped between parameters;
   under the name when the name is too long). Column 1 still holds `e.summary()` (hidden), tests read it.
+- **29 Oct, tour lock (ROADMAP 19c)**, from his step-by-step Windows test of the tour: while the tour runs the
+  window is locked — `Step.allow` + `Tour.allows` decide what a press / double-click / wheel / right-click may
+  reach (checked in `Beaver._tour_blocks`, app-wide event filter; never block releases or moves); keys: Enter /
+  Space next or skip, Esc end, all others swallowed except `Step.keys` (M in the Move step), also when a text field
+  has the focus. Bubble buttons End tour / Next / Skip (`bubble.buttons`, `button_clicked`). Sub-steps `Tour.sub`:
+  "drag" (palette drag: plot highlighted), "dialog" (the window sends dialog_open / dialog_closed around every
+  element dialog; the beaver stands where his bubble fits beside it). The window also sends edited / setting /
+  mouse_mode / palette_drag(_end). The bubble never covers `Tour.avoid_rect()`. 18 steps.
+  Offscreen note: after a modal dialog the window is not active again by itself → shortcuts (M) need
+  `activateWindow()` in scripts; a real double-click is press, release, double-click, release (QTest.mouseDClick
+  alone is ignored by item views).
 - **Next: item 20 — optimization (+ E2)**: measure first, then improve: start-up and first Numba compile,
   dragging, zoom / pan, animation (maybe an "Use graphics card (OpenGL)" option with a fallback), Solid bodies,
   Surface pressure, export times; scripts in `scripts/`, before / after numbers in ROADMAP.

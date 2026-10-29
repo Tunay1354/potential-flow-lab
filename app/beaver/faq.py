@@ -6,7 +6,7 @@ a few lines each. Keys 1–9, 0 pick a question.
 FAQ = [
     ("How do I add an element?",
      "Drag it from the ADD palette (left) onto the plot, or just click it: it lands in the middle of the view. "
-     "Set its values and press OK. Elements -> Add does the same."),
+     "Set its values and press Apply. Elements -> Add does the same."),
     ("How do I edit or delete one?",
      "Double-click it in the Elements list (or on the plot) to change its values. Select it and press Delete to "
      "remove it. Ctrl+Z undoes anything, Ctrl+Y redoes."),

@@ -19,6 +19,8 @@ class ElementPalette(QWidget):
     plot (drag_moved / drag_finished carry the global mouse position); its size never changes."""
     drag_moved = Signal(QPoint)
     drag_finished = Signal(QPoint)
+    element_drag_started = Signal(str)     # an element type is dragged out (towards the plot) …
+    element_drag_finished = Signal(str)    # … and let go (dropped or not)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -100,8 +102,12 @@ class ElementPalette(QWidget):
         drag.setPixmap(button.icon().pixmap(size, size))
         drag.setHotSpot(QPoint(size // 2, size // 2))
         button.setDown(False)
-        drag.exec(Qt.CopyAction)
-        button.setDown(False)                     # no click after a drag
+        self.element_drag_started.emit(key)
+        try:
+            drag.exec(Qt.CopyAction)
+        finally:
+            button.setDown(False)                 # no click after a drag
+            self.element_drag_finished.emit(key)
 
     # dragging the card by its heading -------------------------------------------------------
     def _on_handle(self, pos) -> bool:

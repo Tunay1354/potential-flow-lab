@@ -91,9 +91,17 @@ Questions & answers) her yerden soru–cevap listesini açar: 1–9, 0, oklar + 
 
 **Tanıtım turu:** ilk açılışta kunduz "First time here? Want a quick tour?" diye sorar (bir kez). Evet → boş bir
 sayfadan başlayıp pencerenin parçalarını tek tek gösterir (kırmızı çerçeve, gerisi hafif karartılmış) ve asıl
-işleri yaptırır: uniform flow ekle, doublet ekle, elementi düzenle, Move ile taşı, Particles'ı aç; sonra Export,
-File, Presets, Help, kendisi ve P tuşu. Okuma adımları Enter / Space / tıklama ile geçer, "Your turn!" adımları
-yapınca geçer (Enter atlar), Esc turu bitirir. Bitince boş bir plot bırakır. Tekrar: Help → Beaver → Show me
+işleri yaptırır: uniform flow ekle, doublet ekle, elementi düzenle, Move'a bas ve doublet'i taşı, Density
+slider'ını oynat, Particles'ı aç; sonra Export, File, Presets, Help, kendisi ve P tuşu (18 adım).
+- Tur sürerken pencere kilitli: tıklama / çift tıklama / tekerlek / sağ tık sadece o adımın istediği yere gider
+  (plot adımlarında zoom / pan; "Your turn!" adımlarında sadece gösterilen şey). Fare her yerde gezer (hover,
+  tooltip'ler çalışır).
+- Okuma adımları Enter / Space / balona veya kunduza tıklama / **Next** butonu ile geçer. "Your turn!" adımları
+  istenen yapılınca kendiliğinden geçer; Enter / Space / **Skip** atlar. Esc veya **End tour** turu bitirir. Diğer
+  tuşlar tur boyunca çalışmaz (Move adımında M hariç).
+- Palette'ten sürüklerken plot aydınlanır; element penceresi açılınca kunduz yanına geçip ne yapılacağını söyler
+  (Apply → devam, Cancel → adıma geri). Konuşma balonu gösterdiği yerin üstüne binmez.
+- Bitince boş bir plot bırakır (Select modu, Density eski değerinde). Tekrar: Help → Beaver → Show me
 around ya da kunduza tıkla → 2. Sonraki açılışlarda sormaz (arada "Welcome back!").
 
 **İlk açılışı tekrar denemek için:** `python main.py --first-run` (o seferlik ilk açılış gibi davranır) ya da

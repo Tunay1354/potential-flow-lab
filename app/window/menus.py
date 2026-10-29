@@ -49,6 +49,8 @@ class MenusMixin:
         self._desk_layout.insertWidget(0, pal)
         pal.drag_moved.connect(self._palette_drag_moved)
         pal.drag_finished.connect(self._palette_drag_finished)
+        pal.element_drag_started.connect(lambda key: self._tell_beaver("palette_drag", key))     # (the tour)
+        pal.element_drag_finished.connect(lambda key: self._tell_beaver("palette_drag_end", key))
         self._drop_indicator = DropIndicator(self.desk)
 
     # ------------------------------------------------------------------ menus

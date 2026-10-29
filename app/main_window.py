@@ -151,6 +151,7 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         # plot settings -> plot
         sp.message.connect(self.flash)
         sp.setting_changed.connect(cv.set_setting)
+        sp.setting_changed.connect(lambda key, _v: self._tell_beaver("setting", key))      # (the tour)
         sp.arrows_changed.connect(cv.set_arrows)
         sp.layer_changed.connect(self._layer_changed)
         sp.field_quality_changed.connect(cv.set_field_quality)
@@ -180,15 +181,19 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         esc.activated.connect(lambda: self.canvas.cancel_drag() or self.select_element(-1))
 
     # ------------------------------------------------------------------ model -> view
+    def _tell_beaver(self, event: str, value=None):
+        """Tell the beaver what the user did (his tour waits for some of it)."""
+        if getattr(self, "beaver", None) is not None:
+            self.beaver.notify(event, value)
+
     def _beaver_scene(self):
         """Tell the beaver (tour) which element types were added."""
         types = [e.TYPE for e in self.elements]
         before = getattr(self, "_types_before", [])
         self._types_before = types
-        if getattr(self, "beaver", None) is not None:
-            for t in set(types):
-                if types.count(t) > before.count(t):
-                    self.beaver.notify("added", t)
+        for t in set(types):
+            if types.count(t) > before.count(t):
+                self._tell_beaver("added", t)
 
     def _on_model_changed(self, focus):
         self._beaver_scene()
@@ -311,38 +316,45 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
             values["x0"], values["y0"] = round(0.5 * (x0 + x1), 1) + 0.0, round(0.5 * (y0 + y1), 1) + 0.0
         dlg = ElementDialog(spec, self.theme, False, self, values=values,
                             validator=lambda vals: self._preview(cls(**vals), None))
+        accepted = False
+        self._tell_beaver("dialog_open", ("add", key, dlg))
         try:
             if dlg.exec():
+                accepted = True
                 self.model.add(cls(**dlg.values()))
                 self._flash_done()
         finally:
+            self._tell_beaver("dialog_closed", (accepted, accepted))
             dispose(dlg)
 
     def edit_element(self, row):
         if not 0 <= row < len(self.elements):
             return
         el = self.elements[row]
-        if getattr(self, "beaver", None) is not None:
-            self.beaver.notify("edit", el.TYPE)
         spec = spec_for(el.TYPE)
         values = {p.key: getattr(el, p.key) for p in spec.params}
         dlg = ElementDialog(spec, self.theme, True, self, values=values,
                             validator=lambda vals: self._preview(el.copy(**vals), row))
+        accepted = changed = False
+        self._tell_beaver("dialog_open", ("edit", el.TYPE, dlg))
         try:
             if dlg.exec():
+                accepted = True
                 if self.model.replace(row, el.copy(**dlg.values()), f"Edit {element_title(el).lower()}") is None:
                     self.flash("No change.")
                 else:
+                    changed = True
                     self._flash_done()
+                    self._tell_beaver("edited", el.TYPE)
         finally:
+            self._tell_beaver("dialog_closed", (accepted, changed))
             dispose(dlg)
 
     def move_element(self, row, moved):
         """Move mode: an element was dragged to a new place (one undoable step)."""
         if 0 <= row < len(self.elements):
             self.model.replace(row, moved, f"Move {element_title(self.elements[row]).lower()}")
-            if getattr(self, "beaver", None) is not None:
-                self.beaver.notify("moved", moved.TYPE)
+            self._tell_beaver("moved", moved.TYPE)
             self._flash_done()
 
     def duplicate_element(self, row):
