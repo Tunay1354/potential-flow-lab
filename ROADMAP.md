@@ -430,6 +430,22 @@ bırakıldı (kullanıcı kararı).
     - Tur 16 → 18 adım; bitişte Select modu. Testler: `test_beaver.py` +5 (kilit, tuşlar, düğmeler, balonun yeri her
       adımda, sürükleme / pencere alt adımları); ayrıca gerçek fare / tuş olaylarıyla 18 adımın baştan sona denemesi
       (43 kontrol) offscreen yapıldı — Windows'ta denenmedi
+19d. ✅ **Konuşma balonu yeni görünüm + turun iki hatası** (29 Ekim, kullanıcının taslağı ve Windows'ta ikinci tur)
+    - Balon "çizim kartı": kalın mürekkep çerçeve, basamaklı köşeler, gölge; başlıkta isim (PSI, geçici:
+      `lines.NAME`) ve sağda etiket (TOUR 3/18, YOUR TURN · 4/18, MENU, QUESTIONS, ANSWER, WELCOME); yazı IBM Plex
+      Mono (piksel font yerine); düğmeler sağ altta, asıl düğme başlıktaki ahşap renginde (plank #A98B6D: Next ›,
+      Yes, show me around ›, More questions ›), diğerleri kağıt rengi + mürekkep çerçeve; açık / koyu tema. Alt satırdaki
+      ipucu yazıları ("Enter / Space / click: next") kalktı — tuşlar aynen çalışıyor
+    - Tüm balonlar aynı stilde: tur, menü (+ Close), soru–cevap (+ Close), cevap (Close / More questions ›), ilk açılış
+      sorusu (artık düğmeler: No, thanks / Yes, show me around ›; Enter / 1 evet, Esc / 2 hayır), kısa laflar (başlıksız)
+    - Hata 1: kunduzun menüsünden ikinci kez "Show me around" → bazen ilk adım hiç başlamıyordu: `bubble.clear()`
+      eski satırları tutuyordu, hâlâ "yazılıyor" sanılan bir laf turun ilk adımını durduruyordu → `clear()` her şeyi
+      sıfırlıyor, tur başlarken balon temizleniyor
+    - Hata 2: Plot settings aşağı kaydırılmışsa Density adımında slider görünmüyordu (vurgu ve kunduz ekran dışı;
+      kilit yüzünden kaydırılamıyordu) → tur o adımlarda paneli açıp slider'ı görünür yere kaydırıyor; Plot settings
+      adımı paneli başa alıyor; slider'ın bölümü gizliyse adım atlanıyor
+    - Testler: +2 (`test_a_second_tour_from_the_menu_shows_a_scrolled_away_slider`,
+      `test_bubbles_have_the_name_a_tag_and_buttons`); turun gerçek olaylarla baştan sona denemesi yine 43 / 43
 20. ☐ **Optimizasyon (+ Paket E2)**: ölçüm → iyileştirme: açılış ve ilk Numba derleme süresi, sürükleme, zoom /
     pan, animasyon (gerekirse "Use graphics card (OpenGL)", açılamazsa normal çizim), Solid bodies, Surface
     pressure, export süreleri; ölçümler `scripts/` altında, önce / sonra sayılarıyla

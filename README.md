@@ -96,19 +96,22 @@ slider'ını oynat, Particles'ı aç; sonra Export, File, Presets, Help, kendisi
 - Tur sürerken pencere kilitli: tıklama / çift tıklama / tekerlek / sağ tık sadece o adımın istediği yere gider
   (plot adımlarında zoom / pan; "Your turn!" adımlarında sadece gösterilen şey). Fare her yerde gezer (hover,
   tooltip'ler çalışır).
-- Okuma adımları Enter / Space / balona veya kunduza tıklama / **Next** butonu ile geçer. "Your turn!" adımları
+- Okuma adımları Enter / Space / balona veya kunduza tıklama / **Next ›** butonu ile geçer. "Your turn!" adımları
   istenen yapılınca kendiliğinden geçer; Enter / Space / **Skip** atlar. Esc veya **End tour** turu bitirir. Diğer
   tuşlar tur boyunca çalışmaz (Move adımında M hariç).
 - Palette'ten sürüklerken plot aydınlanır; element penceresi açılınca kunduz yanına geçip ne yapılacağını söyler
-  (Apply → devam, Cancel → adıma geri). Konuşma balonu gösterdiği yerin üstüne binmez.
+  (Apply → devam, Cancel → adıma geri). Konuşma balonu gösterdiği yerin üstüne binmez. Plot settings adımlarında
+  panel açılır ve slider görünür yere kaydırılır (slider'ın bölümü gizliyse o adım atlanır).
 - Bitince boş bir plot bırakır (Select modu, Density eski değerinde). Tekrar: Help → Beaver → Show me
 around ya da kunduza tıkla → 2. Sonraki açılışlarda sormaz (arada "Welcome back!").
 
 **İlk açılışı tekrar denemek için:** `python main.py --first-run` (o seferlik ilk açılış gibi davranır) ya da
 Help → Beaver → Next start as a first-time user (bir sonraki açılış ilk açılış olur).
 
-Konuşmalar İngilizce, piksel fontla harf harf yazılır (Pixelify Sans, `assets/fonts/pixelify-sans`, OFL). Export
-edilen figür ve animasyonlarda görünmez; tekerlek üstündeyken de plotu zoom'lar. **View → Beaver** ile kapatılır.
+Konuşmalar İngilizce, harf harf yazılır. Konuşma balonu "çizim kartı" görünümünde: kalın mürekkep çerçeve, basamaklı
+köşeler, gölge; üstte adı (PSI, isim geçici) ve sağda etiket (TOUR 3/18, MENU, QUESTIONS …); yazı IBM Plex Mono;
+sağ altta düğmeler (asıl düğme başlıktaki ahşap renginde: Next ›, Yes, show me around ›, More questions ›). Kunduz
+export edilen figür ve animasyonlarda görünmez; tekerlek üstündeyken de plotu zoom'lar. **View → Beaver** ile kapatılır.
 
 ### Bir hata olursa
 

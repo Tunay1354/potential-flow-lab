@@ -630,6 +630,70 @@ def test_tour_sub_steps_drag_and_dialog(win, qapp):
     b.tour.end(completed=False)
 
 
+def test_a_second_tour_from_the_menu_shows_a_scrolled_away_slider(win, qapp):
+    """Bug from his second tour: the Plot settings were scrolled down, the tour started from the menu while
+    a remark was still typing; the Density step showed nothing (and the lock stopped him from scrolling)."""
+    from PySide6.QtCore import QPoint, QRect
+    from PySide6.QtWidgets import QScrollArea
+    b = win.beaver
+    sl = win.settings_panel.sliders["density"]
+    area = sl.parentWidget()
+    while not isinstance(area, QScrollArea):
+        area = area.parentWidget()
+    area.verticalScrollBar().setValue(area.verticalScrollBar().maximum())
+    qapp.processEvents()
+    seen = lambda: QRect(sl.mapTo(area.viewport(), QPoint(0, 0)), sl.size()).intersects(area.viewport().rect())   # noqa: E731
+    assert not seen()
+    b.say("poked")                                                    # a remark, still typing …
+    b.open_menu()
+    b._choose(1)                                                      # … Show me around
+    assert b.tour.active and b.tour.i == 0                             # (it used to stay at −1)
+    _tour_at(b, win, qapp, 11)
+    assert b.tour.step.target == "slider:density" and seen()
+    dock = b.tour._map(win.dock_settings)
+    assert dock.contains(b.spotlight.target.center())
+    b.tour.end(completed=False)
+    b.say("poked")
+    b.start_tour()                                                    # Help → Beaver → Show me around
+    assert b.tour.i == 0
+    b.tour.end(completed=False)
+    sl.setVisible(False)                                              # a hidden section: the step is skipped
+    _tour_at(b, win, qapp, 11)
+    assert b.tour.step.target != "slider:density"
+    b.tour.end(completed=False)
+    sl.setVisible(True)
+
+
+def test_bubbles_have_the_name_a_tag_and_buttons(win, qapp):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    from app.beaver.lines import NAME
+    b = win.beaver
+    _tour_at(b, win, qapp, 0)
+    bub = b.bubble
+    assert bub.title == NAME.upper() and bub.tag.lower() == "tour 1/18" and bub.primary == 1 and not bub.hint
+    _tour_at(b, win, qapp, 3)
+    assert bub.tag.lower().startswith("your turn") and bub.primary is None
+    b.tour.end(completed=False)
+    b.ask_tour()                                                      # first start: buttons, Enter = yes
+    assert b.dialog == "ask_tour" and bub.buttons and bub.primary == 1
+    bub.finish_typing()
+    QTest.keyClick(win, Qt.Key_Escape)                                # Esc = no
+    qapp.processEvents()
+    assert b.dialog is None and not b.tour.active
+    b.ask_tour()
+    bub.button_clicked.emit(1)                                        # "Yes, show me around"
+    assert b.tour.active
+    b.tour.end(completed=False)
+    b.open_menu()
+    assert bub.tag.lower() == "menu" and bub.buttons == ["Close"]
+    bub.button_clicked.emit(0)
+    assert b.dialog is None
+    b.say("poked", cooldown=0.0)
+    run(qapp, win, 0.1)
+    assert not bub.title and not bub.buttons                          # a remark: no header, no buttons
+
+
 def test_esc_ends_the_tour(win, qapp):
     from PySide6.QtCore import Qt
     b = win.beaver

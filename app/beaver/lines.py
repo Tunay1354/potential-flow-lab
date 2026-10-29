@@ -7,6 +7,8 @@ is still talking), 0 = small talk (skipped if he is talking).
 """
 import random
 
+NAME = "Psi"            # his name (a placeholder: the owner will choose one); shown on his speech bubbles
+
 LINES = {
     "hello": ["Hi! I'm Psi, your flow buddy.\nGrab me and drop me on the plot!",
               "Hello there! I'm Psi.\nDrag me onto the plot, I dare you."],

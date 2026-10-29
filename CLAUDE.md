@@ -86,7 +86,8 @@ python scripts/streamline_quality.py   /   python scripts/smoothness.py    # mea
   computed" per check), `errors.py` (log file, error window, crash file), `recovery.py` (autosave + restore after
   a crash), `beaver/` (the mascot, §5), `chrome/` (header, cards, palette, fonts), `theme.py` (all colours and
   sizes).
-- `presets/` scenes (folder = menu group), `assets/` (fonts incl. Pixelify Sans for the beaver, icons),
+- `presets/` scenes (folder = menu group), `assets/` (fonts, icons; Pixelify Sans is no
+  longer used since the bubble restyle of 29 Oct),
   `packaging/` PyInstaller spec (exe: later), `scripts/` measurements, `tests/` (~32 files).
 
 ---------------------------------------------------------------------------------------------------------------
@@ -106,8 +107,9 @@ python scripts/streamline_quality.py   /   python scripts/smoothness.py    # mea
   **tour** that makes the user add a uniform flow and a doublet, edit, move, animate; ends on an empty plot.
 
 **The beaver (`app/beaver/`)** — a pixel-art beaver with a red bandana, drawn by code from shapes (`art.py`, so
-every rotation / size is crisp), speech bubble with a pixel font typed letter by letter (`bubble.py`, dialogs
-with choices), English lines (`lines.py`, 40+ situations, ~180 lines, random without quick repeats; PRIORITY
+every rotation / size is crisp), speech bubble typed letter by letter (`bubble.py`: "drafting card" look since 29 Oct —
+thick ink frame, stepped corners, shadow, header name + tag, IBM Plex Mono text, buttons with the main one in the
+plank colour; dialogs with choices / buttons), English lines (`lines.py`, 40+ situations, ~180 lines, random without quick repeats; PRIORITY
 decides what may wait vs be skipped so no line is cut off), Q&A (`faq.py`), tour (`tour.py`, 16 steps,
 `spotlight.py` highlight). Behaviour (`beaver.py`): sits on the ruler right of Help; Static mode = glass in
 front of the plot (screen-fixed); Particles = a tracer in the real flow (data-fixed; dizzy in a free vortex,
@@ -191,6 +193,14 @@ GUI / Qt
   Offscreen note: after a modal dialog the window is not active again by itself → shortcuts (M) need
   `activateWindow()` in scripts; a real double-click is press, release, double-click, release (QTest.mouseDClick
   alone is ignored by item views).
+- **29 Oct, bubble restyle + 2 tour bugs (ROADMAP 19d)**: his mock-up (Turkish text, ours stays English): the
+  bubble got a header (name `lines.NAME`, a placeholder, + tag), mono text, buttons (`say(..., title, tag, buttons,
+  primary)`); no hint lines any more (Enter / Space are found anyway). The tour-offer bubble has buttons (Enter /
+  1 yes, Esc / 2 no), menu / questions a Close button, an answer Close + More questions. Bugs: (1) `bubble.clear()`
+  kept the old lines, so a remark still "typing" stopped the tour's first step (i stayed −1) — `clear()` resets
+  them and `Tour.start()` clears the bubble; (2) a slider scrolled out of the Plot settings (he had scrolled the
+  panel) could not be shown nor scrolled to (lock) — `Tour._prepare` opens the panel, scrolls the slider into
+  view, skips the step if its section is hidden.
 - **Next: item 20 — optimization (+ E2)**: measure first, then improve: start-up and first Numba compile,
   dragging, zoom / pan, animation (maybe an "Use graphics card (OpenGL)" option with a fallback), Solid bodies,
   Surface pressure, export times; scripts in `scripts/`, before / after numbers in ROADMAP.

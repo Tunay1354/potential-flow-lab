@@ -37,7 +37,7 @@ from physics.particles import time_scale, typical_speed
 from . import art
 from .bubble import SpeechBubble
 from .faq import FAQ
-from .lines import PRIORITY, Picker
+from .lines import NAME, PRIORITY, Picker
 from .spotlight import Spotlight
 from .tour import Tour
 
@@ -139,6 +139,7 @@ class Beaver(QObject):
         self.sprite = BeaverSprite(window)
         self.bubble = SpeechBubble(window)
         self.lines = Picker(seed)
+        self.name = NAME
         self.enabled = True
         self.state = "perch"
         self.t = 0.0                    # seconds in this state
@@ -453,6 +454,15 @@ class Beaver(QObject):
         if isinstance(QApplication.focusWidget(), (QLineEdit, QAbstractSpinBox)):
             return False
         b = self.bubble
+        if self.dialog == "ask_tour":                       # buttons, no list: Enter / 1 yes, Esc / 2 no
+            keys = (Qt.Key_Escape, Qt.Key_Return, Qt.Key_Enter, Qt.Key_1, Qt.Key_2)
+            if not act or k not in keys:
+                return k in keys
+            if b.typing and k in (Qt.Key_Return, Qt.Key_Enter):
+                b.finish_typing()
+            else:
+                self._choose(1 if k in (Qt.Key_Escape, Qt.Key_2) else 0)
+            return True
         if not act:
             return k in (Qt.Key_Escape, Qt.Key_Return, Qt.Key_Enter, Qt.Key_Up, Qt.Key_Down) or \
                 (bool(b.choices) and Qt.Key_0 <= k <= Qt.Key_9)
@@ -507,16 +517,17 @@ class Beaver(QObject):
             self.say("poked", cooldown=1.0)
 
     # ------------------------------------------------------------------ dialogs
-    def _dialog(self, kind, text, choices=None, hint=""):
+    def _dialog(self, kind, text, choices=None, tag="", buttons=None, primary=None):
         if self.state not in ("perch", "walk", "tour"):
             self._go("perch")
         self.waiting = None
         self.dialog = kind
-        self.bubble.say(text, choices=choices, hint=hint, sticky=True)
+        self.bubble.say(text, choices=choices, sticky=True, title=self.name.upper(), tag=tag,
+                        buttons=buttons, primary=primary)
         self._place_bubble()
 
     def open_menu(self):
-        self._dialog("menu", self.lines.pick("menu"), MENU, "1-4, arrows + Enter or click   Esc: close")
+        self._dialog("menu", self.lines.pick("menu"), MENU, tag="menu", buttons=["Close"])
 
     def open_faq(self):
         if not self.enabled:
@@ -526,17 +537,17 @@ class Beaver(QObject):
             return
         if self.tour.active:
             return
-        self._dialog("faq", "Ask me something:", [q for q, _a in FAQ], "1-9, 0, arrows + Enter or click   Esc: close")
+        self._dialog("faq", "Ask me something:", [q for q, _a in FAQ], tag="questions", buttons=["Close"])
 
     def answer(self, i: int):
         q, a = FAQ[i]
-        self._dialog("answer", a, hint="P or click: more questions   Esc: close")
+        self._dialog("answer", a, tag="answer", buttons=["Close", "More questions \u203a"], primary=1)
         self.data["question"] = i
 
     def ask_tour(self):
-        """First start: offer the tour."""
-        self._dialog("ask_tour", self.lines.pick("ask_tour"), ["Yes, show me around", "No, thanks"],
-                     "1-2, arrows + Enter or click")
+        """First start: offer the tour (Enter / 1: yes, Esc / 2: no; or the buttons)."""
+        self._dialog("ask_tour", self.lines.pick("ask_tour"), tag="welcome",
+                     buttons=["No, thanks", "Yes, show me around \u203a"], primary=1)
 
     def close_dialog(self):
         if self.dialog:
@@ -554,6 +565,12 @@ class Beaver(QObject):
     def _bubble_button(self, k: int):
         if self.tour.active:
             self.tour.button(k)
+        elif self.dialog == "ask_tour":
+            self._choose(1 if k == 0 else 0)               # "No, thanks" / "Yes, show me around"
+        elif self.dialog == "answer" and k == 1:
+            self.open_faq()                                 # "More questions"
+        elif self.dialog:
+            self.close_dialog()                             # "Close"
 
     def _choose(self, k: int):
         kind = self.dialog

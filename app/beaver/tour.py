@@ -25,6 +25,13 @@ from PySide6.QtCore import QEvent, QPoint, QPointF, QRectF, Qt
 from .spotlight import PAD
 
 
+def _scroll_area_of(w):
+    from PySide6.QtWidgets import QScrollArea
+    while w is not None and not isinstance(w, QScrollArea):
+        w = w.parentWidget()
+    return w
+
+
 @dataclass
 class Step:
     text: str
@@ -36,13 +43,9 @@ class Step:
     keys: tuple = ()                 # keys that keep their normal meaning in this step (e.g. M = Move mode)
 
 
-END_BUTTON = "End tour (Esc)"
-NEXT_BUTTON = "Next (Enter)"
-SKIP_BUTTON = "Skip (Enter)"
-READ_HINT = "Enter / Space / click: next"
-DO_HINT = "Your turn!   Enter / Space: skip"
-DIALOG_HINT = "Apply: go on   Cancel: back"
-DRAG_HINT = "Let go over the plot"
+END_BUTTON = "End tour"            # Esc does the same
+NEXT_BUTTON = "Next \u203a"        # Enter / Space / a click on the bubble do the same (the main button)
+SKIP_BUTTON = "Skip"               # an action step: Enter / Space do the same
 TAIL_ROOM = 16                       # px: the bubble's tail and margin (bubble.TAIL + 6)
 
 STEPS = [
@@ -117,6 +120,8 @@ class Tour:
         self.active = True
         self.i = -1
         self._restore = {}
+        self.done_wait = None
+        self.beaver.bubble.clear()                       # a remark still typing must not hold up step 1
         fw = self.win.focusWidget()
         if fw is not None:
             fw.clearFocus()                              # (a text field must not keep Enter / Space)
@@ -142,12 +147,37 @@ class Tour:
             self.win.new_scene()
         if s.wait == ("mouse_mode", "move") and self.win.canvas.mode == "move":
             self.i += 1                                  # already in Move mode: straight to the drag
+        if not self._prepare(s):                         # (e.g. its panel section is hidden): skip it
+            self.beaver.bubble.finish_typing()
+            self.next()
+            return
         if s.target and s.target.startswith("slider:"):
             key = s.target.split(":")[1]
             sl = self.win.settings_panel.sliders.get(key)
             if sl is not None and key not in self._restore:
                 self._restore[key] = sl.value()
         self.show()
+
+    def _prepare(self, s) -> bool:
+        """Make the step's part visible: its panel open, a slider scrolled into view in the Plot settings
+        (the panel may have been scrolled or closed since, and the lock stops the user from scrolling it).
+        False: it cannot be shown (a hidden section), the step is skipped."""
+        win, t = self.win, s.target or ""
+        if t == "elements" and not win.dock_elements.isVisible():
+            win.dock_elements.show()
+        if t == "settings" or t.startswith("slider:"):
+            if not win.dock_settings.isVisible():
+                win.dock_settings.show()
+            area = _scroll_area_of(win.settings_panel.sliders.get("density") or win.settings_panel)
+            if t == "settings" and area is not None:
+                area.verticalScrollBar().setValue(0)
+            if t.startswith("slider:"):
+                sl = win.settings_panel.sliders.get(t.split(":")[1])
+                if sl is None or not sl.isVisibleTo(win.dock_settings):
+                    return False
+                if area is not None:
+                    area.ensureWidgetVisible(sl, 40, 60)       # (scrolls at once; the highlight follows)
+        return True
 
     def click(self):
         """A click on the bubble or on the beaver: next in a reading step (an action step needs the
@@ -173,17 +203,24 @@ class Tour:
         self.spot.show_on(rect)
         self.spot.raise_()
         self.beaver.tour_goto(self._feet_now(rect))
-        n = f"{self.i + 1}/{len(STEPS)}"
+        bub, name = self.beaver.bubble, self.beaver.name.upper()
         if self.sub == "dialog":
-            self.beaver.bubble.say(DIALOG_TEXT.get(self.dialog_kind, DIALOG_TEXT["add"]),
-                                   hint=f"{n}   {DIALOG_HINT}", sticky=True)
+            bub.say(DIALOG_TEXT.get(self.dialog_kind, DIALOG_TEXT["add"]), sticky=True, title=name, tag=self.tag())
         elif self.sub == "drag":
-            self.beaver.bubble.say(DRAG_TEXT, hint=f"{n}   {DRAG_HINT}", sticky=True)
+            bub.say(DRAG_TEXT, sticky=True, title=name, tag=self.tag())
+        elif s.wait:
+            bub.say(self.note or s.text, sticky=True, title=name, tag=self.tag(),
+                    buttons=[END_BUTTON, SKIP_BUTTON])
         else:
-            hint = DO_HINT if s.wait else READ_HINT
-            self.beaver.bubble.say(self.note or s.text, hint=f"{n}   {hint}", sticky=True,
-                                   buttons=[END_BUTTON, SKIP_BUTTON if s.wait else NEXT_BUTTON])
+            bub.say(self.note or s.text, sticky=True, title=name, tag=self.tag(),
+                    buttons=[END_BUTTON, NEXT_BUTTON], primary=1)
         self.beaver._place_bubble()
+
+    def tag(self) -> str:
+        """Header tag of the bubble: "TOUR 3/18", or "YOUR TURN · 4/18" in an action step."""
+        s = self.step
+        n = f"{self.i + 1}/{len(STEPS)}"
+        return f"your turn \u00b7 {n}" if s is not None and s.wait and self.sub is None else f"tour {n}"
 
     def notify(self, event: str, value=None):
         """The user did something (the window tells): a sub-step, or the action of this step?"""
@@ -218,7 +255,8 @@ class Tour:
         if s.wait[0] == event and (s.wait[1] is None or s.wait[1] == value):
             self.done_wait = 1.0
             self.sub, self.dialog = None, None
-            self.beaver.bubble.say(self.beaver.lines.pick("tour_nice"), sticky=True)
+            self.beaver.bubble.say(self.beaver.lines.pick("tour_nice"), sticky=True,
+                                   title=self.beaver.name.upper(), tag=f"tour {self.i + 1}/{len(STEPS)}")
             self.beaver._place_bubble()
 
     def advance(self, dt):
