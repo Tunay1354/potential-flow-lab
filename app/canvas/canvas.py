@@ -52,6 +52,33 @@ LAYERS = (
 )
 
 
+# Qt keeps the item pictures of set_static_cache in its pixmap cache, 10 MB by default. One picture of a
+# plot-sized item is ~4–12 MB (125 % screen: 1250 × 640 device px × 4 bytes); with a few layers on, the
+# pictures did not fit, Qt threw them away and drew every item again in EVERY animation frame (measured: plot
+# frame 21–29 ms instead of 4–5 ms, the owner's 23 fps with φ lines + |V| bands). The limit is only a ceiling:
+# memory is used by the pictures that exist.
+PIXMAP_CACHE_PICTURES = 40                     # plot-sized pictures that fit (layers × a margin)
+PIXMAP_CACHE_MIN_KB, PIXMAP_CACHE_MAX_KB = 128 * 1024, 1024 * 1024
+
+
+def pixmap_cache_kb() -> int:
+    """The pixmap cache needed for PIXMAP_CACHE_PICTURES pictures of the largest screen (device pixels)."""
+    from PySide6.QtGui import QGuiApplication
+    area = 0
+    for s in QGuiApplication.screens():
+        g, r = s.geometry(), s.devicePixelRatio()
+        area = max(area, g.width() * r * g.height() * r)
+    kb = int(PIXMAP_CACHE_PICTURES * area * 4 / 1024)
+    return max(PIXMAP_CACHE_MIN_KB, min(PIXMAP_CACHE_MAX_KB, kb))
+
+
+def ensure_pixmap_cache():
+    from PySide6.QtGui import QPixmapCache
+    kb = pixmap_cache_kb()
+    if QPixmapCache.cacheLimit() < kb:
+        QPixmapCache.setCacheLimit(kb)
+
+
 class PlotCanvas(QWidget):
     """Bar + pyqtgraph plot of `elements` + title block."""
     probe = Signal(object)              # (x, y) in data coordinates, or None
@@ -257,6 +284,8 @@ class PlotCanvas(QWidget):
         """Keep every plot item (except the animation pictures) as a picture: a frame of the animation
         then only repaints the animation picture."""
         self.static_cache = bool(on)
+        if on:
+            ensure_pixmap_cache()
         mode = STATIC_CACHE if on else QGraphicsItem.NoCache
         own = {layer.trail for layer in self._animation_layers()}
         for item in self.vb.addedItems:

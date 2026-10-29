@@ -403,3 +403,15 @@ print("RESULT", w._gpu_frames, round(differ(raster, on), 3), round(differ(sel_ra
       "raster" if not w.canvas.gpu else "gl")
 w.model.mark_clean(); w.close()
 '''
+
+
+def test_animation_pictures_fit_in_the_pixmap_cache(window, qapp):
+    """While animating, every plot item is kept as a picture; Qt's 10 MB default pixmap cache threw them away
+    with a few layers on (every frame drew everything again: 23 fps on the owner's laptop). Animating must
+    make room for them."""
+    from PySide6.QtGui import QPixmapCache
+    from app.canvas.canvas import PIXMAP_CACHE_MIN_KB, pixmap_cache_kb
+    window.canvas.set_view_mode("particles")
+    qapp.processEvents()
+    assert QPixmapCache.cacheLimit() >= pixmap_cache_kb() >= PIXMAP_CACHE_MIN_KB
+    window.canvas.set_view_mode("static")

@@ -424,8 +424,13 @@ w.model.mark_clean(); w.close()
                                ("particles", {"particles": 5000, "trail": 10}),         # the maximum
                                ("pulses", {"pulse_length": 4, "pulse_spacing": 4}),
                                ("pulses", {"pulse_length": 10, "pulse_spacing": 1})):
-            for name in ("lifting cylinder", "busy (8 elements)"):
-                self.show(name)
+            for name in ("lifting cylinder", "busy (8 elements)", "lifting cylinder + φ, |V|, dense"):
+                if name.endswith("dense"):                    # the owner's view: many layers under the animation
+                    self.show("lifting cylinder", ("equipotential", "speed"))
+                    sp["density"].setValue(8)
+                    self.settle()
+                else:
+                    self.show(name)
                 for key, val in settings.items():
                     if key in sp:
                         sp[key].setValue(val)
@@ -435,13 +440,20 @@ w.model.mark_clean(); w.close()
                 stamps = []
                 conn = lay._timer.timeout.connect(lambda: stamps.append(time.perf_counter()))
                 lay.frame_ms.clear()
+                cv.plot.meter.clear()
+                t_start = time.perf_counter()
                 gaps = self._ticks(secs, lambda k, ph: None)
+                shown = sum(1 for t in cv.plot.meter.stamps if t >= t_start) / (time.perf_counter() - t_start)
+                painted = stats(list(cv.plot.meter.paint_ms))
                 lay._timer.timeout.disconnect(conn)
                 fps = (len(stamps) - 1) / (stamps[-1] - stamps[0]) if len(stamps) > 2 else 0.0
                 label = f"{mode} " + ", ".join(f"{k}={v}" for k, v in settings.items())
-                self.record("anim", f"{label} | {name}", {"fps drawn": fps, "render ms": stats(lay.frame_ms),
+                self.record("anim", f"{label} | {name}", {"fps drawn": fps, "plot frames per s": shown,
+                                                          "plot paint ms": painted, "render ms": stats(lay.frame_ms),
                                                           "window frame gap": stats(gaps)})
                 cv.set_view_mode("static")
+                if name.endswith("dense"):
+                    sp["density"].setValue(5)
                 for key in settings:
                     if key in sp:
                         default = {"particles": 1500, "trail": 4, "pulse_length": 4, "pulse_spacing": 4}[key]
@@ -556,9 +568,12 @@ def print_report(res: dict):
             for k, s in rt.items():
                 print(f"  {k:<46}{ms(s.get('median'))}{ms(s.get('max'))}   {verdict(s.get('median'), 'latency')}")
     if "anim" in res:
-        print("\nANIMATION                                                   fps   render ms (med/p95)   window gap p95")
+        print("\nANIMATION  (fps = frames the plot really showed; plot paint = one frame's drawing, median)")
+        print(f"  {'':<66}  fps   paint ms  render ms (med/p95)   window gap p95")
         for k, r in res["anim"].items():
-            print(f"  {k:<58}{r['fps drawn']:5.1f}  {ms(r['render ms'].get('median'))}{ms(r['render ms'].get('p95'))}"
+            shown = r.get("plot frames per s", r["fps drawn"])
+            print(f"  {k:<66}{shown:5.1f}{ms(r.get('plot paint ms', {}).get('median'))}"
+                  f"  {ms(r['render ms'].get('median'))}{ms(r['render ms'].get('p95'))}"
                   f"   {ms(r['window frame gap'].get('p95'))}  {verdict(r['window frame gap'].get('p95'), 'frame')}")
     if "export" in res:
         print("\nEXPORT (ms)")

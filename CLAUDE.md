@@ -159,6 +159,9 @@ GUI / Qt
 - 125 % display scale: a doubled dark line at the plot's right edge → plot background cache off (`CacheNone`).
 - Plot settings panel overflowing when a note made a label long → notes on their own line.
 - Surface panel: graph jumped on hover, ring jumped between curves → fixed ranges, nearest point on screen.
+- **Animation slow with several layers (23 fps, 26–29 ms per frame)**: the items cached as pictures while
+  animating (DeviceCoordinateCache) live in QPixmapCache, default limit 10 MB — plot-sized pictures did not fit,
+  so every frame redrew everything. `canvas.ensure_pixmap_cache()` raises the limit when animating (frame 4–5 ms).
 - Particle trails stayed on an empty page (last steps redrawn every frame) → no step without flow + clear.
 - **Exceptions in Qt slots / paint events** go to `sys.excepthook` → `app/errors.py` logs them and shows one
   window per distinct error (no floods). Background threads (QThreadPool) never touch widgets; results and
@@ -239,6 +242,9 @@ GUI / Qt
   base Python is the **Microsoft Store** one (WindowsApps; the venv exe only starts it). Now the real process file
   (`hardware.process_image_path`) is registered too, and after "Use NVIDIA" `SHIM_MCCOMPAT=0x800000001` is set at
   every start (`gpu.apply_startup_env`). `scripts/gpu_check.py` shows which way works — waiting for his output.
+- **29 Oct, 20.3c**: his Windows numbers came (benchmarks/windows_after_*.json, if he pushed them): the GPU helps
+  painting with many layers (channel every layer 32.5 → 8.3 ms), animation was capped at 23 fps by the
+  pixmap cache (fixed, see §7). Benchmark anim now reports the frames the plot really showed + paint ms.
 - **Next: 20.4** — particles / pulses with higher maxima where the computer allows it (calibrated), then his
   Windows numbers: `python scripts/benchmark.py --out after_cpu.json` and `--gpu --out after_gpu.json` vs
   `benchmarks/windows_before.json`; rest of item 20 (Solid bodies, Surface pressure, export) from those numbers.

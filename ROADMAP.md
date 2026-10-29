@@ -544,6 +544,20 @@ bırakıldı (kullanıcı kararı).
       denemesi: terminalde `SHIM_MCCOMPAT=0x800000001` ile açınca panel **NVIDIA GeForce RTX 3050 Laptop GPU** dedi.
       Ayrıca panel "no smoothing" diyordu: `format().samples()` widget'ın frame buffer'ında 0 döndürüyor; gerçek değer
       ilk kareden sonra GL_SAMPLES ile okunuyor (`PlotGLViewport._read_samples`) → 4×.
+    - ✅ **20.3c Animasyon 23 fps → ekranın hızı** (29 Ekim, kullanıcının Windows ölçümü): kendi ekranında φ çizgileri
+      + |V| bantları + yoğun streamline'larla Particles / Pulses 22–23 fps, panel "a frame takes 26–29 ms". Kök
+      neden: animasyonda her plot öğesi bir resim olarak saklanıyor (DeviceCoordinateCache), resimler Qt'nin
+      QPixmapCache'inde — varsayılan sınır **10 MB**; plot boyunda bir resim 4–12 MB → birkaç katmanla sığmıyor, Qt
+      onları atıp **her karede her şeyi yeniden çiziyordu** (GPU'da da, işlemcide de). Düzeltme: animasyon
+      başlarken sınır en büyük ekranın 40 plot resmi kadar (128 MB – 1 GB arası; sadece tavan, bellek resimler kadar
+      kullanılıyor; `canvas.ensure_pixmap_cache`). Bu sunucuda aynı sahne: plot karesi 21–24 → 4–5 ms (raster),
+      27–29 → 4 ms (OpenGL'in CPU kısmı); fps 34–37 → 62 (60 sınırında). Benchmark anim'e kullanıcının görünümü
+      eklendi ("lifting cylinder + φ, |V|, dense") ve artık plot'un gerçekten gösterdiği kare sayısı + bir karenin
+      çizim süresi yazılıyor (önce timer tik'leri sayılıyordu: gerçek kareleri göstermiyordu).
+      Kullanıcının ilk Windows ölçümü (`windows_after_cpu` / `windows_after_gpu`, 16 thread, RTX 3050, 144 Hz):
+      plot karesi (her katman) lifting 15.2 → 10.1 ms, kanal 32.5 → 8.3, 8 element 21.4 → 10.7 (CPU kısmı kanal
+      30.3 → 5.6); her katmanla zoom kanal 31.0 → 17.4, 8 element 33.3 → 20.6 ms (STUTTER → ok); animasyon
+      varsayılan katmanlarla ikisinde de 62 fps (60 sınırı), 8 elementte GPU 48 fps — aynı önbellek taşması.
     - ☐ 20.4 GPU particles / pulses + kalibrasyondan üst sınırlar; aynı script'le karşılaştırma (`--gpu`)
 21. ☐ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,
     dosya yapısı, uyarılar (pyflakes), çok uzun dosyaların bölünmesi, testlerin süresi, README klasör tablosu.
