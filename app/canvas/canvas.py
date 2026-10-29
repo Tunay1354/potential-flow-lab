@@ -309,6 +309,8 @@ class PlotCanvas(QWidget):
         self.gpu_info = None
         self.plot.setViewport(new)                       # (Qt deletes the old viewport)
         self._setup_viewport()
+        for layer in self._animation_layers():           # their pictures: on the card / in memory now
+            layer.gpu_changed()
         self.plot.meter.clear()
         self.plot.viewport().update()
         return new

@@ -71,6 +71,10 @@ class GpuPanel(QWidget):
         self.cap.currentIndexChanged.connect(lambda _i: self.cap_changed.emit(self.cap.currentData()))
         f.addRow("Frame rate", self.cap)
         lay.addLayout(f)
+        self.limits = QLabel("")                   # what the card allows more (Particles → Count)
+        self.limits.setObjectName("LayerNote")
+        self.limits.setWordWrap(True)
+        lay.addWidget(self.limits)
         self.cap_note = QLabel("")
         self.cap_note.setObjectName("LayerNote")
         self.cap_note.setWordWrap(True)
@@ -101,6 +105,9 @@ class GpuPanel(QWidget):
         if weak is not None:
             self.weak_note.setText(f"This computer also has <b>{html.escape(weak['name'])}</b>, which is faster.")
             self.btn_switch.setText(f"Use {short_name(weak['name'])}…")
+
+    def set_particles_max(self, n: int):
+        self.limits.setText(f"Particles: up to {n:,} (measured on this computer)".replace(",", " "))
 
     def set_cap(self, cap: str):
         i = self.cap.findData(cap)

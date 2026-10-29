@@ -14,7 +14,7 @@ import numpy as np
 from physics import kernel
 from physics.particles import Particles
 
-from .animation_layer import LINE_PX, MAX_STEP_PX, AnimatedLayer, speed_factor
+from .animation_layer import LINE_PX, MAX_STEP_PX, AnimatedLayer, GLFrame, speed_factor
 
 
 def trail_seconds(slider: int) -> float:
@@ -70,6 +70,10 @@ class ParticleLayer(AnimatedLayer):
         p = self.particles
         p.step(dt, speed_factor(self.speed_slider))
         tau = trail_seconds(self.trail_slider)
+        if isinstance(image, GLFrame):                   # the graphics card fades the picture
+            image.ops.append(("fade", int(256 * math.exp(-dt / tau)) / 256.0) if tau > 0 else ("clear",))
+            self._draw_steps(image, tau > 0)
+            return
         bits = np.frombuffer(image.bits(), np.uint8)
         if tau > 0:
             keep = int(256 * math.exp(-dt / tau))

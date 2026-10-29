@@ -252,9 +252,14 @@ GUI / Qt
 - **29 Oct, 20.3d**: stale-picture fix, frame pacing, `kernel.draw_segments_parallel` (row bands, bit-identical),
   `parallel.run` does queued tasks itself. Friend's C++ project (laurance18/potential-flow-lab) studied: everything
   is drawn by the GPU (points / polylines + shaders, trail fade in an FBO); see ROADMAP 20.3d.
-- **Next: 20.4** — particles / pulses with higher maxima where the computer allows it (calibrated), then his
-  Windows numbers: `python scripts/benchmark.py --out after_cpu.json` and `--gpu --out after_gpu.json` vs
-  `benchmarks/windows_before.json`; rest of item 20 (Solid bodies, Surface pressure, export) from those numbers.
+- **29 Oct, 20.4 (done)**: with the GPU box on, Particles / Pulses are drawn by the card
+  (`app/canvas/gl_animation.py`, instanced capsules with the draw_segments coverage formula, FBO per layer,
+  composited in `TrailItem.paint` via beginNativePainting; layers record `GLFrame` ops; `gpu_broken` → CPU).
+  Pulses upload pieces once, the shader decides lit pieces from the time. Particles max with GPU calibrated
+  (`step_ms`, stored `gpu/particles_max` + fingerprint, ≤ 100 000); advect split on cores for ≥ 10 000.
+  Uniforms must be set by location (`gl_animation._uniform`): PySide's name overloads are ambiguous.
+- **Next**: his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
+  remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
 - Then, in this order (all planned, "as if time were unlimited"):
   21 code cleanup without behaviour change (dead / duplicate code, names, docstrings, pyflakes, long files) →
   22 text and visual review **with him** (every UI string in one list + screenshot gallery; he marks what to

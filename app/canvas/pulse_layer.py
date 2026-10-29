@@ -13,7 +13,7 @@ from physics.field import active
 from physics.images import resolve
 from physics.particles import time_scale, travel_times, typical_speed
 
-from .animation_layer import MAX_STEP_PX, AnimatedLayer, speed_factor
+from .animation_layer import MAX_STEP_PX, AnimatedLayer, GLFrame, speed_factor
 
 PULSE_PX = 3.0                   # width of a pulse (screen pixels)
 PULSE_STEP_PX = 2.0              # pulses: streamlines cut into pieces of about this length
@@ -44,7 +44,16 @@ class PulseLayer(AnimatedLayer):
         self._piece_step = None               # piece length they were cut with
         self._px = None                       # the pieces near the view, in picture pixels
         self._px_key = None
+        self._px_serial = 0                   # _px recomputed (the graphics card gets the new pieces)
+        self._gl_serial = -1                  # _px_serial of the pieces sent to the card
         self.spacing_slider = 4
+
+    def gl_resend(self):
+        self._gl_serial = -1
+
+    def gpu_changed(self):
+        super().gpu_changed()
+        self._gl_serial = -1
 
     def set_spacing(self, slider: int):
         self.spacing_slider = int(slider)
@@ -99,6 +108,7 @@ class PulseLayer(AnimatedLayer):
         near[near] &= ~self.canvas.bodies.contains(0.5 * (a[near] + b[near]))
         idx = np.nonzero(near)[0]
         self._px = (ax[idx], ay[idx], bx[idx], by[idx], tau[idx] / self.period, self._band(speed[idx]))
+        self._px_serial += 1
 
     # ------------------------------------------------------------------ hooks
     def scene_changed(self):
@@ -122,6 +132,19 @@ class PulseLayer(AnimatedLayer):
     # ------------------------------------------------------------------ one frame
     def render(self, image, dt):
         self.t += dt * time_scale(self._box(), self.v_typ, speed_factor(self.speed_slider))
+        if isinstance(image, GLFrame):
+            # the graphics card: the pieces are sent once (when they change), each frame only the time;
+            # the shader decides which pieces are lit (the same rule as below)
+            self._prepare(image)
+            image.ops.append(("clear",))
+            if self._px is not None:
+                ax, ay, bx, by, phase, band = self._px
+                fresh = self._gl_serial != self._px_serial
+                segs = np.column_stack([ax, ay, bx, by, band, phase]) if fresh else None
+                self._gl_serial = self._px_serial
+                image.ops.append(("pulses", segs, self._px_serial, self.t / self.period,
+                                  pulse_length(self.trail_slider), 0.5 * PULSE_PX * self.pixel_scale()))
+            return
         bits = np.frombuffer(image.bits(), np.uint8)
         bits[:] = 0
         self._prepare(image)

@@ -27,6 +27,9 @@ from ..gpu_panel import short_name
 
 log = logging.getLogger("pflab")
 
+PARTICLE_BUDGET_MS = 4.0             # GPU mode: the most particles = what this computer moves in ~4 ms a frame
+PARTICLES_GPU_MAX = 100_000          # ... at most (the slider's upper end)
+PARTICLE_PROBE = 20_000              # particles timed once per computer for that
 START_TIMEOUT_MS = 6000              # no frame shown this long after switching on (window visible): failed
 CHECK_MS = 1500                      # looked at this often while starting; no OpenGL context by then: failed
 
@@ -147,6 +150,7 @@ class GraphicsMixin:
                 gpu.set_enabled(False)
             log.info("graphics card drawing off")
         self._apply_fps_cap()
+        self._apply_particle_limit()
         self._update_gpu_controls()
         QTimer.singleShot(0, self, self._after_viewport_switch)
         return self.canvas.gpu
@@ -220,6 +224,7 @@ class GraphicsMixin:
         gpu.set_enabled(False)
         self._update_gpu_controls()
         self._apply_fps_cap()
+        self._apply_particle_limit()
         if getattr(self, "_gpu_fail_told", False):
             return                                   # (one message per switch-on)
         self._gpu_fail_told = True
@@ -247,6 +252,44 @@ class GraphicsMixin:
         self.gpu_panel.set_screen_hz(hz)
         ms = gpu.frame_ms(gpu.fps_cap(), hz) if self.canvas.gpu else gpu.RASTER_FRAME_MS
         self.canvas.set_frame_interval(ms)
+
+    # ------------------------------------------------------------------ more particles with the card
+    def particles_max(self) -> int:
+        """Particles → Count, the slider's upper end: 5000 drawn by the processor; with the graphics card as
+        many as this computer moves in PARTICLE_BUDGET_MS per frame (measured once per computer)."""
+        from ..canvas.settings import slider
+        cpu = slider("particles").hi
+        if not self.canvas.gpu:
+            return cpu
+        s = QSettings()
+        fp = str((self.hardware or {}).get("fingerprint", ""))
+        known = int(s.value("gpu/particles_max", 0) or 0)
+        if known > 0 and s.value("gpu/particles_fp", "") == fp:
+            return known
+        try:
+            from physics.particles import step_ms
+            ms = step_ms(PARTICLE_PROBE)
+            m = PARTICLE_PROBE * PARTICLE_BUDGET_MS / max(ms, 1e-3)
+            log.info("particles: %d moved in %.2f ms -> up to %d with the graphics card", PARTICLE_PROBE, ms, m)
+        except Exception:                                 # noqa: BLE001
+            log.exception("particle timing failed")
+            m = PARTICLE_PROBE
+        m = int(min(max(int(m) // 5000 * 5000, cpu), PARTICLES_GPU_MAX))
+        s.setValue("gpu/particles_max", m)
+        s.setValue("gpu/particles_fp", fp)
+        return m
+
+    def _apply_particle_limit(self):
+        m = self.particles_max()
+        self.settings_panel.set_slider_max("particles", m)
+        self.gpu_panel.set_particles_max(m)
+        self._limit_particles()
+
+    def _limit_particles(self):
+        """No more particles than the slider allows (also for a scene saved with more on another computer)."""
+        m = self.settings_panel.sliders["particles"].maximum()
+        if self.canvas.settings.particles > m:
+            self.canvas.set_particles(m)
 
     # ------------------------------------------------------------------ the faster card (laptops)
     def _weak_card(self, info: dict) -> dict | None:

@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 
+import numpy as np
 import pytest
 
 from app import gpu
@@ -415,3 +416,181 @@ def test_animation_pictures_fit_in_the_pixmap_cache(window, qapp):
     qapp.processEvents()
     assert QPixmapCache.cacheLimit() >= pixmap_cache_kb() >= PIXMAP_CACHE_MIN_KB
     window.canvas.set_view_mode("static")
+
+
+# ------------------------------------------------------------- Particles / Pulses drawn by the card (20.4)
+class _FakePainter:
+    def beginNativePainting(self):
+        pass
+
+    def endNativePainting(self):
+        pass
+
+
+class _NoCard:
+    """A viewport whose card cannot draw the animations (old OpenGL)."""
+    class _Anim:
+        error = "OpenGL 2.1 (3.3 is needed)"
+
+        def ensure(self):
+            return False
+
+    def animation(self):
+        return self._Anim()
+
+
+def _gpu_on(monkeypatch, cv):
+    """Pretend the plot is drawn by the card (the test platform has none): the layers record for it."""
+    monkeypatch.setattr(type(cv), "gpu", property(lambda self: True))
+
+
+def test_animation_frames_are_recorded_for_the_card_and_fall_back(window, qapp, monkeypatch):
+    from app.canvas.animation_layer import GLFrame
+    cv = window.canvas
+    window.show()
+    import time
+    end = time.perf_counter() + 30
+    while cv.pulses.result is None and time.perf_counter() < end:      # (pulses need the drawn streamlines)
+        cv.wait_idle(100)
+        qapp.processEvents()
+    _gpu_on(monkeypatch, cv)
+    for mode in ("particles", "pulses"):
+        cv.set_view_mode(mode)
+        lay = cv.animation
+        assert lay.use_gpu()
+        lay._fresh, lay.trail.shown = True, True
+        frame = lay._gl_frame()
+        assert isinstance(frame, GLFrame) and frame.width() > 100
+        lay.render(frame, 1 / 60)
+        kinds = [op[0] for op in lay._gl_ops]
+        assert ("segs" in kinds and "fade" in kinds) if mode == "particles" else "pulses" in kinds
+        lay.trail.set_gpu_picture(lay._rect)
+        assert lay.trail.on_gpu and lay.trail.image is None and not lay.trail.shown
+        lay.paint_gl(_FakePainter(), _NoCard())                 # the card cannot: the processor takes over
+        assert lay.gpu_broken and not lay.use_gpu()
+        lay.gpu_changed()                                      # GPU box again: tried again
+        assert not lay.gpu_broken and lay._gl_ops == [("clear",)]
+    cv.set_view_mode("static")
+
+
+def test_more_particles_with_the_card(window, monkeypatch):
+    from PySide6.QtCore import QSettings
+    from app.canvas.settings import slider
+    w, cv = window, window.canvas
+    QSettings().remove("gpu/particles_max")
+    s = w.settings_panel.sliders["particles"]
+    assert w.particles_max() == slider("particles").hi == 5000
+    _gpu_on(monkeypatch, cv)
+    import physics.particles as P
+    monkeypatch.setattr(P, "step_ms", lambda n=20000, repeats=3: 2.0)       # 20 000 in 2 ms -> 40 000 in 4 ms
+    assert w.particles_max() == 40000
+    monkeypatch.setattr(P, "step_ms", lambda n=20000, repeats=3: 0.01)      # (remembered: not measured again)
+    assert w.particles_max() == 40000
+    w._apply_particle_limit()
+    assert s.maximum() == 40000 and "40 000" in w.gpu_panel.limits.text()
+    s.setValue(30000)
+    assert cv.settings.particles == 30000
+    monkeypatch.setattr(type(cv), "gpu", property(lambda self: False))
+    w._apply_particle_limit()                                  # GPU off: back to 5000, the count with it
+    assert s.maximum() == 5000 and cv.settings.particles == 5000
+    QSettings().remove("gpu/particles_max")
+
+
+def test_a_scene_with_more_particles_than_allowed_opens_with_the_maximum(window):
+    from app.canvas.settings import PlotSettings
+    w = window
+    st = PlotSettings()
+    st.particles = 30000
+    w.settings_panel.show_settings(st)
+    assert w.settings_panel.sliders["particles"].value() == 5000       # the slider never beyond its end
+    w.canvas.settings.particles = 30000
+    w._limit_particles()
+    assert w.canvas.settings.particles == 5000
+
+
+def test_many_particles_on_several_cores_move_as_on_one(monkeypatch):
+    """20 000 particles (GPU mode) are moved in pieces on several cores: every particle that was not started
+    again moves exactly as on one core (only the random restarts differ between cores)."""
+    from physics.elements import Doublet, Uniform
+    from physics.particles import Particles, step_ms
+
+    def one_step(threads):
+        monkeypatch.setenv("PFL_THREADS", threads)
+        p = Particles(20000, seed=7)
+        p.set_scene([Uniform(), Doublet(mu=1.0)])
+        p.set_view((-4.0, 4.0, -2.6, 2.6))
+        p.step(1 / 30)
+        return p
+    a, b = one_step("1"), one_step("4")
+    same = ~a.fresh & ~b.fresh
+    assert same.mean() > 0.9 and np.array_equal(a.pos[same], b.pos[same])
+    assert np.all(np.isfinite(b.pos)) and np.all((np.abs(b.pos.real) <= 4) & (np.abs(b.pos.imag) <= 2.6))
+    assert step_ms(5000, 1) > 0
+
+
+@pytest.mark.skipif(_xvfb_display() is None, reason="needs an X server with OpenGL (Xvfb + Mesa)")
+def test_pulses_and_particles_drawn_by_the_card(tmp_path):
+    """Real OpenGL (Mesa): a Pulses frame drawn by the card = the same frame drawn by the processor (pixels);
+    Particles drawn by the card show particles; no fallback happened."""
+    script = tmp_path / "anim.py"
+    script.write_text(ANIM_SCRIPT % {"root": ROOT, "out": str(tmp_path)})
+    env = dict(os.environ, DISPLAY=_xvfb_display(), QT_QPA_PLATFORM="xcb")
+    out = subprocess.run([sys.executable, str(script)], env=env, capture_output=True, text=True, timeout=240)
+    line = next((ln for ln in out.stdout.splitlines() if ln.startswith("RESULT")), None)
+    assert line is not None, out.stdout[-2000:] + out.stderr[-2000:]
+    _, differ, colored_gpu, colored_cpu, particles_px, broken = line.split()
+    assert float(differ) < 0.5                                 # % of plot pixels clearly different
+    assert int(colored_gpu) > 1000 and abs(int(colored_gpu) - int(colored_cpu)) < 0.02 * int(colored_cpu)
+    assert int(particles_px) > 1000 and broken == "False"
+
+
+ANIM_SCRIPT = r'''
+import os, sys, time
+sys.path.insert(0, %(root)r); os.chdir(%(root)r)
+from PySide6.QtCore import QSettings, QStandardPaths
+QStandardPaths.setTestModeEnabled(True)
+QSettings.setDefaultFormat(QSettings.IniFormat)
+QSettings.setPath(QSettings.IniFormat, QSettings.UserScope, %(out)r)
+from PySide6.QtGui import QImage
+from PySide6.QtWidgets import QApplication
+import numpy as np
+app = QApplication([])
+from app.startup import setup_application
+setup_application(app); QSettings().setValue("beaver/tour_offered", True); QSettings().setValue("beaver/enabled", False)
+from app import gpu
+gpu.support = lambda p: (True, "test")
+from app.main_window import MainWindow
+w = MainWindow(); w._ask_save_changes = lambda: "discard"; w._notify_user = lambda *a: print("NOTE", a)
+w.resize(1300, 760); w.move(0, 0); w.show()
+def pump(s):
+    t = time.perf_counter()
+    while time.perf_counter() - t < s:
+        app.processEvents(); time.sleep(0.002)
+def plot():
+    pump(0.5)
+    vp = w.canvas.plot.viewport(); r = vp.rect(); p = vp.mapToGlobal(r.topLeft())
+    img = app.primaryScreen().grabWindow(0, p.x(), p.y(), r.width(), r.height()).toImage()
+    img = img.convertToFormat(QImage.Format_RGB888)
+    a = np.frombuffer(img.constBits(), np.uint8).reshape(img.height(), img.bytesPerLine())[:, :img.width() * 3]
+    return a.reshape(img.height(), img.width(), 3).astype(int)
+pump(2.0); cv = w.canvas; cv.wait_idle(20000)
+w.set_gpu(True, user=False); pump(1.5)
+cv.set_view_mode("static"); pump(0.5)
+base = plot()
+colored = lambda a: int((np.abs(a - base).max(axis=2) > 30).sum())
+cv.set_view_mode("pulses"); pump(1.5); cv.set_paused(True); pump(0.3)
+lay = cv.pulses
+def frame_at(t, cpu):
+    lay.gpu_broken = cpu; lay._clear(); lay.t = t; lay._fresh = True; lay.trail.shown = True; lay.frame()
+    return plot()
+g = frame_at(3.21, False)
+broken = lay.gpu_broken
+c = frame_at(3.21, True)
+lay.gpu_broken = False
+d = np.abs(g - c).max(axis=2)
+cv.set_paused(False); cv.set_view_mode("particles"); pump(2.0)
+pp = colored(plot())
+broken = broken or cv.particles.gpu_broken or not cv.particles.trail.on_gpu
+print("RESULT", round(100 * float((d > 40).mean()), 3), colored(g), colored(c), pp, broken)
+w.model.mark_clean(); w.close()
+'''

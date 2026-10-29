@@ -21,6 +21,7 @@ import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QLineF, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QImage, QPainter, QPen
+from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QGraphicsItem
 
 from physics import kernel
@@ -40,6 +41,20 @@ STATIC_CACHE = QGraphicsItem.DeviceCoordinateCache
 MAX_WAIT_TICKS = 6               # a frame not shown after this many ticks: draw the next anyway (never stuck)
 
 
+class GLFrame:
+    """One frame for the graphics card: the picture's size (like a QImage: width(), height()) and the
+    drawing steps the layer records into it (done by AnimatedLayer.paint_gl)."""
+
+    def __init__(self, w: int, h: int, ops: list):
+        self._w, self._h, self.ops = w, h, ops
+
+    def width(self) -> int:
+        return self._w
+
+    def height(self) -> int:
+        return self._h
+
+
 def speed_factor(slider: int) -> float:
     """Speed slider 1 … 10 -> time scale × 0.25 … × 5.7 (5 = a typical particle crosses the view in 6 s)."""
     return 2.0 ** ((slider - 5) / 2.0)
@@ -49,18 +64,31 @@ class TrailItem(pg.GraphicsObject):
     """The animation picture, drawn over the visible region in data coordinates (row 0 = bottom: the
     plot's y axis points up)."""
 
-    def __init__(self):
+    def __init__(self, layer=None):
         super().__init__()
+        self.layer = layer                    # the AnimatedLayer (its picture on the graphics card)
         self.image = None
         self.rect = QRectF()
         self.shown = True                     # the last picture has been painted on the screen
+        self.on_gpu = False                   # the picture is on the graphics card (layer.paint_gl)
 
     def set_image(self, image, rect):
         if rect != self.rect:
             self.prepareGeometryChange()
             self.rect = QRectF(rect)
         self.image = image
+        self.on_gpu = False
         self.shown = image is None
+        self.update()
+
+    def set_gpu_picture(self, rect):
+        """A new frame of the picture on the graphics card, over rect."""
+        if rect != self.rect:
+            self.prepareGeometryChange()
+            self.rect = QRectF(rect)
+        self.image = None
+        self.on_gpu = True
+        self.shown = False
         self.update()
 
     def boundingRect(self):
@@ -68,7 +96,14 @@ class TrailItem(pg.GraphicsObject):
 
     def paint(self, p, *args):
         self.shown = True
-        if self.image is not None and not self.rect.isEmpty():
+        if self.rect.isEmpty():
+            return
+        if self.on_gpu:
+            device = p.device()
+            if isinstance(device, QOpenGLWidget) and self.layer is not None:
+                self.layer.paint_gl(p, device)
+            return
+        if self.image is not None:
             p.drawImage(self.rect, self.image)              # the picture has the view's pixel size
 
 
@@ -81,7 +116,7 @@ class AnimatedLayer(PlotLayer):
 
     def __init__(self, plot, vb):
         super().__init__(plot, vb)
-        self.trail = self.add_item(TrailItem(), 1.5)          # over the streamlines, under the symbols
+        self.trail = self.add_item(TrailItem(self), 1.5)      # over the streamlines, under the symbols
         self.trail.setVisible(False)
         self.legend = ColorLegend()
         self.legend.setParentItem(vb)
@@ -104,6 +139,9 @@ class AnimatedLayer(PlotLayer):
         self._timer.timeout.connect(self.frame)
         self.export_scale = None              # recording a GIF / MP4: picture pixels per screen pixel
         self._waited = 0                      # timer ticks skipped while the last frame was not shown
+        self.gpu_broken = False               # the graphics card could not draw it: the processor does
+        self._gl_ops = []                     # drawing steps for the card, done at the next paint (GLFrame)
+        self.gl_name = type(self).__name__
 
     # ------------------------------------------------------------------ to implement
     def start(self):
@@ -203,12 +241,16 @@ class AnimatedLayer(PlotLayer):
         if self._timer.interval() != self.frame_interval:
             self._timer.setInterval(self.frame_interval)
             self._last = now
-        image = self._picture()
+        gpu = self.use_gpu()
+        image = self._gl_frame() if gpu else self._picture()
         if image is None or (self.paused and not (self.DRAW_WHILE_PAUSED and self._fresh)):
             return
         self._fresh = False
         self.render(image, 0.0 if self.paused else dt)
-        self.trail.set_image(image, self._rect)
+        if gpu:
+            self.trail.set_gpu_picture(self._rect)
+        else:
+            self.trail.set_image(image, self._rect)
         self._update_legend()
         self.frame_ms.append((time.perf_counter() - now) * 1000.0)
         del self.frame_ms[:-120]
@@ -217,6 +259,10 @@ class AnimatedLayer(PlotLayer):
         """Lines (ax, ay) -> (bx, by) in picture pixels in their speed band's color (band < 0: not
         drawn) with opacity × alpha."""
         dpr = self.pixel_scale()
+        if isinstance(image, GLFrame):
+            image.ops.append(("segs", np.column_stack([ax, ay, bx, by, band, alpha]), 0.5 * width_px * dpr,
+                              keep_max))
+            return
         if kernel.HAVE_NUMBA:
             rows = np.frombuffer(image.bits(), np.uint8).reshape(image.height(), image.bytesPerLine() // 4, 4)
             kernel.draw_segments_parallel(rows, ax, ay, bx, by, band, self._palette, 0.5 * width_px * dpr,
@@ -291,7 +337,79 @@ class AnimatedLayer(PlotLayer):
 
     def _clear(self):
         self._view_key = None
+        self._gl_ops = [("clear",)]
         self.trail.set_image(None, self.trail.rect)
+
+    # ------------------------------------------------------------------ on the graphics card
+    def use_gpu(self) -> bool:
+        """Draw this animation with the graphics card: the plot is drawn by it (GPU box), not recording,
+        and it worked so far."""
+        return bool(self.canvas is not None and self.canvas.gpu and self.export_scale is None
+                    and not self.gpu_broken)
+
+    def gl_resend(self):
+        """The card lacks this layer's lasting data (pulses: the line pieces): send it with the next frame."""
+
+    def gpu_changed(self):
+        """The plot's viewport changed (GPU box): pictures start again, the card may be tried again."""
+        self.gpu_broken = False
+        self._clear()
+
+    def _gl_frame(self):
+        """GLFrame for the current view and size (like _picture, without a picture in memory)."""
+        dpr = self.pixel_scale()
+        size = self.vb.size()
+        w, h = int(math.ceil(size.width() * dpr)), int(math.ceil(size.height() * dpr))
+        if w < 2 or h < 2:
+            return None
+        view = self.canvas.view()
+        key = (view, w, h)
+        if key != self._view_key:
+            self._view_key, self._view = key, view
+            (x0, x1), (y0, y1) = view
+            self._rect = QRectF(x0, y0, x1 - x0, y1 - y0)
+            self._fresh = True
+        if len(self._gl_ops) > 60:                       # never painted meanwhile: start again
+            self._gl_ops[:] = [("clear",)]
+        return GLFrame(w, h, self._gl_ops)
+
+    def paint_gl(self, painter, viewport):
+        """The picture on the graphics card: the recorded steps, then onto the plot (inside the plot's paint,
+        the context current). If the card cannot do it, the processor draws from the next frame on."""
+        ops, self._gl_ops = self._gl_ops, []
+        if self._view_key is None:
+            return
+        _view, w, h = self._view_key
+        painter.beginNativePainting()
+        try:
+            anim = viewport.animation()
+            if not anim.ensure():
+                raise RuntimeError(anim.error)
+            t = anim.target(self.gl_name, (w, h), self._view, self.KEEP_PICTURE)
+            for op in ops:
+                if op[0] == "clear":
+                    anim.clear(self.gl_name)
+                elif op[0] == "fade":
+                    anim.fade(t, op[1])
+                elif op[0] == "segs":
+                    anim.segments(t, self._palette, op[2], segs=op[1], keep_max=op[3])
+                elif op[0] == "pulses":
+                    _k, segs, serial, phase, length, radius = op
+                    if getattr(t, "serial", None) != serial:
+                        if segs is None:                  # (a new context: the pieces again next frame)
+                            self.gl_resend()
+                            continue
+                        anim.upload(t, segs)
+                        t.serial = serial
+                    anim.segments(t, self._palette, radius, pulse=(phase, length), keep_max=True)
+            anim.present(t, painter, self._rect, viewport)
+        except Exception:                                 # noqa: BLE001 - the processor takes over
+            import logging
+            logging.getLogger("pflab").exception("animation on the graphics card failed: the processor draws it")
+            self.gpu_broken = True
+            self._view_key = None
+        finally:
+            painter.endNativePainting()
 
     def _colors(self):
         """Speed scale (0 … a round value ≈ 2 × the typical speed of the view) and its pens."""

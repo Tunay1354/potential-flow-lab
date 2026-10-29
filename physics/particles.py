@@ -22,7 +22,7 @@ import math
 
 import numpy as np
 
-from . import kernel
+from . import kernel, parallel
 from .field import active, complex_velocity, fluid_mask, singular_points
 from .images import resolve
 
@@ -30,6 +30,8 @@ CROSSING_S = 6.0          # a particle at the typical speed crosses the view in 
 LIFETIME_S = 6.0          # ... and starts again after at most this long
 STEPS_ACROSS = 300        # sub-steps are at most 1/300 of the view width
 MAX_SUBSTEPS = 16
+PARALLEL_MIN_PARTICLES = 5000     # per core at least: only the large counts of the GPU mode (>= 10 000) are split
+                                  # (one core keeps the same random restarts as before)
 GUARD_ACROSS = 150        # particles keep 1/150 of the view width away from singular points
 
 
@@ -121,9 +123,14 @@ class Particles:
         self.prev = self.pos.copy()
         if self.compiled is not None:
             F, R, W = self.compiled
-            kernel.advect_particles(self.pos, self.age, self.speed, self.fresh, F, R, W, self.sing,
-                                    width / GUARD_ACROSS, dt, dt_real, width / STEPS_ACROSS, MAX_SUBSTEPS,
-                                    x0, x1, y0, y1, LIFETIME_S)
+            args = (F, R, W, self.sing, width / GUARD_ACROSS, dt, dt_real, width / STEPS_ACROSS, MAX_SUBSTEPS,
+                    x0, x1, y0, y1, LIFETIME_S)
+            parts = parallel.chunks(self.pos.size, PARALLEL_MIN_PARTICLES)
+            if len(parts) > 1:                   # many particles: pieces on all cores (each moves alone)
+                parallel.run([lambda a=a, b=b: kernel.advect_particles(
+                    self.pos[a:b], self.age[a:b], self.speed[a:b], self.fresh[a:b], *args) for a, b in parts])
+            else:
+                kernel.advect_particles(self.pos, self.age, self.speed, self.fresh, *args)
         else:
             self._step_numpy(dt, dt_real, width)
         if self.excluded is not None:                    # restarted inside a body: somewhere else
@@ -272,3 +279,18 @@ def nice_top(value: float) -> float:
         if value <= m * k * 1.0001:
             return m * k
     return 10.0 * k
+
+
+def step_ms(count: int = 20000, repeats: int = 3) -> float:
+    """How long one animation step of `count` particles takes on this computer (lifting cylinder, all
+    cores, compiled): the measure for the most particles the graphics card mode offers."""
+    import time
+    from .elements import Doublet, Uniform, Vortex
+    p = Particles(count)
+    p.set_scene([Uniform(), Doublet(mu=1.0), Vortex(Gamma=-2.0)])
+    p.set_view((-4.0, 4.0, -2.6, 2.6))
+    p.step(1 / 60)                                       # (compiled already: warm-up)
+    t = time.perf_counter()
+    for _ in range(repeats):
+        p.step(1 / 60)
+    return (time.perf_counter() - t) * 1000.0 / repeats

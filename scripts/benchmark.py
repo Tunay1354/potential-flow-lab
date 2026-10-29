@@ -420,10 +420,14 @@ w.model.mark_clean(); w.close()
         secs = 2.5 if self.quick else 5.0
         w, cv = self.win, self.win.canvas
         sp = w.settings_panel.sliders
-        for mode, settings in (("particles", {"particles": 1500, "trail": 4}),          # the defaults
-                               ("particles", {"particles": 5000, "trail": 10}),         # the maximum
-                               ("pulses", {"pulse_length": 4, "pulse_spacing": 4}),
-                               ("pulses", {"pulse_length": 10, "pulse_spacing": 1})):
+        cases = [("particles", {"particles": 1500, "trail": 4}),          # the defaults
+                 ("particles", {"particles": 5000, "trail": 10}),         # the maximum without the card
+                 ("pulses", {"pulse_length": 4, "pulse_spacing": 4}),
+                 ("pulses", {"pulse_length": 10, "pulse_spacing": 1})]
+        top = sp["particles"].maximum()
+        if top > 5000:                                                     # --gpu: the card's maximum too
+            cases.insert(2, ("particles", {"particles": top, "trail": 10}))
+        for mode, settings in cases:
             for name in ("lifting cylinder", "busy (8 elements)", "lifting cylinder + φ, |V|, dense"):
                 if name.endswith("dense"):                    # the owner's view: many layers under the animation
                     self.show("lifting cylinder", ("equipotential", "speed"))

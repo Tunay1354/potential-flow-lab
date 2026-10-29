@@ -41,6 +41,28 @@ class PlotGLViewport(QOpenGLWidget):
         self.error: str | None = None
         self.requested_samples = int(samples)
         self.frameSwapped.connect(self._read_samples)
+        self._animation = None                  # GLAnimation: the animations drawn on the card (gl_animation.py)
+
+    def animation(self):
+        """The animations' shaders and pictures in this context (made on first use; context current)."""
+        if self._animation is None:
+            from .gl_animation import GLAnimation
+            self._animation = GLAnimation()
+            ctx = self.context()
+            if ctx is not None:
+                ctx.aboutToBeDestroyed.connect(self._free_animation)
+        return self._animation
+
+    def _free_animation(self):
+        """The context goes (the viewport is switched off / closed): its pictures and buffers with it."""
+        if self._animation is not None:
+            try:
+                self.makeCurrent()
+                self._animation.destroy()
+                self.doneCurrent()
+            except Exception as exc:                      # noqa: BLE001
+                log.info("animation resources not freed: %s", exc)
+            self._animation = None
 
     def initializeGL(self):
         """Called by Qt with the context current (also again if the context is made anew)."""

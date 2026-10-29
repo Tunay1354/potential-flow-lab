@@ -577,7 +577,26 @@ bırakıldı (kullanıcı kararı).
       hazırlıyor, piksel piksel hiçbir şey çizmiyor. Bizde particles / pulses resmi CPU'da piksel piksel çiziliyor ve
       her karede dokuya yükleniyor. Ayrıca dye rake'te ~9 kaynak var, bizim Pulses'ta görünümdeki tüm streamline'lar
       (~100) yanıyor. Sonuç → 20.4: particles / pulses'ı GPU'da çizmek (VBO + shader, iz için FBO).
-    - ☐ 20.4 GPU particles / pulses + kalibrasyondan üst sınırlar; aynı script'le karşılaştırma (`--gpu`)
+    - ✅ **20.4 Particles / Pulses ekran kartında + kalibrasyonlu üst sınır** (29 Ekim; dye rake istenmedi):
+      GPU açıkken animasyon resmi işlemcide piksel piksel çizilmiyor: işlemci sadece çizgi parçalarının
+      yerini veriyor (`GLFrame` kayıt adımları: clear / fade / segs / pulses), kart çiziyor (`app/canvas/
+      gl_animation.py`: her parça bir dikdörtgen, yuvarlak ve yumuşak kenar shader'da `draw_segments` ile aynı
+      formülle; instanced çizim, kendi VAO'su; resim bir frame buffer'da, plot'un kendi boyamasında
+      `beginNativePainting` ile üstüne). Particles: iz soluklaşması kartta (× keep, sonra 1/255 eksik: soluk
+      pikseller gerçekten 0'a iniyor), pan / zoom'da eski resim taşınıyor. Pulses: parçalar karta bir kez gidiyor
+      (çizgiler ya da görünüm değişince), her karede sadece zaman; hangi parçanın yandığına shader karar veriyor
+      (fract(t − faz) < L, aynı kural). Ölçüm (bu sunucu, işlemci kısmı): pulses karesi 2–8 ms → 0.1 ms,
+      particles 1500: 2.1 → 0.7 ms. Doğruluk: gerçek OpenGL'de (Mesa) aynı andaki pulses karesi kartta ve
+      işlemcide piksel piksel aynı (renkli piksel sayısı birebir, %0.008 piksel 10/255'ten fazla farklı).
+      Kart yapamazsa (OpenGL < 3.3, shader reddi, bir hata) o katman bir sonraki kareden işlemciyle çizer
+      (`gpu_broken`); GPU kutusu yeniden açılınca tekrar denenir. Export'lar hep işlemci yolu.
+      **Particles → Count üst sınırı**: GPU kapalı 5000; açıkken bu bilgisayarın bir karede ~4 ms'de
+      hareket ettirebildiği kadar (`physics.particles.step_ms(20 000)` bir kez ölçülüyor, bilgisayar değişince
+      tekrar; 5000'in katı, en çok 100 000; bu sunucu 40 000). Graphics card panelinde yazıyor. Çok particle
+      (≥ 10 000) tüm çekirdeklerde hareket ediyor (yeniden doğmayanlar tek çekirdekle birebir aynı; test).
+      Kart kapatılınca / daha azına izin veren bilgisayarda açılan sahnede sayı sınıra iniyor.
+      Testler (`tests/test_gpu.py`, +5): kayıt adımları ve geri dönüş, sınır + ölçümün hatırlanması, sahne
+      açılırken sınır, çok çekirdekte particles, Xvfb'de gerçek OpenGL ile pulses kart = işlemci.
 21. ☐ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,
     dosya yapısı, uyarılar (pyflakes), çok uzun dosyaların bölünmesi, testlerin süresi, README klasör tablosu.
     Ölçüt: tüm testler + verification aynı sonuç

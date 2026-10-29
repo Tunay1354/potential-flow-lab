@@ -470,7 +470,9 @@ class SettingsPanel(QScrollArea):
         for w in widgets:
             w.blockSignals(True)
         for key, w in self.sliders.items():
-            w.setValue(slider(key).position(getattr(settings, key)))
+            spec = slider(key)                           # (the Count maximum is higher with the graphics card)
+            raw = int(round((getattr(settings, key) - spec.offset) / spec.step))
+            w.setValue(min(max(raw, w.minimum()), w.maximum()))
         self.c_arrows.setChecked(settings.show_arrows)
         self.c_quality.setCurrentIndex(min(max(int(settings.field_quality), 1), 3) - 1)
         custom = settings.cp_reference
@@ -509,6 +511,11 @@ class SettingsPanel(QScrollArea):
         custom = self.c_cp_ref.currentIndex() == 1
         self.s_vref.setEnabled(custom)
         self.cp_reference_changed.emit(self.s_vref.value() if custom else None)
+
+    def set_slider_max(self, key: str, hi: int):
+        """A slider's maximum (Particles → Count: higher while the graphics card draws). A value above it
+        comes down to it (setting_changed is emitted then)."""
+        self.sliders[key].setMaximum(int(hi))
 
     def _add_slider(self, form, key):
         """The slider of a setting (settings.SLIDERS), at the default value; moving it emits

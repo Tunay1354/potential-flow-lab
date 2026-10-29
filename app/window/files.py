@@ -115,6 +115,7 @@ class FilesMixin:
         settings = self.canvas.settings.updated(doc.settings)
         self.canvas.apply_settings(settings)
         self.settings_panel.show_settings(settings)
+        self._limit_particles()                # (a scene saved with more particles than this mode allows)
         self.model.reset(doc.elements)         # one computation with the new view + settings
 
     def maybe_save(self) -> bool:
