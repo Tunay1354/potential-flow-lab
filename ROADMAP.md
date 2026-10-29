@@ -446,9 +446,33 @@ bırakıldı (kullanıcı kararı).
       adımı paneli başa alıyor; slider'ın bölümü gizliyse adım atlanıyor
     - Testler: +2 (`test_a_second_tour_from_the_menu_shows_a_scrolled_away_slider`,
       `test_bubbles_have_the_name_a_tag_and_buttons`); turun gerçek olaylarla baştan sona denemesi yine 43 / 43
-20. ☐ **Optimizasyon (+ Paket E2)**: ölçüm → iyileştirme: açılış ve ilk Numba derleme süresi, sürükleme, zoom /
-    pan, animasyon (gerekirse "Use graphics card (OpenGL)", açılamazsa normal çizim), Solid bodies, Surface
-    pressure, export süreleri; ölçümler `scripts/` altında, önce / sonra sayılarıyla
+20. ▶ **Optimizasyon (+ Paket E2)**: ölçüm → iyileştirme: açılış ve ilk Numba derleme süresi, sürükleme, zoom /
+    pan, animasyon ("Use graphics card (OpenGL)", açılamazsa normal çizim), Solid bodies, Surface pressure, export
+    süreleri; ölçümler `scripts/` altında, önce / sonra sayılarıyla
+    - ✅ **Baseline (OpenGL'siz, 29 Ekim)**: `python scripts/benchmark.py` (yeni; programı değiştirmez, 1536 × 830
+      pencere, kullanıcının ayarlarına dokunmaz). Sonuçlar `benchmarks/2026-10-29_baseline_cloud-2cpu_run1/2.json`
+      (bulut sunucusu, 2 CPU, ekran kartı yok, Qt offscreen = CPU ile çizim; iki çalışma arası fark ~%20–30).
+      Önemli sayılar (medyan, iki çalışma):
+      - Açılış: ilk kez (Numba derliyor) pencere 2.6 s, ilk çizgiler 16.6 s, tüm çekirdekler 18.8 s; sonraki
+        açılışlar (önbellek) pencere 1.1 s, ilk çizgiler 1.2 s
+      - Hesap (arka planda; pencere donmaz): streamline'lar lifting cylinder 88 ms, Rankine oval 185 ms, kanal 326 ms,
+        8 elementli sahne 1.39 s; φ / |V| / Cp bantları 5–40 ms (High 14–90 ms); Solid bodies 34–93 ms; Surface
+        pressure 5–10 ms; her şey birden 61 ms – 1.4 s
+      - Çizim (plot'un bir kez tamamen çizilmesi, OpenGL'in hızlandıracağı kısım): 4–31 ms; tüm pencere 18–27 ms
+      - Pan / zoom (60 fps zamanlayıcı): kare aralığı medyan 15–18 ms (≈ 60 fps), p95 20–29 ms; tüm katmanlar açıkken
+        p95 25–40 ms, tek tük 90–130 ms takılma (8 elementli sahne / kanal, renk bantları + Solid bodies açık)
+      - Doublet sürükleme: live update açık p95 23–25 ms, kapalı 16.5 ms (tam 60 fps)
+      - Tepki süresi: Density slider 114–121 ms, layer açma 66 ms, pencere boyutu 124 ms, undo 260–300 ms, element
+        ekleme 466–525 ms (pencere sadece ~35 ms bekliyor, gerisi arka planda hesap: yeni source'un streamline /
+        stagnation / dividing'i)
+      - Animasyon: Particles 1500 ve 5000 (en yüksek, trail 10), Pulses varsayılan ve en uzun: hepsi 62 fps, bir kare
+        1.5–4.8 ms, pencere p95 16.4–17.1 ms (takılma yok)
+      - Export: PNG 1× / 2× / 4× 92 / 149 / 318 ms, SVG / PDF 66–68 ms, CSV (hepsi) 237 ms, GIF 2 s 0.96 s, MP4 2 s
+        1× 1.1 s, 2× 3.3 s; verification 2.3 s (figürlerle 8.0 s)
+      - Sonuç: kullanıcının da gözlemi gibi her şey yeterince hızlı; tek darboğazlar tüm katmanlar açıkken pan /
+        zoom'daki tek tük takılmalar (GUI thread'de renk bantları) ve kalabalık sahnelerin arka plan hesap süresi
+        (OpenGL'in etkilemeyeceği hesap)
+    - ☐ OpenGL seçeneği + aynı script'le karşılaştırma (burada ve kullanıcının Windows'unda)
 21. ☐ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,
     dosya yapısı, uyarılar (pyflakes), çok uzun dosyaların bölünmesi, testlerin süresi, README klasör tablosu.
     Ölçüt: tüm testler + verification aynı sonuç

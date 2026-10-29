@@ -153,7 +153,9 @@ python main.py --help           # tüm seçenekler
 Exe (Faz 5): `pyinstaller packaging/potential_flow_lab.spec` → `dist/Potential Flow Lab/`.
 
 Ölçüm scriptleri: `python scripts/streamline_quality.py` (çizgi kalitesi),
-`python scripts/smoothness.py` (pan / zoom sırasında kare aralıkları, arayüz akıcılığı).
+`python scripts/smoothness.py` (pan / zoom sırasında kare aralıkları, arayüz akıcılığı),
+`python scripts/benchmark.py [--out sonuc.json] [--quick]` (programın her şeyinin hızı: açılış, hesaplar, çizim, pan /
+zoom / sürükleme, tepki süreleri, animasyon, export, verification — ~6 dk; ayarlarına / dosyalarına dokunmaz).
 
 ## Klasör yapısı
 
@@ -202,6 +204,8 @@ Exe (Faz 5): `pyinstaller packaging/potential_flow_lab.spec` → `dist/Potential
 | `physics/program_checks.py` | Programın sayısal sonuçlarının kontrolü: çizilen streamline'lar, durma noktası araması, izlenen yüzeyler, Cp, basınç integrali (`--verify`) |
 | `tests/` | Otomatik doğrulama testleri (`pytest`) |
 | `scripts/verify_physics.py` | Doğrulama tablosunu yazdırır (`physics/verification.py`) |
+| `scripts/benchmark.py` | Her şeyin hızı tek çalıştırmada (açılış cold / warm, hesaplar, çizim, pan / zoom / sürükleme, tepki süresi, animasyon, export, verify); `--out` ile JSON |
+| `benchmarks/` | Kaydedilmiş benchmark sonuçları (JSON): OpenGL vb. değişikliklerden önce / sonra karşılaştırmak için |
 | `scripts/streamline_quality.py` | Streamline resminin kalite ölçümü (aralık düzgünlüğü, kesik uçlar, süre) |
 
 **Yeni bir plot katmanı eklemek** (ör. animasyon): `app/canvas/layer.py`'deki `PlotLayer`'dan bir sınıf

@@ -1,0 +1,537 @@
+"""
+benchmark.py — how fast is everything? One run measures the whole program as the user feels it, so that
+a later change (e.g. drawing with the graphics card, OpenGL) can be compared number by number.
+
+    python scripts/benchmark.py                      (a real window: the honest numbers for this PC)
+    python scripts/benchmark.py --out results.json   (also writes every number to a JSON file)
+    python scripts/benchmark.py --quick              (shorter runs, fewer repeats)
+    python scripts/benchmark.py --only startup,compute,paint,interact,anim,export,verify
+    QT_QPA_PLATFORM=offscreen python scripts/benchmark.py   (no window, e.g. on a server)
+
+The program itself is not changed: the script opens the normal window (1536 × 830, the owner's screen at
+125 %), loads scenes and drives it like a user. It never touches your settings or files (Qt test folders,
+the exports go to a temporary folder).
+
+Sections
+  startup   start the program in a fresh process: imports, window, first streamlines; Numba cold (first
+            start ever, the kernels are compiled) and warm (compiled kernels from the cache)
+  compute   the computations alone, per scene (median of repeats): streamlines, field layers φ / |V| / Cp
+            (grid Medium and High), solid bodies, surface pressure, everything at once
+  paint     drawing the plot once (what a graphics card would speed up): default layers / every layer
+  interact  the window as a hand moves it: a 60 fps timer pans, zooms, drags an element (Move mode, live
+            update on / off), and how long until the plot follows a slider, an added element, an undo,
+            a window resize. Frame gap = time between two timer ticks (16.7 ms = 60 fps; long gaps =
+            stutter)
+  anim      Particles and Pulses at the default and the maximum settings: frames per second actually
+            drawn, the render time of one frame, and how smooth the window stays
+  export    PNG 1× / 2× / 4×, SVG, PDF, CSV (all tables), GIF and MP4 (2 s)
+  verify    Help → Run verification (102 checks), without and with figures
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import platform
+import subprocess
+import sys
+import tempfile
+import time
+
+import numpy as np
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
+WINDOW = (1536, 830)
+FRAME_MS = 1000.0 / 60.0
+SCENES = {          # name: preset file (relative to presets/), or a list of elements made below
+    "lifting cylinder": "1 Verification cases (assignment)/08_lifting_cylinder.pflow",
+    "Rankine oval": "2 Bodies/02_rankine_oval.pflow",
+    "vortex in 60° corner": "4 Walls/03_vortex_in_60_corner.pflow",
+    "channel": "4 Walls/04_channel.pflow",
+    "source in corner flow": "3 Sector flows/05_source_in_corner_flow.pflow",
+    "busy (8 elements)": None,
+}
+SECTIONS = ("startup", "compute", "paint", "interact", "anim", "export", "verify")
+
+
+# ---------------------------------------------------------------------------------------------- helpers
+def stats(values) -> dict:
+    a = np.asarray([v for v in values if v is not None and np.isfinite(v)], float)
+    if a.size == 0:
+        return {"n": 0}
+    return {"n": int(a.size), "median": float(np.median(a)), "p95": float(np.percentile(a, 95)),
+            "max": float(a.max()), "min": float(a.min())}
+
+
+def timed(fn, repeats=5, warm=1) -> dict:
+    for _ in range(warm):
+        fn()
+    out = []
+    for _ in range(repeats):
+        t = time.perf_counter()
+        fn()
+        out.append((time.perf_counter() - t) * 1000.0)
+    return stats(out)
+
+
+def busy_scene():
+    from physics import Doublet, Source, Uniform, Vortex
+    return [Uniform(V=1.0, alpha=10.0), Source(m=2.0, x0=-2.5, y0=0.8), Source(m=-2.0, x0=-1.0, y0=0.8),
+            Source(m=1.0, x0=2.0, y0=-1.2), Vortex(Gamma=2.0, x0=1.5, y0=1.0), Vortex(Gamma=-1.5, x0=-2.0, y0=-1.0),
+            Doublet(mu=0.6, x0=0.5, y0=-0.2, delta=10.0), Source(m=-1.0, x0=3.0, y0=0.5)]
+
+
+def load(name):
+    from model.scene_file import load_scene as read_scene_file
+    path = SCENES[name]
+    if path is None:
+        return busy_scene(), ((-4.0, 4.0), (-2.6, 2.6))
+    doc = read_scene_file(os.path.join(ROOT, "presets", path))
+    return doc.elements, doc.view
+
+
+class Bench:
+    def __init__(self, quick: bool):
+        self.quick = quick
+        self.results: dict = {}
+        self.app = self.win = None
+
+    # ------------------------------------------------------------------ the window
+    def open(self):
+        from PySide6.QtCore import QSettings, QStandardPaths
+        QStandardPaths.setTestModeEnabled(True)                      # never the user's settings / files
+        from PySide6.QtWidgets import QApplication
+        self.app = QApplication.instance() or QApplication(sys.argv)
+        from app.main_window import MainWindow, setup_application
+        setup_application(self.app)
+        QSettings().setValue("beaver/tour_offered", True)
+        self.win = MainWindow()
+        w = self.win
+        w._ask_save_changes = lambda: "discard"
+        w._notify_user = lambda *a: None
+        w.setFixedSize(*WINDOW)
+        w.show()
+        w.activateWindow()
+        self.pump(1.0)
+        from physics.warmup import warm_up
+        warm_up()                                                    # compiled kernels ready (startup measures that)
+
+    def pump(self, seconds):
+        end = time.perf_counter() + seconds
+        while time.perf_counter() < end:
+            self.app.processEvents()
+            time.sleep(0.002)
+
+    def settle(self, timeout=20.0):
+        cv = self.win.canvas
+        end = time.perf_counter() + timeout
+        while time.perf_counter() < end:
+            idle = cv.wait_idle(20)
+            self.app.processEvents()
+            if idle:
+                break
+        self.pump(0.05)
+
+    def show(self, name, layers=()):
+        from app.canvas import LAYERS
+        els, view = load(name)
+        w, cv = self.win, self.win.canvas
+        cv.set_view_mode("static")
+        cv.set_mode("select")
+        for key, _label, default in LAYERS:
+            w.settings_panel.layer_boxes[key].setChecked(key in layers or (default and key not in ("dividing",)))
+        w.load_scene(list(els), view, title=name)
+        self.settle()
+
+    def record(self, section, key, value):
+        self.results.setdefault(section, {})[key] = value
+
+    # ------------------------------------------------------------------ sections
+    def startup(self):
+        code = r"""
+import os, sys, time, json
+t0 = time.perf_counter()
+sys.path.insert(0, %r)
+from PySide6.QtCore import QStandardPaths, QSettings
+QStandardPaths.setTestModeEnabled(True)
+from PySide6.QtWidgets import QApplication
+app = QApplication([])
+from app.main_window import MainWindow, setup_application
+t_import = time.perf_counter()
+setup_application(app); QSettings().setValue("beaver/tour_offered", True)
+w = MainWindow(); w._ask_save_changes = lambda: "discard"; w.setFixedSize(%d, %d); w.show()
+app.processEvents()
+t_window = time.perf_counter()
+cv = w.canvas
+while cv.last_result is None and time.perf_counter() - t0 < 300:
+    cv.wait_idle(20); app.processEvents()
+t_lines = time.perf_counter()
+from physics.warmup import warm_up
+warm_up()
+t_warm = time.perf_counter()
+print(json.dumps({"import_ms": (t_import - t0) * 1e3, "window_ms": (t_window - t_import) * 1e3,
+                  "first_lines_ms": (t_lines - t_window) * 1e3, "to_first_lines_ms": (t_lines - t0) * 1e3,
+                  "all_kernels_ready_ms": (t_warm - t0) * 1e3}))
+w.model.mark_clean(); w.close()
+""" % (ROOT, *WINDOW)
+        cache = tempfile.mkdtemp(prefix="pfl-numba-")
+        env = dict(os.environ, NUMBA_CACHE_DIR=cache)
+        for label in ("cold (first start: Numba compiles)", "warm (kernels from the cache)"):
+            t = time.perf_counter()
+            out = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True,
+                                 timeout=900)
+            total = (time.perf_counter() - t) * 1000.0
+            line = next((ln for ln in out.stdout.splitlines() if ln.startswith("{")), None)
+            if line is None:
+                self.record("startup", label, {"error": out.stderr[-500:]})
+                continue
+            r = json.loads(line)
+            r["process_total_ms"] = total
+            self.record("startup", label, r)
+
+    def compute(self):
+        reps = 3 if self.quick else 5
+        cv = self.win.canvas
+        for name in SCENES:
+            self.show(name)
+            row = {"streamlines": timed(cv.streamlines.recompute, reps)}
+            for key in ("equipotential", "speed", "cp"):
+                for q, qname in ((2, "Medium"), (3, "High")):
+                    cv.set_field_quality(q)
+                    cv.set_layer(key, True)
+                    row[f"{key} ({qname})"] = timed(lambda: cv.fields.schedule(force=True, now=True), reps)
+                    cv.set_layer(key, False)
+                cv.set_field_quality(2)
+            cv.set_layer("bodies", True)
+            row["solid bodies"] = timed(cv.bodies.update, reps)
+            cv.set_layer("surface", True)
+            surf = cv.surfaces
+
+            def surface_now():
+                bg, surf.background = surf.background, False
+                surf.refresh()
+                surf.background = bg
+            row["surface pressure"] = timed(surface_now, reps)
+            for key in ("equipotential", "speed", "dividing"):
+                cv.set_layer(key, True)
+            row["everything at once"] = timed(cv.compute_now, reps)
+            self.record("compute", name, row)
+            self.show(name)                                          # layers back to the defaults
+
+    def paint(self):
+        reps = 5 if self.quick else 10
+        cv = self.win.canvas
+        vp = cv.plot.viewport()
+        for name in ("lifting cylinder", "channel", "busy (8 elements)"):
+            row = {}
+            for label, layers in (("default layers", ()),
+                                  ("every layer", ("dividing", "equipotential", "speed", "bodies", "surface"))):
+                self.show(name, layers)
+                cv.compute_now()
+                self.settle()
+                row[f"plot, {label}"] = timed(lambda: vp.repaint(), reps)
+                row[f"whole window, {label}"] = timed(lambda: self.win.repaint(), reps)
+            self.record("paint", name, row)
+
+    def _ticks(self, seconds, step):
+        """A 60 fps timer calls step(k, phase); returns the gaps between ticks (ms)."""
+        from PySide6.QtCore import QTimer
+        ticks = []
+        t0 = time.perf_counter()
+        state = {"k": 0, "done": False}
+
+        def tick():
+            now = time.perf_counter()
+            ticks.append(now)
+            if now - t0 > seconds:
+                state["done"] = True
+                timer.stop()
+                return
+            step(state["k"], (now - t0) / seconds)
+            state["k"] += 1
+
+        timer = QTimer()
+        timer.setInterval(16)
+        timer.timeout.connect(tick)
+        timer.start()
+        while not state["done"]:
+            self.app.processEvents()
+            time.sleep(0.0005)
+        return list(np.diff(ticks) * 1000.0)
+
+    def interact(self):
+        secs = 2.0 if self.quick else 4.0
+        w, cv = self.win, self.win.canvas
+        jobs = []
+        cv.computed.connect(lambda n, ms: jobs.append(ms))
+
+        def pan(k, ph):
+            (x0, x1), (y0, y1) = cv.vb.viewRange()
+            d = 0.006 * (x1 - x0)
+            cv.set_view((x0 + d, x1 + d), (y0 + d / 3, y1 + d / 3))
+
+        def zoom(k, ph):
+            (x0, x1), (y0, y1) = cv.vb.viewRange()
+            s = 1.0 + 0.012 * np.sin(k / 8.0)
+            cx, cy, hw, hh = (x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) / 2 * s, (y1 - y0) / 2 * s
+            cv.set_view((cx - hw, cx + hw), (cy - hh, cy + hh))
+
+        for name in ("lifting cylinder", "channel", "busy (8 elements)"):
+            row = {}
+            for label, layers in (("", ()), (", every layer", ("equipotential", "speed", "bodies"))):
+                for what, fn in (("pan", pan), ("zoom", zoom)):
+                    self.show(name, layers)
+                    jobs.clear()
+                    row[what + label] = {"frame gap": stats(self._ticks(secs, fn)), "computations": len(jobs),
+                                         "computation ms": stats(jobs)}
+            self.record("interact", name, row)
+
+        # dragging the doublet of the lifting cylinder (Move mode), live update on and off
+        it = cv.interaction
+        for live in (True, False):
+            self.show("lifting cylinder")
+            cv.set_live_drag(live)
+            cv.set_mode("move")
+            el = cv.elements[1]
+            start = cv.vb.mapViewToScene(__import__("PySide6.QtCore", fromlist=["QPointF"]).QPointF(el.x0, el.y0))
+            ok = it.begin_drag(start)
+
+            def drag(k, ph, start=start):
+                from PySide6.QtCore import QPointF
+                r = 60.0
+                it.drag_to(QPointF(start.x() + r * np.sin(k / 10.0), start.y() + r * (1 - np.cos(k / 10.0))))
+            jobs.clear()
+            gaps = self._ticks(secs, drag) if ok else []
+            it.end_drag()
+            self.settle()
+            self.record("interact", f"drag the doublet (live update {'on' if live else 'off'})",
+                        {"frame gap": stats(gaps), "computations": len(jobs), "started": bool(ok)})
+        cv.set_live_drag(True)
+        cv.set_mode("select")
+
+        # how long until the plot follows a change (until the streamlines are drawn again)
+        def latency(action, n):
+            out = []
+            for k in range(n):
+                done = []
+                conn = cv.computed.connect(lambda nn, ms: done.append(time.perf_counter()))
+                t = time.perf_counter()
+                action(k)
+                end = t + 20.0
+                while not done and time.perf_counter() < end:
+                    self.app.processEvents()
+                    time.sleep(0.0005)
+                cv.computed.disconnect(conn)
+                out.append((done[0] - t) * 1000.0 if done else None)
+                self.settle()
+            return stats(out)
+
+        n = 3 if self.quick else 6
+        self.show("lifting cylinder")
+        sl = w.settings_panel.sliders["density"]
+        base = sl.value()
+        row = {"density slider": latency(lambda k: sl.setValue(base + (1 if k % 2 == 0 else 0)), n)}
+        sl.setValue(base)
+        self.settle()
+        from physics import Source
+        row["add an element"] = latency(lambda k: w.model.add(Source(m=0.5, x0=2.0 + 0.1 * k, y0=1.5)), n)
+        row["undo"] = latency(lambda k: w.model.undo(), n)
+        self.settle()
+        row["layer on: speed bands"] = timed(lambda: (w.settings_panel.layer_boxes["speed"].toggle(), self.settle()),
+                                            n, warm=1)
+        sizes = [(1536, 830), (1200, 700)]
+
+        def resize(k):
+            w.setFixedSize(*sizes[(k + 1) % 2])
+            self.app.processEvents()
+            w.repaint()
+        row["window resize (1536×830 ↔ 1200×700)"] = timed(lambda: resize(0) or resize(1), n, warm=1)
+        w.setFixedSize(*WINDOW)
+        self.record("interact", "reaction time (ms)", row)
+
+    def anim(self):
+        secs = 2.5 if self.quick else 5.0
+        w, cv = self.win, self.win.canvas
+        sp = w.settings_panel.sliders
+        for mode, settings in (("particles", {"particles": 1500, "trail": 4}),          # the defaults
+                               ("particles", {"particles": 5000, "trail": 10}),         # the maximum
+                               ("pulses", {"pulse_length": 4, "pulse_spacing": 4}),
+                               ("pulses", {"pulse_length": 10, "pulse_spacing": 1})):
+            for name in ("lifting cylinder", "busy (8 elements)"):
+                self.show(name)
+                for key, val in settings.items():
+                    if key in sp:
+                        sp[key].setValue(val)
+                cv.set_view_mode(mode)
+                self.pump(1.0)
+                lay = cv.animation
+                stamps = []
+                conn = lay._timer.timeout.connect(lambda: stamps.append(time.perf_counter()))
+                lay.frame_ms.clear()
+                gaps = self._ticks(secs, lambda k, ph: None)
+                lay._timer.timeout.disconnect(conn)
+                fps = (len(stamps) - 1) / (stamps[-1] - stamps[0]) if len(stamps) > 2 else 0.0
+                label = f"{mode} " + ", ".join(f"{k}={v}" for k, v in settings.items())
+                self.record("anim", f"{label} | {name}", {"fps drawn": fps, "render ms": stats(lay.frame_ms),
+                                                          "window frame gap": stats(gaps)})
+                cv.set_view_mode("static")
+                for key in settings:
+                    if key in sp:
+                        default = {"particles": 1500, "trail": 4, "pulse_length": 4, "pulse_spacing": 4}[key]
+                        sp[key].setValue(default)
+
+    def export(self):
+        from app.export.animation import missing_package, render_animation
+        from app.export.data import DATASETS, export_data
+        from app.export.figure import render_figure
+        out = tempfile.mkdtemp(prefix="pfl-bench-")
+        w, cv = self.win, self.win.canvas
+        reps = 2 if self.quick else 3
+        self.show("lifting cylinder")
+        row = {}
+        for fmt, scale in (("png", 1), ("png", 2), ("png", 4), ("svg", 1), ("pdf", 1)):
+            path = os.path.join(out, f"fig_{scale}.{fmt}")
+            row[f"{fmt.upper()} {scale}×" if fmt == "png" else fmt.upper()] = timed(
+                lambda: render_figure(cv, path, fmt, scale=scale), reps, warm=1)
+        path = os.path.join(out, "data.csv")
+        row["CSV (all tables)"] = timed(lambda: export_data(path, [k for k, _ in DATASETS], w.elements, cv.view(),
+                                                            cv.stagnation_points, cv.last_result.lines),
+                                       reps, warm=1)
+        for fmt, fps, scale in (("gif", 20, 1), ("mp4", 30, 1), ("mp4", 30, 2)):
+            if missing_package(fmt):
+                row[f"{fmt.upper()} 2 s"] = {"skipped": missing_package(fmt)}
+                continue
+            cv.set_view_mode("particles")
+            self.pump(0.5)
+            path = os.path.join(out, f"anim_{scale}.{fmt}")
+            row[f"{fmt.upper()} 2 s, {fps} fps, {scale}×"] = timed(
+                lambda: render_animation(cv, path, fmt, seconds=2, fps=fps, scale=scale), 1, warm=0)
+            cv.set_view_mode("static")
+        self.record("export", "lifting cylinder", row)
+
+    def verify(self):
+        from app.cli import report
+        out = tempfile.mkdtemp(prefix="pfl-verify-")
+        row = {"102 checks, no figures": timed(lambda: report.collect(None, log=lambda *a: None), 1, warm=0),
+               "102 checks + 9 figures": timed(lambda: report.collect(os.path.join(out, "figures"),
+                                                                      log=lambda *a: None), 1, warm=0)}
+        self.record("verify", "Help → Run verification", row)
+
+    # ------------------------------------------------------------------ report
+    def machine(self) -> dict:
+        import numba
+        import PySide6
+        info = {"platform": platform.platform(), "machine": platform.machine(), "cpus": os.cpu_count(),
+                "python": platform.python_version(), "pyside6": PySide6.__version__, "numba": numba.__version__,
+                "numpy": np.__version__, "qt_platform": self.app.platformName() if self.app else "",
+                "window": list(WINDOW), "screen_dpr": self.win.devicePixelRatioF() if self.win else None,
+                "date": time.strftime("%Y-%m-%d %H:%M"), "quick": self.quick}
+        if self.win is not None:                       # QWidget = drawn by the CPU; QOpenGLWidget = graphics card
+            info["opengl_viewport"] = type(self.win.canvas.plot.viewport()).__name__
+        return info
+
+
+def verdict(ms, kind):
+    if ms is None or not np.isfinite(ms):
+        return ""
+    if kind == "frame":
+        return "smooth" if ms <= FRAME_MS * 1.15 else ("ok (30+ fps)" if ms <= 34 else "STUTTER")
+    return "instant" if ms <= 100 else ("ok" if ms <= 300 else ("slow" if ms <= 1000 else "SLOW"))
+
+
+def print_report(res: dict):
+    def ms(v):
+        return f"{v:9.1f}" if isinstance(v, (int, float)) else f"{'—':>9}"
+    print("\n" + "=" * 100)
+    m = res["machine"]
+    print(f"Potential Flow Lab benchmark  {m['date']}  |  {m['platform']}  |  {m['cpus']} CPUs  |  Qt: "
+          f"{m['qt_platform']}  |  viewport: {m.get('opengl_viewport', '?')}")
+    if "startup" in res:
+        print("\nSTARTUP (fresh process)                       to window   first lines   all kernels ready")
+        for k, r in res["startup"].items():
+            if "error" in r:
+                print(f"  {k:<44} ERROR {r['error'][:60]}")
+                continue
+            print(f"  {k:<44}{ms(r['import_ms'] + r['window_ms'])}   {ms(r['to_first_lines_ms'])}"
+                  f"   {ms(r['all_kernels_ready_ms'])}   ms")
+    if "compute" in res:
+        keys = list(next(iter(res["compute"].values())).keys())
+        print("\nCOMPUTE (median ms)" + "".join(f"{k[:13]:>14}" for k in keys))
+        for name, row in res["compute"].items():
+            print(f"  {name:<22}" + "".join(f"{row[k].get('median', float('nan')):14.1f}" for k in keys))
+    if "paint" in res:
+        print("\nPAINT (median ms, one full redraw)")
+        for name, row in res["paint"].items():
+            for k, s in row.items():
+                print(f"  {name:<22}{k:<34}{ms(s.get('median'))}  p95{ms(s.get('p95'))}  "
+                      f"{verdict(s.get('median'), 'frame')}")
+    if "interact" in res:
+        print("\nINTERACT (60 fps timer: frame gap median / p95 / max ms; computations)")
+        for name, row in res["interact"].items():
+            if name == "reaction time (ms)":
+                continue
+            if "frame gap" in row:
+                row = {"": row}
+            for k, r in row.items():
+                g = r["frame gap"]
+                print(f"  {name + ' ' + k:<46}{ms(g.get('median'))}{ms(g.get('p95'))}{ms(g.get('max'))}"
+                      f"  jobs {r.get('computations', 0):>4}   {verdict(g.get('p95'), 'frame')}")
+        rt = res["interact"].get("reaction time (ms)", {})
+        if rt:
+            print("\nREACTION TIME (until the plot shows the change; median / max ms)")
+            for k, s in rt.items():
+                print(f"  {k:<46}{ms(s.get('median'))}{ms(s.get('max'))}   {verdict(s.get('median'), 'latency')}")
+    if "anim" in res:
+        print("\nANIMATION                                                   fps   render ms (med/p95)   window gap p95")
+        for k, r in res["anim"].items():
+            print(f"  {k:<58}{r['fps drawn']:5.1f}  {ms(r['render ms'].get('median'))}{ms(r['render ms'].get('p95'))}"
+                  f"   {ms(r['window frame gap'].get('p95'))}  {verdict(r['window frame gap'].get('p95'), 'frame')}")
+    if "export" in res:
+        print("\nEXPORT (ms)")
+        for name, row in res["export"].items():
+            for k, s in row.items():
+                print(f"  {k:<30}{ms(s.get('median')) if 'median' in s else '  ' + str(s.get('skipped'))}")
+    if "verify" in res:
+        print("\nVERIFY (ms)")
+        for name, row in res["verify"].items():
+            for k, s in row.items():
+                print(f"  {k:<30}{ms(s.get('median'))}")
+    print("=" * 100)
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--out", help="also write every number to this JSON file")
+    p.add_argument("--quick", action="store_true", help="shorter runs, fewer repeats")
+    p.add_argument("--only", default=",".join(SECTIONS), help="comma separated sections: " + ",".join(SECTIONS))
+    a = p.parse_args()
+    only = [s.strip() for s in a.only.split(",") if s.strip()]
+    b = Bench(a.quick)
+    if "startup" in only:
+        print("startup …", flush=True)
+        b.startup()
+    if any(s in only for s in SECTIONS[1:]):
+        b.open()
+        for s in SECTIONS[1:]:
+            if s in only:
+                print(f"{s} …", flush=True)
+                t = time.perf_counter()
+                getattr(b, s)()
+                print(f"   ({time.perf_counter() - t:.0f} s)", flush=True)
+    res = {"machine": b.machine(), **b.results}
+    print_report(res)
+    if a.out:
+        with open(a.out, "w", encoding="utf-8") as f:
+            json.dump(res, f, indent=1, ensure_ascii=False)
+        print(f"written: {a.out}")
+    if b.win is not None:
+        b.win.model.mark_clean()
+        b.win.close()
+
+
+if __name__ == "__main__":
+    main()

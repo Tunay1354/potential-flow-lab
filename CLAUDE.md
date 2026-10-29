@@ -201,6 +201,12 @@ GUI / Qt
   them and `Tour.start()` clears the bubble; (2) a slider scrolled out of the Plot settings (he had scrolled the
   panel) could not be shown nor scrolled to (lock) — `Tour._prepare` opens the panel, scrolls the slider into
   view, skips the step if its section is hidden.
+- **29 Oct, item 20 started — baseline measured (no OpenGL)**: `scripts/benchmark.py` (new, program unchanged;
+  sections startup / compute / paint / interact / anim / export / verify; `--out x.json`, `--quick`, `--only`)
+  → `benchmarks/2026-10-29_baseline_cloud-2cpu_run{1,2}.json` (this 2-CPU offscreen server; numbers in ROADMAP 20).
+  Everything fine; only stutters: pan / zoom with every layer on (p95 25–40 ms, rare 90–130 ms) and the background
+  compute of busy scenes (8 elements: 1.4 s). He asked to add OpenGL next and compare with the SAME script, also on
+  his Windows PC (ask him to run `python scripts/benchmark.py --out before.json` there before the change).
 - **Next: item 20 — optimization (+ E2)**: measure first, then improve: start-up and first Numba compile,
   dragging, zoom / pan, animation (maybe an "Use graphics card (OpenGL)" option with a fallback), Solid bodies,
   Surface pressure, export times; scripts in `scripts/`, before / after numbers in ROADMAP.
