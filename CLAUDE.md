@@ -280,7 +280,15 @@ GUI / Qt
   Slider steps wait for `isSliderDown()` False (`Tour.released`). `beaver.start_tour(confirmed)`: a full plot →
   dialog "tour_clear" (Save first / Clear and start / Cancel). GPU step after Help (19 steps). P =
   `act_beaver_menu` → `beaver.toggle_menu()` (the old duplicate act_faq in Edit + Help made P ambiguous = dead).
-- **Next**: 20.7B and 20.7C, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
+- **30 Oct, 20.7B**: the program starts EMPTY (`MainWindow.START_SCENE = None`; tests/conftest sets the lifting
+  cylinder — most GUI tests assume it; benchmark / smoothness scripts too). Default layout: Elements 260 px
+  (`layout._resize_dock`: Qt's resizeDocks needs ask-look-correct), LAYOUT_STATE_VERSION 2. Surface pressure
+  width remembered in "layout/surface_width" (only after a fitted open: `_surface_fitted`), Reset layout clears
+  it; unticking the layer hides the dock. Grid = layer "grid" (QSettings "plot/grid"). Splash first-start box:
+  `startup.is_first_start / mark_prepared` (signature of version + Python + physics/ files). New:
+  `app/user_guide.py` + `user_guide_text.py` (F1, non-modal, `win._guide`), `app/conventions_dialog.py`.
+  The plot card needs ~840 px: on a 1400 px window the Surface panel can only get ~255 px.
+- **Next**: 20.7C, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
   remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
 - Then, in this order (all planned, "as if time were unlimited"):
   21 code cleanup without behaviour change (dead / duplicate code, names, docstrings, pyflakes, long files) →

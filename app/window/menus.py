@@ -208,9 +208,10 @@ class MenusMixin:
             lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(PRESETS_DIR)))
 
     def _build_help_menu(self, m):
-        guide = m.addAction("User guide")
+        self.act_guide = guide = m.addAction("User guide")
         guide.setShortcut("F1")
-        guide.triggered.connect(lambda: self.flash("The user guide is not written yet (it comes with the report)."))
+        guide.triggered.connect(lambda: self.show_user_guide())
+        self.addAction(guide)                            # (F1 anywhere in the window)
         m.addAction("Sign conventions").triggered.connect(self._show_conventions)
         verify = m.addAction("Run verification…")
         verify.setToolTip("Every check of the program against the theory, with how each one is computed")
@@ -303,6 +304,7 @@ class MenusMixin:
                 ("mode.select", self.mode_actions["select"], "Mouse mode: Select", "Plot"),
                 ("mode.move", self.mode_actions["move"], "Mouse mode: Move elements", "Plot"),
                 ("mode.pan", self.mode_actions["pan"], "Mouse mode: Pan", "Plot"),
+                ("help.guide", self.act_guide, "User guide", "Help"),
                 ("help.beaver", self.act_beaver_menu, "Beaver: his menu", "Help")):
             sc.register(ident, act, label, group)
         for key, act in self.element_actions.items():
@@ -322,6 +324,17 @@ class MenusMixin:
     def _beaver_tour(self):
         self._beaver_on()
         self.beaver.start_tour()
+
+    def show_user_guide(self, chapter: str | None = None):
+        """Help → User guide (F1): a window that can stay open beside the program (app/user_guide.py)."""
+        from ..user_guide import UserGuideDialog
+        if getattr(self, "_guide", None) is None:
+            self._guide = UserGuideDialog(self.theme, self.shortcuts, self)
+        if chapter:
+            self._guide.show_key(chapter)
+        self._guide.show()
+        self._guide.raise_()
+        self._guide.activateWindow()
 
     def _beaver_menu(self):
         self._beaver_on()

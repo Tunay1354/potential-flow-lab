@@ -19,6 +19,11 @@ def qapp(tmp_path_factory):
     app = widgets.QApplication.instance() or widgets.QApplication([])
     setup_application(app)
     QSettings().setValue("beaver/tour_offered", True)     # no first-start tour question during the tests
+    # the program starts on an empty sheet; the GUI tests were written for the lifting cylinder it once
+    # started with (test_gui.test_the_program_starts_on_an_empty_sheet checks the real start)
+    from app.main_window import MainWindow
+    from app.scene import starter_scene
+    MainWindow.START_SCENE = ("Lifting (rotating) cylinder", starter_scene)
     return app
 
 

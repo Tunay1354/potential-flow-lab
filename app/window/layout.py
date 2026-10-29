@@ -4,16 +4,22 @@ the plot, and remembering / resetting the layout.
 
 Side panels sit only left or right of the plot, stacked (no floating, no tabs). The layout the user
 leaves is restored at the next start (QSettings "layout/*"); View → Panels → Reset layout goes back to
-the layout of the first start.
+the layout of the first start (the plot is not touched):
+    left: the element palette · middle: the plot · right: Elements (DEFAULT_ELEMENTS_HEIGHT) over Plot settings
+Surface pressure opens on the left (it comes with its layer), as wide as the user left it last time
+(QSettings "layout/surface_width"; a missing or odd width: LAYOUT["surface_panel_width"]).
 """
-from PySide6.QtCore import QByteArray, QRect, QSettings, Qt
+from PySide6.QtCore import QByteArray, QRect, QSettings, Qt, QTimer
 from PySide6.QtWidgets import QDockWidget
 
 from ..chrome import PanelBody, PanelTitle
 from ..theme import LAYOUT
 
-LAYOUT_STATE_VERSION = 1          # bump when the dock layout changes incompatibly (old saved layouts ignored)
+LAYOUT_STATE_VERSION = 2          # bump when the dock layout changes incompatibly (old saved layouts ignored)
 SIDE_AREAS = (Qt.LeftDockWidgetArea, Qt.RightDockWidgetArea)
+DEFAULT_ELEMENTS_HEIGHT = 260     # px: the Elements panel of the default layout (Plot settings gets the rest)
+SURFACE_WIDTH_KEY = "layout/surface_width"
+SURFACE_WIDTH_RANGE = (240, 0.45)  # a remembered width outside [240 px, 45 % of the window] is not used
 
 
 class LayoutMixin:
@@ -51,7 +57,8 @@ class LayoutMixin:
     def _default_dock_layout(self):
         """Elements above Plot settings on the right, Graphics card under them (only while the graphics card
         draws); Surface pressure on the left (the graph needs the height), hidden: View → Panels, or it
-        opens with the Surface pressure layer."""
+        opens with the Surface pressure layer. The heights are set again once the window has its final size
+        (_default_heights; Qt shares out the extra room of a maximized window)."""
         de, ds, du, dg = self._docks()
         for d in (de, ds, du, dg):
             self.removeDockWidget(d)
@@ -65,10 +72,38 @@ class LayoutMixin:
             self._place_dock_card(d)
         self.resizeDocks([de, ds, du], [LAYOUT["right_panel_width"], LAYOUT["right_panel_width"],
                                         LAYOUT["surface_panel_width"]], Qt.Horizontal)
-        self.resizeDocks([de, ds, dg], [240, 470, 150], Qt.Vertical)
         du.hide()
         if not getattr(getattr(self, "canvas", None), "gpu", False):
             dg.hide()
+        self._default_heights()
+        self._layout_is_default = True
+
+    def _default_heights(self):
+        """Elements DEFAULT_ELEMENTS_HEIGHT tall, Plot settings the rest of the right column."""
+        de, ds = self.dock_elements, self.dock_settings
+        if self.dockWidgetArea(de) != self.dockWidgetArea(ds):
+            return
+        self._resize_dock(de, DEFAULT_ELEMENTS_HEIGHT, Qt.Vertical)
+
+    def _resize_dock(self, d, size: int, orientation):
+        """resizeDocks, made exact: Qt shares the room out in its own way (title bars, separators, the
+        other docks), so ask, look, correct (a few times, a few px)."""
+        ask = size
+        for _ in range(4):
+            self.resizeDocks([d], [ask], orientation)
+            if not d.isVisible():
+                return
+            self.layout().activate()
+            now = d.height() if orientation == Qt.Vertical else d.width()
+            if abs(size - now) <= 1:
+                return
+            ask += size - now
+
+    def _layout_shown(self):
+        """The window has its size (shown, maximized): a default layout gets its heights now."""
+        if getattr(self, "_layout_is_default", False):
+            self._default_heights()
+            QTimer.singleShot(50, self, self._default_heights)          # (after a maximize settles)
 
     def _sections_changed(self):
         """Plot settings sections hidden / shown: the note on the panel title and the menu ticks."""
@@ -82,12 +117,65 @@ class LayoutMixin:
 
     # ------------------------------------------------------------------ remember / reset
     def reset_layout(self):
-        """View → Panels → Reset layout: the layout of the first start."""
+        """View → Panels → Reset layout: the layout of the first start (the scene and the plot stay as they
+        are). An open Surface pressure panel stays open, in its default place and width."""
+        surface_open = self.dock_surface.isVisible()
         self._default_dock_layout()
+        QSettings().remove(SURFACE_WIDTH_KEY)             # (after: hiding it just remembered its width)
         self.set_palette_side("left")
         for key in self.settings_panel.sections:
             self.settings_panel.set_section_visible(key, True)
+        if surface_open:
+            self.dock_surface.show()
+        QTimer.singleShot(0, self, self._default_heights)
         self.flash("Layout reset.")
+
+    # ------------------------------------------------------------------ the Surface pressure panel's width
+    def _surface_dock_visible(self, visible: bool):
+        """Opened: as wide as last time (or the default); closed: its width is remembered."""
+        if visible:
+            QTimer.singleShot(0, self, self._fit_surface_dock)
+        elif getattr(self, "_surface_fitted", False):      # (not the hiding while a layout is restored)
+            self._remember_surface_width()
+            self._surface_fitted = False
+
+    def _remember_surface_width(self):
+        du = self.dock_surface
+        if not du.isFloating() and self._surface_alone() and du.width() > 0:
+            lo, hi = self._surface_width_range()
+            if lo <= du.width() <= hi:
+                QSettings().setValue(SURFACE_WIDTH_KEY, int(du.width()))
+
+    def _surface_width_range(self):
+        lo, frac = SURFACE_WIDTH_RANGE
+        return lo, max(lo + 60, frac * max(self.width(), 1))
+
+    def _surface_alone(self) -> bool:
+        """Nothing else open on its side (its own column: its width is its own)."""
+        du = self.dock_surface
+        area = self.dockWidgetArea(du)
+        return not any(d is not du and d.isVisible() and self.dockWidgetArea(d) == area for d in self._docks())
+
+    def surface_width(self) -> int:
+        """The width it opens with: the remembered one, or the default when none / an odd one is saved."""
+        lo, hi = self._surface_width_range()
+        try:
+            w = int(QSettings().value(SURFACE_WIDTH_KEY, 0) or 0)
+        except (TypeError, ValueError):
+            w = 0
+        return w if lo <= w <= hi else int(LAYOUT["surface_panel_width"])
+
+    def _fit_surface_dock(self):
+        du = self.dock_surface
+        if not du.isVisible():
+            return
+        if du.isFloating() or self.dockWidgetArea(du) not in SIDE_AREAS:       # never a forbidden place
+            du.setFloating(False)
+            self.addDockWidget(Qt.LeftDockWidgetArea, du)
+            self._place_dock_card(du)
+        if self._surface_alone():
+            self._resize_dock(du, self.surface_width(), Qt.Horizontal)
+        self._surface_fitted = True
 
     def save_layout(self):
         s = QSettings()
@@ -95,6 +183,8 @@ class LayoutMixin:
         s.setValue("layout/state", self.saveState(LAYOUT_STATE_VERSION))
         s.setValue("layout/palette_side", self.palette_side)
         s.setValue("layout/hidden_sections", ",".join(self.settings_panel.hidden_sections()))
+        if self.dock_surface.isVisible():
+            self._remember_surface_width()
 
     def restore_layout(self):
         """Panels, palette side and hidden Plot settings sections as saved when the window was closed.
@@ -104,6 +194,7 @@ class LayoutMixin:
             return
         state = s.value("layout/state")
         if isinstance(state, QByteArray) and self.restoreState(state, LAYOUT_STATE_VERSION):
+            self._layout_is_default = False
             if any(d.isFloating() or self.dockWidgetArea(d) not in SIDE_AREAS for d in self._docks()):
                 self._default_dock_layout()                 # never restore a forbidden place
             for d in self._docks():

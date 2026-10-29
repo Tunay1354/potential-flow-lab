@@ -34,15 +34,19 @@ from .hardware import load_profile
 from .icons import make_app_icon, make_palette_icon
 from .panels import ElementsPanel, SettingsPanel, element_title
 from .recent_files import RecentFiles
-from .scene import starter_scene
 from .surface_panel import SurfacePanel
 from .theme import DEFAULT_THEME, LAYOUT, build_stylesheet
 from .window import ExportMixin, FilesMixin, GraphicsMixin, LayoutMixin, MenusMixin, StatusMixin
 
 DUPLICATE_OFFSET = (0.5, 0.5)
+GRID_KEY = "plot/grid"            # the plot's background grid shown (Layers → Background grid; a program setting)
 
 
 class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, GraphicsMixin, QMainWindow):
+    # the scene a new window starts with: None = an empty sheet (the program); (title, function returning the
+    # elements) otherwise — the tests start with the lifting cylinder they were written for (tests/conftest.py)
+    START_SCENE = None
+
     def __init__(self):
         super().__init__()
         load_fonts()
@@ -52,7 +56,8 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         # a copy of an unsaved scene, restored if the program does not close normally (app/recovery.py)
         self.recovery = SessionRecovery(self._document, lambda: self.model.is_modified,
                                         lambda: (self.current_path, self.scene_title), parent=self)
-        self.scene_title = "Lifting (rotating) cylinder"
+        start = self.START_SCENE
+        self.scene_title = start[0] if start else "untitled"
         self.current_path: str | None = None           # file of the scene (None = never saved)
         self.recent = RecentFiles()
         self._last_probe = None
@@ -62,7 +67,7 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         self.resize(*LAYOUT["window_size"])
 
         # the scene: every change goes through the model (undo / redo)
-        self.model = SceneModel(starter_scene())
+        self.model = SceneModel(start[1]() if start else [])     # (empty: Presets has ready-made scenes)
         self.model.mark_clean()
         self.elements = self.model.elements            # same list object for the whole session
 
@@ -124,6 +129,12 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
             settings.setValue("beaver/tour_offered", True)
         QTimer.singleShot(1200, self, lambda: self.beaver.start_session(first))
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not getattr(self, "_shown_once", False):
+            self._shown_once = True
+            self._layout_shown()                         # the default panel heights, at the final size
+
     def menuBar(self) -> QMenuBar:
         """The menus live on the ruler of the header (not in Qt's own menu bar)."""
         return self._menu_bar
@@ -163,6 +174,7 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         sp.layer_changed.connect(self._layer_changed)
         sp.field_quality_changed.connect(cv.set_field_quality)
         sp.cp_reference_changed.connect(self._cp_reference_changed)
+        sp.layer_boxes["grid"].setChecked(QSettings().value(GRID_KEY, True, type=bool))   # as left last time
         live = QSettings().value("plot/live_drag", LIVE_DRAG_DEFAULT, type=bool)      # a program setting
         cv.set_live_drag(live)
         sp.set_live_drag(live)
@@ -176,6 +188,7 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         su.export_requested.connect(self.export_surface)
         su.cp_reference_requested.connect(self._show_cp_reference)
         self.dock_surface.visibilityChanged.connect(self._surface_panel_shown)
+        self.dock_surface.visibilityChanged.connect(self._surface_dock_visible)     # its width (window/layout.py)
         title = self.dock_settings.titleBarWidget()
         title.setContextMenuPolicy(Qt.CustomContextMenu)
         title.customContextMenuRequested.connect(lambda pos: self.sections_menu.exec(title.mapToGlobal(pos)))
@@ -233,6 +246,10 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         self.canvas.set_layer(key, on)
         if key == "surface" and on and not self.dock_surface.isVisible():
             self.dock_surface.show()                    # the graph and the forces go with the colors
+        elif key == "surface" and not on and self.dock_surface.isVisible():
+            self.dock_surface.hide()                    # … and go with them too
+        if key == "grid":
+            QSettings().setValue(GRID_KEY, bool(on))    # (a program setting, like the theme)
         act = self.layer_actions.get(key)
         if act is not None and act.isChecked() != on:
             act.blockSignals(True)
@@ -430,6 +447,8 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
 
     def apply_theme(self, theme):
         self.theme = theme
+        if getattr(self, "_guide", None) is not None:
+            self._guide.apply_theme(theme)
         app = QApplication.instance()
         app.setStyleSheet(build_stylesheet(theme))
         # Qt draws the "panel will go here" band of a dragged dock in the palette's Highlight color
@@ -491,15 +510,13 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
             dlg.start()
 
     def _show_conventions(self):
-        QMessageBox.information(self, "Sign conventions",
-                                "<b>Complex potential</b>: F(z) = φ + iψ,  w = dF/dz = u − iv<br><br>"
-                                "<b>Source/sink</b>: m &gt; 0 source, m &lt; 0 sink<br>"
-                                "<b>Vortex</b>: Γ &gt; 0 counter-clockwise, Γ &lt; 0 clockwise<br>"
-                                "<b>Doublet</b>: F = μ e<sup>iδ</sup>/(z − z₀),  cylinder radius a = √(μ/V∞)<br>"
-                                "<b>Sector</b>: β = θ₂ − θ₁ (counter-clockwise),  n = π/β;  "
-                                "V &gt; 0: in along θ₂, out along θ₁<br>"
-                                "<b>Wall</b>: V·n = 0 by the method of images<br>"
-                                "<b>Pressure</b>: Cp = 1 − (V/V∞)²")
+        """Help → Sign conventions: one card per element (app/conventions_dialog.py)."""
+        from .conventions_dialog import ConventionsDialog
+        dlg = ConventionsDialog(self.theme, self)
+        try:
+            dlg.exec()
+        finally:
+            dispose(dlg)
 
     def show_hardware(self):
         """Help → Your computer…"""

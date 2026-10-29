@@ -149,6 +149,8 @@ class Bench:
             pass
         QSettings().setValue("beaver/tour_offered", True)
         QSettings().setValue("gpu/enabled", False)              # switched on below (--gpu), never left over
+        from app.scene import starter_scene                     # (the scene the numbers were always taken with)
+        MainWindow.START_SCENE = ("Lifting (rotating) cylinder", starter_scene)
         self.win = MainWindow()
         w = self.win
         w._ask_save_changes = lambda: "discard"

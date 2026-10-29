@@ -375,6 +375,8 @@ setup_application(app); QSettings().setValue("beaver/tour_offered", True); QSett
 from app import gpu
 gpu.support = lambda p: (True, "test")
 from app.main_window import MainWindow
+from app.scene import starter_scene
+MainWindow.START_SCENE = ("Lifting (rotating) cylinder", starter_scene)
 w = MainWindow(); w._ask_save_changes = lambda: "discard"; w._notify_user = lambda *a: print("NOTE", a)
 w.resize(1400, 800); w.move(0, 0); w.show()
 def pump(s):
@@ -562,6 +564,8 @@ setup_application(app); QSettings().setValue("beaver/tour_offered", True); QSett
 from app import gpu
 gpu.support = lambda p: (True, "test")
 from app.main_window import MainWindow
+from app.scene import starter_scene
+MainWindow.START_SCENE = ("Lifting (rotating) cylinder", starter_scene)
 w = MainWindow(); w._ask_save_changes = lambda: "discard"; w._notify_user = lambda *a: print("NOTE", a)
 w.resize(1300, 760); w.move(0, 0); w.show()
 def pump(s):

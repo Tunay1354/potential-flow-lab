@@ -142,7 +142,7 @@ def test_layer_opens_the_panel_with_forces(win, qapp):
     assert _points(sp.curves) > 500         # … and the graph
     assert sp.exact.xData is not None and len(sp.exact.xData) > 100        # analytic cylinder curve
     w.settings_panel.layer_boxes["surface"].setChecked(False)
-    assert not any(c.isVisible() for c in lay.curves) and w.dock_surface.isVisible()
+    assert not any(c.isVisible() for c in lay.curves) and not w.dock_surface.isVisible()   # (closes with it)
 
 
 def test_panel_axis_follows_the_surface_and_hover_marks_the_plot(win, qapp):

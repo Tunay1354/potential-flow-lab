@@ -719,3 +719,78 @@ def test_elements_list_shows_full_names_and_wraps_parameters(shown, qapp):
     for _ in range(5):
         qapp.processEvents()
     assert h(1) > tall
+
+
+def test_the_program_starts_on_an_empty_sheet(qapp, monkeypatch):
+    """His list (30 Oct): no scene at the start; Elements ~260 px over Plot settings on the right."""
+    from app.main_window import MainWindow
+    from app.window.layout import DEFAULT_ELEMENTS_HEIGHT
+    monkeypatch.setattr(MainWindow, "START_SCENE", None)
+    w = MainWindow()
+    w.resize(1536, 830)
+    w.show()
+    for _ in range(20):
+        qapp.processEvents()
+    try:
+        assert w.elements == [] and w.scene_title == "untitled" and not w.model.is_modified
+        assert abs(w.dock_elements.height() - DEFAULT_ELEMENTS_HEIGHT) <= 3
+        assert w.dockWidgetArea(w.dock_settings) == w.dockWidgetArea(w.dock_elements)
+        assert w.dock_settings.y() > w.dock_elements.y()
+    finally:
+        w.close()
+
+
+def test_user_guide_opens_with_f1_and_finds_words(window, qapp):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    from app.user_guide_text import CHAPTERS
+    window.show()
+    qapp.processEvents()
+    window.activateWindow()
+    QTest.keyClick(window, Qt.Key_F1)
+    qapp.processEvents()
+    g = window._guide
+    assert g.isVisible() and g.toc.count() == len(CHAPTERS) and "Getting started" in g.text.toPlainText()
+    g.show_key("keys")
+    assert "Ctrl+S" in g.text.toPlainText()                          # the live shortcut table
+    g.find.setText("Kutta")
+    g.find_next()
+    assert "Kutta" in g.text.toPlainText()
+    g.find.setText("no such word xyz")
+    g.find_next()
+    assert "not in the guide" in g.note.text()
+    from app.user_guide import full_html
+    page = full_html(window.theme, window.shortcuts)
+    assert all(t in page for _k, t, _x in CHAPTERS[:1]) and "{keys}" not in page
+    g.close()
+
+
+def test_sign_conventions_dialog_has_a_card_per_element(window, qapp):
+    from app.conventions_dialog import CARDS, ConventionFigure, ConventionsDialog
+    from app.element_specs import ELEMENT_SPECS
+    d = ConventionsDialog(window.theme, window)
+    d.show()
+    qapp.processEvents()
+    figs = d.findChildren(ConventionFigure)
+    assert {k for k, *_ in CARDS} == {s.key for s in ELEMENT_SPECS} and len(figs) == len(CARDS)
+    for f in figs:
+        f.grab()                                                     # every figure paints
+    d.close()
+
+
+def test_first_start_is_known_before_the_loading_screen(qapp):
+    from PySide6.QtCore import QSettings
+
+    from app.splash import LoadingScreen
+    from app.startup import PREPARED_KEY, is_first_start, mark_prepared
+    s = QSettings()
+    s.remove(PREPARED_KEY)
+    assert is_first_start()
+    mark_prepared()
+    s.setValue("hardware/profile", s.value("hardware/profile") or "{}")
+    assert not is_first_start()
+    screen = LoadingScreen(first_start=True)
+    screen.grab()
+    assert screen.first
+    screen.close()

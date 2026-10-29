@@ -169,7 +169,7 @@ LAYOUT = {
     "palette_width": 84,            # element palette left of the plot
     "palette_button": (68, 58),     # size of one palette button (icon + name)
     "right_panel_width": 340,
-    "surface_panel_width": 320,            # Surface pressure panel (left of the plot when opened)
+    "surface_panel_width": 330,            # Surface pressure panel (left of the plot when opened), by default
     "gpu_panel_max_height": 250,           # Graphics card panel: its contents, never more (Plot settings keeps the room)
     "elements_panel_min_height": 210,
     "plot_initial_range": {"x": (-4.0, 4.0), "y": (-2.6, 2.6)},

@@ -3,11 +3,11 @@ to either side of the plot, Plot settings sections can be hidden, the layout is 
 import pytest
 
 
-def make_window(qapp):
+def make_window(qapp, size=(1400, 860)):
     from app.main_window import MainWindow
     w = MainWindow()
     w._ask_save_changes = lambda: "discard"
-    w.resize(1400, 860)
+    w.resize(*size)
     w.show()
     qapp.processEvents()
     return w
@@ -173,3 +173,79 @@ def test_paths_point_at_the_bundled_files():
     import os
     from app.paths import ASSETS_DIR, PRESETS_DIR
     assert os.path.isdir(os.path.join(ASSETS_DIR, "fonts")) and os.path.isdir(PRESETS_DIR)
+
+
+def _settle(qapp, n=20):
+    for _ in range(n):
+        qapp.processEvents()
+
+
+def test_surface_pressure_panel_width_is_remembered_and_reset(qapp):
+    """His list (30 Oct): it opens on the left at ~330 px, as wide as he left it next time; an odd width or
+    Reset layout gives the default again (also while it is closed); unticking the layer closes it."""
+    from PySide6.QtCore import QSettings, Qt
+
+    from app.theme import LAYOUT
+    from app.window.layout import SURFACE_WIDTH_KEY
+    his = (1800, 900)                                                # (room to widen it: the plot needs ~840 px)
+    w = make_window(qapp, his)
+    try:
+        sp, du = w.settings_panel, w.dock_surface
+        sp.layer_boxes["surface"].setChecked(True)
+        _settle(qapp)
+        assert du.isVisible() and w.dockWidgetArea(du) == Qt.LeftDockWidgetArea
+        assert abs(du.width() - LAYOUT["surface_panel_width"]) <= 3
+        w.resizeDocks([du], [400], Qt.Horizontal)
+        _settle(qapp)
+        wide = du.width()
+        assert wide > LAYOUT["surface_panel_width"] + 20
+        sp.layer_boxes["surface"].setChecked(False)                  # unticked: the panel closes …
+        _settle(qapp)
+        assert not du.isVisible() and abs(int(QSettings().value(SURFACE_WIDTH_KEY)) - wide) <= 1
+        sp.layer_boxes["surface"].setChecked(True)                   # … and opens as wide as it was
+        _settle(qapp)
+        assert abs(du.width() - wide) <= 3
+        w.save_layout()
+    finally:
+        w.close()
+    w = make_window(qapp, his)                                       # the next start
+    try:
+        w.settings_panel.layer_boxes["surface"].setChecked(True)
+        _settle(qapp)
+        assert abs(w.dock_surface.width() - wide) <= 3
+        w.settings_panel.layer_boxes["surface"].setChecked(False)
+        _settle(qapp)
+        w.reset_layout()                                             # closed: the default next time
+        w.settings_panel.layer_boxes["surface"].setChecked(True)
+        _settle(qapp)
+        assert abs(w.dock_surface.width() - LAYOUT["surface_panel_width"]) <= 3
+        QSettings().setValue(SURFACE_WIDTH_KEY, 5000)                # nonsense saved: the default
+        assert w.surface_width() == LAYOUT["surface_panel_width"]
+    finally:
+        w.close()
+
+
+def test_reset_layout_keeps_the_scene(win, qapp):
+    n = len(win.elements)
+    win.dock_elements.hide()
+    win.reset_layout()
+    _settle(qapp)
+    assert len(win.elements) == n and win.dock_elements.isVisible()
+
+
+def test_background_grid_can_be_switched_off_and_is_remembered(qapp):
+    from app.main_window import GRID_KEY
+    w = make_window(qapp)
+    try:
+        assert w.canvas._grid.isVisible()
+        w.layer_actions["grid"].setChecked(False)                     # View → Layers (= Plot settings → Layers)
+        assert not w.canvas._grid.isVisible() and not w.settings_panel.layer_boxes["grid"].isChecked()
+    finally:
+        w.close()
+    from PySide6.QtCore import QSettings
+    assert QSettings().value(GRID_KEY, True, type=bool) is False
+    w = make_window(qapp)
+    try:
+        assert not w.canvas._grid.isVisible()
+    finally:
+        w.close()

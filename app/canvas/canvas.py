@@ -49,6 +49,7 @@ LAYERS = (
     ("walls", "Walls", True),
     ("bodies", "Solid bodies (filled)", False),
     ("surface", "Surface pressure (Cp on surfaces)", False),
+    ("grid", "Background grid", True),
 )
 
 
@@ -217,10 +218,13 @@ class PlotCanvas(QWidget):
             self.surfaces.refresh()
         elif key == "stagnation" and not on:
             self.stagnation.select(None)
+        elif key == "grid":
+            self._grid.setVisible(on)                # (exports show what the plot shows)
         else:
             self.stagnation.draw()                   # (the dividing lines depend on the switches too)
 
     def apply_visibility(self):
+        self._grid.setVisible(self.layers.get("grid", True))
         for layer in self._layers:
             layer.visibility_changed()
 

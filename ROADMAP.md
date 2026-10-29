@@ -640,8 +640,20 @@ bırakıldı (kullanıcı kararı).
       action'daydı → Qt "ambiguous" deyip hiçbirini çalıştırmıyordu) ve kunduzun menüsünü açıyor / kapatıyor;
       "Nothing, thanks" → "I'm here if you need me". Testler: oklar ve geri, slider bırakma, palette kilidi,
       uyarı ipucu, GPU adımı, tur öncesi soru, P.
-    - ☐ 20.7B Pencere düzeni, ızgara, Surface pressure paneli, User guide, Sign conventions (madde 1, 2, 14, 15, 16,
-      20, 21)
+    - ✅ **20.7B Açılış, düzen, ızgara, Surface pressure paneli, User guide, Sign conventions** (madde 1, 2, 14, 15,
+      16, 20, 21): ilk açılış notu artık ilerleme çubuğunun hemen üstünde vurgulu bir kutu (geçen saniyeyle) ve
+      sadece ilk açılışta (`startup.is_first_start`: program sürümü + Python + `physics/` dosyalarının imzası
+      değiştiyse ya da donanım profili yoksa; ısınma bitince `mark_prepared`). Program boş plotla açılıyor;
+      varsayılan düzende Elements 260 px (Qt'nin `resizeDocks`'u payı kendi dağıttığı için "iste, bak, düzelt":
+      `_resize_dock`), düzen sürümü 2 (eski kayıtlı düzen bir kez yeni varsayılana döner); Reset layout sahneye
+      dokunmuyor. Layers → Background grid (hatırlanıyor, export'lar da öyle). Surface pressure paneli solda 330 px
+      açılıyor, son genişliği hatırlanıyor (240 px – pencerenin %45'i dışı = varsayılan), Reset layout varsayılana
+      döndürüyor (panel kapalıyken de), katmanın tiki kalkınca kapanıyor. Help → User guide (F1): 14 bölüm, arama,
+      kısayol tablosu canlı, "Open in browser" (tek sayfa HTML). Help → Sign conventions: her element için çizimli
+      kart (α, m, Γ, δ, β / θ₁ / θ₂, θw ve akışkan tarafı), üstte temel tanımlar, altta Cp ve kuvvetler.
+      Testler `MainWindow.START_SCENE` ile eskisi gibi lifting cylinder'la başlıyor (conftest); gerçek açılış
+      ayrı testte. Yeni testler: boş açılış + Elements yüksekliği, panel genişliği / reset / tik, ızgara, F1 + arama,
+      Sign conventions kartları, ilk açılış imzası.
     - ☐ 20.7C GPU: aç / kapa = yeniden başlat (iş kaybolmadan), sağ alana açılan Graphics card paneli, GPU ile
       genişleyen slider sınırları, eklenen elementin görünmemesi (madde 9, 10, 11, 12, 13, 17)
 21. ☐ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,

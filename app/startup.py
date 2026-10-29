@@ -29,6 +29,40 @@ def setup_application(app):
     app.setFont(default_font())
 
 
+PREPARED_KEY = "startup/prepared"          # signature of the last start that prepared everything (main.py)
+
+
+def prepared_signature() -> str:
+    """What the prepared fast engine (Numba's cache) and the found hardware depend on: the program's version,
+    Python, and the physics sources (a pulled update recompiles). Only file sizes and times: instant."""
+    import os
+    import platform
+    import sys
+    root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "physics")
+    stamp = 0
+    for folder, _dirs, files in os.walk(root):
+        for name in files:
+            if name.endswith(".py"):
+                try:
+                    st = os.stat(os.path.join(folder, name))
+                    stamp = (stamp * 31 + st.st_size * 1000003 + int(st.st_mtime)) % (1 << 61)
+                except OSError:
+                    pass
+    return f"{APP_VERSION}|{sys.version.split()[0]}|{platform.machine()}|{stamp}"
+
+
+def is_first_start() -> bool:
+    """First start on this computer (or after an update): the loading screen says it takes a while."""
+    from PySide6.QtCore import QSettings
+    s = QSettings()
+    return s.value(PREPARED_KEY, "") != prepared_signature() or not s.contains("hardware/profile")
+
+
+def mark_prepared():
+    from PySide6.QtCore import QSettings
+    QSettings().setValue(PREPARED_KEY, prepared_signature())
+
+
 def default_font():
     from PySide6.QtGui import QFontDatabase
     families = set(QFontDatabase.families())

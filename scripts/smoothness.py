@@ -87,6 +87,8 @@ def main():
     from app.main_window import MainWindow, setup_application
     app = QApplication.instance() or QApplication(sys.argv)
     setup_application(app)
+    from app.scene import starter_scene                     # (the scene the numbers were always taken with)
+    MainWindow.START_SCENE = ("Lifting (rotating) cylinder", starter_scene)
     win = MainWindow()
     win._ask_save_changes = lambda: "discard"
     win.resize(1400, 860)

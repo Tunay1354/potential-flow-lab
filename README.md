@@ -8,6 +8,11 @@ komut satırı + `--verify` 102 / 102, hata yakalama, otomatik kayıt, kunduz). 
 
 ## Kullanım (kısa)
 
+Program **boş bir plotla** açılır (hazır sahneler: **Presets**). Varsayılan düzen: solda Add palette, ortada plot,
+sağda üstte **Elements** (~260 px), altında **Plot settings**. **View → Panels → Reset layout** bu düzene döner (sahneye
+dokunmaz). Ayrıntılı kullanım: **Help → User guide (F1)** — bölümler, arama, "Open in browser" (tek sayfa, yazdırmak
+için). İşaretler / açılar: **Help → Sign conventions** (her element için küçük çizimli bir kart).
+
 | Ne | Nasıl |
 |---|---|
 | Element ekle | Soldaki toolbar ya da **Elements → Add** → değerleri gir → **Apply** |
@@ -19,7 +24,8 @@ komut satırı + `--verify` 102 / 102, hata yakalama, otomatik kayıt, kunduz). 
 | Çoğalt | **Duplicate** butonu / Ctrl+D (kopya (0.5, 0.5) kaydırılır) |
 | Sil | **Delete** butonu / listede veya plot'ta Delete tuşu |
 | Geri al / yinele | **Edit → Undo / Redo**, Ctrl+Z / Ctrl+Y |
-| Yüzey basıncı | **Layers → Surface pressure (Cp on surfaces)**: cisim yüzeyleri ve duvarlar Cp'ye göre renklenir, solda **Surface pressure** paneli açılır: Cp grafiği (θ / s / x boyunca; silindirde analitik eğri kesikli), kapalı cisimde basınç integraliyle lift / drag ve Kutta–Joukowski / d'Alembert karşılaştırması, ρ ile N/m, **Export CSV…**. Grafiğin üstünde gezinince plot'ta o nokta halkayla gösterilir. Panel: **View → Panels → Surface pressure** |
+| Yüzey basıncı | **Layers → Surface pressure (Cp on surfaces)**: cisim yüzeyleri ve duvarlar Cp'ye göre renklenir, solda **Surface pressure** paneli açılır: Cp grafiği (θ / s / x boyunca; silindirde analitik eğri kesikli), kapalı cisimde basınç integraliyle lift / drag ve Kutta–Joukowski / d'Alembert karşılaştırması, ρ ile N/m, **Export CSV…**. Grafiğin üstünde gezinince plot'ta o nokta halkayla gösterilir. Panel: **View → Panels → Surface pressure**. Katmanın tiki kalkınca panel kapanır. Panel solda ~330 px açılır; genişliğini değiştirirsen sonraki açılışlarda öyle açılır (tuhaf bir genişlik kayıtlıysa ya da Reset layout'tan sonra yine 330) |
+| Izgara | **Layers → Background grid** (ya da View → Layers): plotun arka plandaki ızgarası; seçim hatırlanır, export'lar da plot'ta görüneni çizer |
 | Hazır sahne | **Presets** menüsü (bu da geri alınabilir); ilk grup hocanın doğrulama durumları |
 | Kaydet / aç | **File → Save** (Ctrl+S), **Save as…** (Ctrl+Shift+S), **Open…** (Ctrl+O), **Open recent**; `.pflow` dosyasını pencereye sürükleyip bırakmak da açar |
 | Yeni sahne | **File → New** (Ctrl+N) |
@@ -127,7 +133,9 @@ Program açılırken bir **yükleme ekranı** çıkar: ahşap başlık, ne yapı
 çubuğu.
 - **Bu bilgisayarda ilk açılış** (ya da güncellemeden sonra): ~15–20 s. Hızlı hesap çekirdekleri (Numba) bu
   işlemci için hazırlanır; işlemci, çekirdek sayısı, ekran kartları, OpenGL ve monitörün Hz'i bir kez bulunur.
-  Ekranda "First start on this computer … (only once)" yazar.
+  Sadece bu durumda ilerleme çubuğunun hemen üstünde vurgulu bir kutu çıkar: "FIRST START ON THIS COMPUTER —
+  about 15–30 s, only once" ve geçen saniye. (İlk açılış = son hazırlıktan beri program sürümü, Python ya da
+  `physics/` dosyaları değişti, ya da donanım profili yok; `app/startup.is_first_start`.)
 - **Sonraki açılışlar**: ~1–2 s; hepsi hatırlanır. Bilgisayar değişirse (başka monitör, yeni kart, program /
   Numba güncellemesi) kendiliğinden yeniden bulunur.
 - Pencere açıldığında derlenecek bir şey kalmaz: ilk Particles / Pulses / Solid bodies tıklamasında da bekleme
@@ -198,7 +206,7 @@ python main.py --help           # tüm seçenekler
   bölüm → durum → check; bir satır seçilince sağda formüller, programın yaptığı hesap, tolerans ve sayılar,
   sahne seçilince figürü; Open full report / Open folder / Save report to… / Run again)
 - `--figure` (.png / .svg / .pdf) ve `--data` (CSV, File → Export data ile aynı tablolar): `--view X0 X1 Y0 Y1`,
-  `--layers +bodies,+surface,-markers` (ya da işaretsiz liste: sadece bunlar), `--width / --height` (plot alanı,
+  `--layers +bodies,+surface,-markers` (ya da işaretsiz liste: sadece bunlar; arka plan ızgarası da bir katman: `grid`), `--width / --height` (plot alanı,
   piksel), `--scale 1–4`, `--background white|paper|transparent`, `--dark`, `--vref V`, `--tables
   elements,stagnation,streamlines,field,surface`, `--grid N`, `--separator , ; tab`. Hata (dosya yok, bilinmeyen
   katman…) → çıkış kodu 2.
@@ -236,7 +244,7 @@ ve `--gpu`'lu iki çalıştırma karşılaştırılır (paint / interact / anim 
 | `app/surface_panel.py` | Surface pressure paneli: Cp grafiği, kuvvetler, CSV |
 | `physics/parallel.py` | İşlemci çekirdekleri: iş havuzu (thread − 1), parçalara bölme; sonuçlar tek çekirdekle bit bit aynı |
 | `app/startup.py` | Uygulama ayarları (sayı biçimi, fontlar, stil) — hafif: yükleme ekranı ağır modüllerden önce çıkabilsin |
-| `app/splash.py` | Yükleme ekranı (`LoadingScreen`: adım, donanım satırları, ilerleme; uzun işler thread'de, ekran donmaz) |
+| `app/splash.py` | Yükleme ekranı (`LoadingScreen`: adım, donanım satırları, ilerleme, ilk açılışta çubuğun üstünde not; uzun işler thread'de, ekran donmaz). `app/startup.py`: uygulama ayarları + ilk açılış imzası |
 | `app/hardware.py` | Bu bilgisayar: işlemci / çekirdek, ekran kartları (Windows kayıt defteri), OpenGL (ayrı işlemde), ekranlar (Hz); profil QSettings'te, fingerprint değişince yeniden |
 | `app/hardware_dialog.py` | Help → Your computer… |
 | `app/gpu.py` | Ekran kartıyla çizim kuralları: ne zaman açılabilir, fps sınırı, çökme koruması (kilit dosyası), Windows'ta güçlü kart ayarı (kayıt defteri), yeniden başlatma komutu |
@@ -245,6 +253,8 @@ ve `--gpu`'lu iki çalıştırma karşılaştırılır (paint / interact / anim 
 | `app/beaver/` | Kunduz: `art.py` (koddan çizilen piksel art, her poz / açı keskin), `bubble.py` (piksel konuşma balonu, seçenekli diyaloglar), `lines.py` (İngilizce metinler), `faq.py` (soru–cevap), `tour.py` (tanıtım turu adımları), `spotlight.py` (turdaki vurgu), `beaver.py` (davranış: raf, tıklama menüsü, sürükleme, cam, akış, pulse, eve dönüş, tuşlar) |
 | `app/recovery.py` | Otomatik kopya ve çökme sonrası sahneyi geri getirme |
 | `app/verification_dialog.py` | Help → Run verification…: raporu arka planda üretir, check ağacı ve "nasıl hesaplandı" paneli |
+| `app/user_guide.py`, `app/user_guide_text.py` | Help → User guide (F1): bölüm listesi, arama, canlı kısayol tablosu, "Open in browser"; metinler ayrı dosyada (özellik değişince bölümü de güncelle) |
+| `app/conventions_dialog.py` | Help → Sign conventions: her element için çizimli kart, temel tanımlar, Cp ve kuvvetler |
 | `app/theme.py` | Renkler (açık / koyu), fontlar, boyutlar, marker'lar |
 | `app/geometry.py` | Duvarların çizim geometrisi (köşelerde sadece akışkana bakan kısım çizilir) |
 | `app/scene.py`, `app/recent_files.py`, `app/shortcuts.py` | Başlangıç sahnesi ve preset listesi; son açılanlar; değiştirilebilir kısayollar |

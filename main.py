@@ -1,6 +1,6 @@
 """
 Potential Flow Lab
-Run:  python main.py                 (starts with the lifting-cylinder scene)
+Run:  python main.py                 (starts with an empty plot; Presets has ready-made scenes)
       python main.py scene.pflow     (opens a saved scene; also used when a file is double-clicked)
       python main.py --first-run     (starts as for a first-time user: the beaver offers the tour)
 
@@ -44,7 +44,8 @@ def main():
     setup_logging()                      # log file (+ crash file); before anything can go wrong
     qInstallMessageHandler(qt_message_handler)
     reporter = ErrorReporter(app).install()        # an uncaught error: logged + a window, the program goes on
-    splash = loading_screen()
+    from app.startup import is_first_start
+    splash = loading_screen(first=is_first_start())
     win = open_window(splash)
     reporter.window_parent = win
     if LAYOUT["start_maximized"]:
@@ -63,11 +64,12 @@ def main():
     sys.exit(code)
 
 
-def loading_screen():
-    """The loading screen (app/splash.py), or None if it cannot be shown (the program starts without it)."""
+def loading_screen(first: bool = False):
+    """The loading screen (app/splash.py), or None if it cannot be shown (the program starts without it).
+    first: the first start on this computer (or after an update) — the screen says it takes a while."""
     try:
         from app.splash import LoadingScreen
-        s = LoadingScreen()
+        s = LoadingScreen(first_start=first)
         s.show()
         s.pump()
         return s
@@ -119,6 +121,11 @@ def open_window(splash):
         except Exception:                            # noqa: BLE001 - the window compiles it later then
             log.exception("warm-up step failed: %s", label)
     warmup.mark_done()
+    try:
+        from app.startup import mark_prepared
+        mark_prepared()                              # the next start is a fast one
+    except Exception:                                # noqa: BLE001
+        log.exception("start-up signature not saved")
     if profile is not None and fresh and steps:
         try:                                         # the processor's speed, compiled: for later defaults
             profile["cpu_ms"] = round(warmup.streamline_engine(), 1)
