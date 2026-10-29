@@ -118,7 +118,10 @@ def test_compiled_neighbour_seeds_and_arrows_equal_the_numpy_ones(monkeypatch):
     _numpy_path(monkeypatch)
     b = _neighbour_seeds(seg, s.separation)
     assert len(a) == len(b) > 10 and np.allclose(a, b, rtol=0, atol=1e-12)
-    assert arrows == pytest.approx(_place_arrows(s.lines, s.tapers, s.separation, 1.0, (-3.5, -2.5, 7.0, 5.0)))
+    # arrows are (x, y, angle) tuples: compared as an array (pytest >= 9's approx() refuses nested lists)
+    arrows_np = _place_arrows(s.lines, s.tapers, s.separation, 1.0, (-3.5, -2.5, 7.0, 5.0))
+    assert len(arrows) == len(arrows_np) > 0
+    assert np.allclose(np.asarray(arrows), np.asarray(arrows_np), rtol=1e-6, atol=1e-12)
 
 
 def test_compiled_newton_finds_the_same_stagnation_points(monkeypatch):

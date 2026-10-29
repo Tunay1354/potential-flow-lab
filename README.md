@@ -2,9 +2,9 @@
 
 Interactive 2D potential-flow simulator (Aerodynamics semester project, IZTECH Mechanical Engineering).
 
-**Durum:** Paket F — fizik çekirdeği tamam; elementler toolbar'dan eklenir, listeden / Elements menüsünden
-düzenlenir, gizlenir, çoğaltılır, silinir, her değişiklik geri alınabilir (Ctrl+Z / Ctrl+Y) ve sahneler
-dosyaya kaydedilip açılabilir. Sıradaki işler: `ROADMAP.md`.
+**Durum:** ROADMAP 1–19 tamam (fizik çekirdeği, streamline'lar, duvarlar, sector flow, File / Elements menüleri,
+undo / redo, stagnation point'ler, alan katmanları, animasyon, export, Solid bodies, Surface pressure,
+komut satırı + `--verify` 102 / 102, hata yakalama, otomatik kayıt, kunduz). Sıradaki işler: `ROADMAP.md`.
 
 ## Kullanım (kısa)
 

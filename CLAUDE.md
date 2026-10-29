@@ -174,6 +174,10 @@ GUI / Qt
 ## 8. Current status and what comes next (keep this section up to date)
 
 - **Done**: ROADMAP items 1–19 (everything above), 29 Oct 2026. Tests green, verification 102 / 102.
+- **29 Oct, handover check (19b)** by the assistant in the owner's second account: clean install, all tests,
+  `--verify` and an independent physics comparison passed; `test_kernel.py` made pytest-9 compatible (pytest ≥ 9
+  refuses nested lists in `approx()`; compare arrays instead). This machine has 2 cores: the full suite takes
+  ~50 min here (run it in the background).
 - **Next: item 20 — optimization (+ E2)**: measure first, then improve: start-up and first Numba compile,
   dragging, zoom / pan, animation (maybe an "Use graphics card (OpenGL)" option with a fallback), Solid bodies,
   Surface pressure, export times; scripts in `scripts/`, before / after numbers in ROADMAP.

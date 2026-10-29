@@ -395,6 +395,13 @@ bırakıldı (kullanıcı kararı).
     - ☐ Sonra: isim (Psi geçici) ve yan / akış pozlarının rötuşu (kullanıcı: "yan görünüşler hâlâ biraz garip")
     - `CLAUDE.md` baştan yazıldı (29 Ekim): başka bir hesaptaki asistan için projenin özeti, kullanıcının çalışma
       tercihleri, çalıştırma / test, mimari, gün gün yapılanlar, karşılaşılan hatalar ve çözümleri, sıradaki işler
+19b. ✅ **Devir sonrası kontrol + küçük düzeltmeler** (29 Ekim, yeni hesaptaki asistan)
+    - Kontrol (kod değiştirmeden): temiz ortamda kurulum (Python 3.13, PySide6 6.12, Numba 0.68, pytest 9.2),
+      tüm testler 699 / 700, `--verify` 102 / 102, bağımsız fizik karşılaştırması (uniform, source / sink, vortex,
+      silindir ± Γ, rastgele duvarlar, 90° köşe, kanal, 4 sector açısı, 60° sector içinde source) 25 / 25, ~1e-16
+    - pytest 9 uyumu: `pytest.approx()` artık iç içe listeleri (ok listesi: (x, y, açı)) kabul etmiyor →
+      `test_kernel.py` okları dizi olarak karşılaştırıyor (pytest 8 ve 9'da geçiyor; değerler zaten birebir aynıydı,
+      fark 0.0). README'nin "Durum" satırı güncellendi
 20. ☐ **Optimizasyon (+ Paket E2)**: ölçüm → iyileştirme: açılış ve ilk Numba derleme süresi, sürükleme, zoom /
     pan, animasyon (gerekirse "Use graphics card (OpenGL)", açılamazsa normal çizim), Solid bodies, Surface
     pressure, export süreleri; ölçümler `scripts/` altında, önce / sonra sayılarıyla
