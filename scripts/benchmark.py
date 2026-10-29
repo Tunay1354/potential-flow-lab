@@ -7,6 +7,12 @@ a later change (e.g. drawing with the graphics card, OpenGL) can be compared num
     python scripts/benchmark.py --quick              (shorter runs, fewer repeats)
     python scripts/benchmark.py --only startup,compute,paint,interact,anim,export,verify
     QT_QPA_PLATFORM=offscreen python scripts/benchmark.py   (no window, e.g. on a server)
+    python scripts/benchmark.py --gpu --out after.json        (the plot drawn by the graphics card, OpenGL)
+    python scripts/benchmark.py --gpu --fps-cap screen        (animations as fast as the screen shows)
+
+Compare a run without and with --gpu on the same computer: the sections paint, interact and anim show what
+the graphics card changes (compute and export do not use it). --fps-cap: the frame rate limit of the
+animations with --gpu (default 60, the same as without the graphics card, so the numbers compare).
 
 The program itself is not changed: the script opens the normal window (1536 × 830, the owner's screen at
 125 %), loads scenes and drives it like a user. It never touches your settings or files (Qt test folders,
@@ -17,7 +23,9 @@ Sections
             start ever, the kernels are compiled) and warm (compiled kernels from the cache)
   compute   the computations alone, per scene (median of repeats): streamlines, field layers φ / |V| / Cp
             (grid Medium and High), solid bodies, surface pressure, everything at once
-  paint     drawing the plot once (what a graphics card would speed up): default layers / every layer
+  paint     drawing the plot once (what a graphics card would speed up): default layers / every layer;
+            "plot frame" = update → painted (→ finished by the graphics card), "paint (CPU part)" = the time
+            inside the plot's paint (with OpenGL the graphics card works on after it)
   interact  the window as a hand moves it: a 60 fps timer pans, zooms, drags an element (Move mode, live
             update on / off), and how long until the plot follows a slider, an added element, an undo,
             a window resize. Frame gap = time between two timer ticks (16.7 ms = 60 fps; long gaps =
@@ -95,8 +103,11 @@ def load(name):
 
 
 class Bench:
-    def __init__(self, quick: bool):
+    def __init__(self, quick: bool, use_gpu: bool = False, fps_cap: str = "60"):
         self.quick = quick
+        self.use_gpu = use_gpu
+        self.fps_cap = fps_cap
+        self.gpu_info = None
         self.results: dict = {}
         self.app = self.win = None
 
@@ -109,16 +120,50 @@ class Bench:
         from app.main_window import MainWindow, setup_application
         setup_application(self.app)
         QSettings().setValue("beaver/tour_offered", True)
+        QSettings().setValue("gpu/enabled", False)              # switched on below (--gpu), never left over
         self.win = MainWindow()
         w = self.win
         w._ask_save_changes = lambda: "discard"
-        w._notify_user = lambda *a: None
+        w._notify_user = lambda *a: print("   note:", *a[1:], flush=True)
+        w._ask_strong_card = lambda strong: "no"
         w.setFixedSize(*WINDOW)
         w.show()
         w.activateWindow()
         self.pump(1.0)
+        if self.use_gpu:
+            self.gpu_on()
         from physics.warmup import warm_up
         warm_up()                                                    # compiled kernels ready (startup measures that)
+
+    def gpu_on(self):
+        """--gpu: the plot drawn by the graphics card, as when the GPU box is ticked (also on software
+        OpenGL, which the box would refuse: the numbers say how it compares)."""
+        from app import gpu
+        w = self.win
+        support = gpu.support
+        gpu.support = lambda p: (True, "benchmark")
+        try:
+            w.set_gpu(True, user=False)
+        finally:
+            gpu.support = support
+        end = time.perf_counter() + 15
+        while w._gpu_frames < 2 and w.canvas.gpu and time.perf_counter() < end:
+            self.pump(0.1)
+        if not w.canvas.gpu or w._gpu_frames < 2:
+            raise SystemExit("--gpu: the graphics card did not draw the plot (see the note above); "
+                             "run without --gpu")
+        w.set_fps_cap(self.fps_cap)
+        self.gpu_info = dict(w.canvas.gpu_info or {})
+        print(f"   graphics card: {self.gpu_info.get('renderer')} ({self.gpu_info.get('samples')}× smoothing), "
+              f"animation frames every {w.canvas.particles.frame_interval} ms", flush=True)
+
+    def finish_gl(self, vp):
+        """Wait until the graphics card has really drawn (OpenGL works asynchronously)."""
+        from PySide6.QtOpenGLWidgets import QOpenGLWidget
+        if isinstance(vp, QOpenGLWidget) and vp.isValid():
+            vp.makeCurrent()
+            vp.context().functions().glFinish()
+            vp.doneCurrent()
 
     def pump(self, seconds):
         end = time.perf_counter() + seconds
@@ -162,6 +207,7 @@ from PySide6.QtWidgets import QApplication
 app = QApplication([])
 from app.startup import setup_application
 setup_application(app); QSettings().setValue("beaver/tour_offered", True)
+QSettings().setValue("gpu/enabled", False)
 t_import = time.perf_counter()
 import main as M                                   # the real start: detect the computer, prepare the kernels
 w = M.open_window(None); w._ask_save_changes = lambda: "discard"; w.setFixedSize(%d, %d); w.show()
@@ -234,9 +280,25 @@ w.model.mark_clean(); w.close()
                 self.show(name, layers)
                 cv.compute_now()
                 self.settle()
-                row[f"plot, {label}"] = timed(lambda: vp.repaint(), reps)
-                row[f"whole window, {label}"] = timed(lambda: self.win.repaint(), reps)
+                cv.plot.meter.clear()
+                row[f"plot frame, {label}"] = timed(lambda: self.frame(vp), reps)
+                row[f"plot paint (CPU part), {label}"] = stats(list(cv.plot.meter.paint_ms))
+                row[f"whole window, {label}"] = timed(lambda: self.frame(self.win), reps)
             self.record("paint", name, row)
+
+    def frame(self, widget):
+        """One frame as the user sees it: widget.update(), the event loop until the plot has painted
+        (and, with OpenGL, until the graphics card has finished). Same way with and without --gpu."""
+        cv = self.win.canvas
+        vp = cv.plot.viewport()
+        meter = cv.plot.meter
+        n = len(meter.stamps)
+        widget.update()
+        vp.update()
+        end = time.perf_counter() + 2.0
+        while len(meter.stamps) == n and time.perf_counter() < end:
+            self.app.processEvents()
+        self.finish_gl(vp)
 
     def _ticks(self, seconds, step):
         """A 60 fps timer calls step(k, phase); returns the gaps between ticks (ms)."""
@@ -431,8 +493,11 @@ w.model.mark_clean(); w.close()
                 "numpy": np.__version__, "qt_platform": self.app.platformName() if self.app else "",
                 "window": list(WINDOW), "screen_dpr": self.win.devicePixelRatioF() if self.win else None,
                 "date": time.strftime("%Y-%m-%d %H:%M"), "quick": self.quick}
-        if self.win is not None:                       # QWidget = drawn by the CPU; QOpenGLWidget = graphics card
+        if self.win is not None:                       # QWidget = drawn by the CPU; PlotGLViewport = graphics card
             info["opengl_viewport"] = type(self.win.canvas.plot.viewport()).__name__
+            info["gpu"] = self.gpu_info
+            info["fps_cap"] = self.fps_cap if self.use_gpu else None
+            info["screen_hz"] = self.win.screen_hz()
         return info
 
 
@@ -451,6 +516,9 @@ def print_report(res: dict):
     m = res["machine"]
     print(f"Potential Flow Lab benchmark  {m['date']}  |  {m['platform']}  |  {m['cpus']} CPUs  |  Qt: "
           f"{m['qt_platform']}  |  viewport: {m.get('opengl_viewport', '?')}")
+    if m.get("gpu"):
+        print(f"graphics card: {m['gpu'].get('renderer')}  |  {m['gpu'].get('samples')}× smoothing  |  "
+              f"animation limit {m.get('fps_cap')}  |  screen {m.get('screen_hz', 0):.0f} Hz")
     if "startup" in res:
         print("\nSTARTUP (fresh process; since 29 Oct the kernels are prepared before the window opens)\n"
               "                                              to window   first lines   all kernels ready")
@@ -510,9 +578,12 @@ def main():
     p.add_argument("--out", help="also write every number to this JSON file")
     p.add_argument("--quick", action="store_true", help="shorter runs, fewer repeats")
     p.add_argument("--only", default=",".join(SECTIONS), help="comma separated sections: " + ",".join(SECTIONS))
+    p.add_argument("--gpu", action="store_true", help="draw the plot with the graphics card (OpenGL)")
+    p.add_argument("--fps-cap", default="60", choices=["screen", "60", "120", "144"],
+                   help="with --gpu: the animations' frame rate limit (default 60)")
     a = p.parse_args()
     only = [s.strip() for s in a.only.split(",") if s.strip()]
-    b = Bench(a.quick)
+    b = Bench(a.quick, a.gpu, a.fps_cap)
     if "startup" in only:
         print("startup …", flush=True)
         b.startup()

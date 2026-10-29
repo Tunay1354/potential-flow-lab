@@ -123,11 +123,32 @@ def vendor_of(name: str) -> str:
 
 
 def strong_adapter(adapters) -> dict | None:
-    """The discrete card of the computer (NVIDIA / AMD), if there is one."""
+    """The discrete (fast) card of the computer, if there is one: NVIDIA first, then an AMD card that looks
+    discrete (Radeon RX / Pro, or ≥ 2 GB own memory) — an AMD processor's built-in "Radeon Graphics" is not."""
+    best = None
     for a in adapters:
-        if vendor_of(a["name"]) in ("nvidia", "amd"):
-            return a
-    return None
+        v, n = vendor_of(a["name"]), a["name"].lower()
+        if v == "nvidia":
+            score = 3
+        elif v == "amd" and (" rx" in n or "radeon pro" in n or (a.get("memory_mb") or 0) >= 2048):
+            score = 2
+        else:
+            continue
+        if best is None or score > best[0]:
+            best = (score, a)
+    return best[1] if best else None
+
+
+def runs_on_weak_card(renderer: str, vendor: str, adapters) -> dict | None:
+    """The fast card, when OpenGL (renderer / vendor as the driver says) runs on another one (a laptop's
+    Intel or built-in AMD card); None if it runs on the fast card already or there is no fast card."""
+    strong = strong_adapter(adapters or [])
+    if strong is None:
+        return None
+    drawn = vendor_of(renderer)
+    if drawn == "other":
+        drawn = vendor_of(vendor)
+    return None if drawn in ("nvidia", vendor_of(strong["name"])) else strong
 
 
 # -------------------------------------------------------------------------------------------------- screens
@@ -328,7 +349,6 @@ def opengl_uses_weak_card(p: dict) -> dict | None:
     """The discrete card (NVIDIA / AMD) when OpenGL runs on another one (a laptop's Intel card): the
     Graphics card mode would then be slow until Windows is told to use the strong card."""
     gl = p.get("opengl") or {}
-    strong = strong_adapter(p.get("adapters") or [])
-    if strong is None or not gl.get("ok"):
+    if not gl.get("ok"):
         return None
-    return None if vendor_of(gl.get("renderer", "")) == vendor_of(strong["name"]) else strong
+    return runs_on_weak_card(gl.get("renderer", ""), gl.get("vendor", ""), p.get("adapters"))

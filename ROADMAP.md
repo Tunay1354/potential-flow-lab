@@ -504,7 +504,34 @@ bırakıldı (kullanıcı kararı).
       (her seed'in gerçek süresinden): izleme en uzun streamline'ı beklediği için 4 thread'den sonra doyuyor —
       kullanıcının 16 thread'inde streamline'lar ~1.4–2.5× (kalabalık sahnede en çok), ızgaralar 4–8×; gerçek sayılar
       kullanıcının benchmark'ında. Testler: `tests/test_parallel.py` (9); tüm test suite PFL_THREADS=4 ile de
-    - ☐ 20.3 GPU kutusu + OpenGL çizim + Graphics card paneli (FPS, fps seçimi) + Intel → NVIDIA
+    - ✅ **20.3 GPU kutusu + OpenGL çizim + Graphics card paneli + Intel → NVIDIA** (29 Ekim): başlıkta **GPU**
+      kutusu (+ View → Draw with the graphics card); ilk açılışta kapalı, hatırlanıyor (`gpu/enabled`).
+      `PlotCanvas.set_gpu`: plot'un viewport'u çalışırken `PlotGLViewport`'a (QOpenGLWidget, 4× MSAA) ve geri
+      değişiyor; öğeler aynı QPainter ile çiziliyor, export'lar etkilenmiyor. Viewport değişince: FullViewportUpdate
+      (OpenGL karesi her seferinde baştan çizilir — Minimal'de seçim gibi küçük değişiklikler plot'un geri kalanını
+      silerdi), arka plan paleti, `PlotInteraction.viewport_changed` (bırakma, imleç, event filter). Kutu sadece
+      OpenGL 2.0+ gerçek karttan geliyorsa açılabilir (`gpu.support`; yazılım OpenGL'de gri + neden). Güvenlik:
+      (1) açınca her 1.5 s bakılıyor: OpenGL context yoksa (önce `repaint` denenir) ya da 6 s'de resim
+      (`frameSwapped`) gelmezse işlemciye geri dönüş + mesaj; (2) GPU açıkken kilit dosyası
+      (`gpu.SessionGuard`, QLockFile): sahibi ölmüş kilit = sürücü çökmesi → sonraki açılış GPU kapalı + mesaj;
+      (3) `failed` sinyali kuyruklu (viewport kendi initializeGL'i içinde silinmesin). **Graphics card** paneli
+      (sadece GPU açıkken, yüksekliği içeriği kadar): çizen kart (sürücünün kendi söylediği), canlı FPS ve kare
+      süresi (`PlotView` → `FrameMeter`), Frame rate: Match screen (QScreen Hz) / 60 / 120 / 144 → animasyon
+      timer'ı `gpu.frame_ms` (aşağı yuvarlanır; vsync ekranın Hz'inden fazlasını engeller). GPU kapalıyken 16 ms
+      (eski davranış). **Laptop**: kart sürücüsünün söylediği renderer güçlü kart değilse (`hardware.runs_on_weak_card`;
+      AMD işlemcinin dahili "Radeon Graphics"i güçlü sayılmıyor, NVIDIA önce) GPU işaretlenince soru: Use NVIDIA and
+      restart → HKCU\Software\Microsoft\DirectX\UserGpuPreferences, değer adı = exe (venv'de ayrıca
+      `sys._base_executable`), "GpuPreference=2;" (Windows'un diğer girdileri korunuyor), `hardware/reprobe` +
+      `gpu/switching` → kapat (kaydet sorusu) → aynı sahne dosyasıyla yeniden başlat → OpenGL yeniden soruluyor →
+      kart değişmediyse elle yapma adımları + Open Windows settings (ms-settings:display-advancedgraphics).
+      Benchmark: `--gpu`, `--fps-cap`; paint artık iki şekilde ölçülüyor (aynı yol her iki modda): "plot frame"
+      (update → boyandı → glFinish) ve "paint (CPU part)". Bu sunucuda OpenGL yazılım (llvmpipe) olduğu için
+      karşılaştırma anlamlı değil (kare 6 → 38 ms), ama CPU kısmı her katman açıkken yarıya iniyor (kanal 31.6 →
+      16.5 ms): gerçek kartta kazanç bu kısımda. Gerçek sayılar kullanıcının Windows'unda. Testler `tests/test_gpu.py`
+      (16): kurallar, sahte kayıt defteri, kilit dosyası, kutu / panel, OpenGL olmayan test platformunda temiz geri
+      dönüş, viewport değişiminde fare / bırakma, güçlü kart sorusu + yeniden başlatma sonrası kontrol, kare
+      sayacı; Xvfb + Mesa varsa ayrı işlemde gerçek OpenGL resmi normal çizimle piksel piksel (%0.56 fark,
+      yumuşatma), seçimden sonra plot'un geri kalanı yerinde.
     - ☐ 20.4 GPU particles / pulses + kalibrasyondan üst sınırlar; aynı script'le karşılaştırma (`--gpu`)
 21. ☐ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,
     dosya yapısı, uyarılar (pyflakes), çok uzun dosyaların bölünmesi, testlerin süresi, README klasör tablosu.

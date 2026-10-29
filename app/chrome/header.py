@@ -6,7 +6,7 @@ import math
 
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen, QPixmap
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QMenuBar, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QLabel, QMenuBar, QSizePolicy, QVBoxLayout, QWidget
 
 from ..theme import FONT, LAYOUT
 from .style import color, font
@@ -58,7 +58,7 @@ def logo_pixmap(theme: dict, size: int, dpr: float = 1.0) -> QPixmap:
 
 # ---------------------------------------------------------------------------------------- header
 class Plank(QWidget):
-    """Wooden band: logo, program name, version, current file."""
+    """Wooden band: logo, program name, version, current file, the GPU box (draw with the graphics card)."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -79,6 +79,13 @@ class Plank(QWidget):
             lay.addWidget(w)
         lay.addStretch(1)
         lay.addWidget(self.file)
+        lay.addSpacing(18)
+        self.gpu = QCheckBox("GPU")             # app/window/graphics.py
+        self.gpu.setObjectName("PlankGpu")
+        self.gpu.setFont(font("mono", FONT["menu_size_pt"], QFont.DemiBold, caps=True, spacing_pct=110))
+        self.gpu.setCursor(Qt.PointingHandCursor)
+        self.gpu.setFocusPolicy(Qt.NoFocus)    # (Space belongs to the plot: pause)
+        lay.addWidget(self.gpu)
 
     def apply_theme(self, theme):
         self.theme = theme

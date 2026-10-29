@@ -86,7 +86,11 @@ def open_window(splash):
 
     step("Looking at this computer…", 0.14)
     try:
-        profile, fresh = hardware.detect(wait=splash.pump if splash is not None else None)
+        from PySide6.QtCore import QSettings
+        settings = QSettings()
+        again = settings.value("hardware/reprobe", False, bool)     # e.g. Windows was told to use another card
+        settings.remove("hardware/reprobe")
+        profile, fresh = hardware.detect(force=again, wait=splash.pump if splash is not None else None)
     except Exception:                                # noqa: BLE001 - never stops the program
         log.exception("hardware detection failed")
         profile, fresh = None, False

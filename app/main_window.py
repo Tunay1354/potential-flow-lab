@@ -29,6 +29,7 @@ from .recovery import SessionRecovery
 from .chrome import HeaderBar, load_fonts, paint_paper_grid, tint_title_bar
 from .dialogs import ElementDialog, dispose
 from .element_specs import spec_for
+from .gpu_panel import GpuPanel
 from .hardware import load_profile
 from .icons import make_app_icon, make_palette_icon
 from .panels import ElementsPanel, SettingsPanel, element_title
@@ -36,12 +37,12 @@ from .recent_files import RecentFiles
 from .scene import starter_scene
 from .surface_panel import SurfacePanel
 from .theme import DEFAULT_THEME, LAYOUT, build_stylesheet
-from .window import ExportMixin, FilesMixin, LayoutMixin, MenusMixin, StatusMixin
+from .window import ExportMixin, FilesMixin, GraphicsMixin, LayoutMixin, MenusMixin, StatusMixin
 
 DUPLICATE_OFFSET = (0.5, 0.5)
 
 
-class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, QMainWindow):
+class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, GraphicsMixin, QMainWindow):
     def __init__(self):
         super().__init__()
         load_fonts()
@@ -91,6 +92,9 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         self.dock_settings = self._dock("Plot settings", self.settings_panel)
         self.surface_panel = SurfacePanel(self.theme)
         self.dock_surface = self._dock("Surface pressure", self.surface_panel)
+        self.gpu_panel = GpuPanel()                      # shown while the graphics card draws (app/window/graphics.py)
+        self.dock_gpu = self._dock("Graphics card", self.gpu_panel)
+        self.dock_gpu.widget().setMaximumHeight(LAYOUT["gpu_panel_max_height"])     # Plot settings keeps the room
         self._default_dock_layout()
 
         self._build_palette()
@@ -104,6 +108,7 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         self.model.subscribe(self._on_model_changed)
         self._on_model_changed(None)
         self.restore_layout()                          # the panels as the user left them last time
+        self._build_graphics()                         # the graphics card: as remembered (off on a first start)
         # the beaver mascot (app/beaver): on the ruler next to Help; View → Beaver switches him off
         self.beaver = Beaver(self)
         on = QSettings().value("beaver/enabled", True, bool)
@@ -413,6 +418,7 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         if self._verification is not None:
             self._verification.shutdown()
         self.recovery.close()                    # closed normally: no copy to restore next time
+        self._gpu_closing()
         self.beaver.shutdown()
         super().closeEvent(event)
 

@@ -224,9 +224,20 @@ GUI / Qt
   tracer; both directions at once on several cores) and `field.complex_velocity / complex_potential` (≥ 20 000
   points). Bit-identical to one core (3457 line arrays, 84 grids; tests/test_parallel.py). This server has 2
   hyper-threads → workers() = 1 by default: run tests with PFL_THREADS=4 to exercise the parallel code.
-- **Next: item 20 — optimization (+ E2)**: measure first, then improve: start-up and first Numba compile,
-  dragging, zoom / pan, animation (maybe an "Use graphics card (OpenGL)" option with a fallback), Solid bodies,
-  Surface pressure, export times; scripts in `scripts/`, before / after numbers in ROADMAP.
+- **29 Oct, 20.3 GPU box + OpenGL plot (ROADMAP 20.3)**: header box `Plank.gpu` + View action `act_gpu` →
+  `GraphicsMixin.set_gpu` (`app/window/graphics.py`) → `PlotCanvas.set_gpu` swaps the plot viewport to
+  `PlotGLViewport` (`app/canvas/gl_viewport.py`, 4× MSAA) at run time; FullViewportUpdate with GL (Minimal would
+  leave the rest of the frame empty); `PlotInteraction.viewport_changed` rebinds drops / cursor / filter. Rules,
+  fps cap, crash guard (`SessionGuard` lock file) and the Windows GpuPreference registry write live in `app/gpu.py`;
+  panel `app/gpu_panel.py` (dock "Graphics card", only while on). Fallback: no context / no frameSwapped in 6 s →
+  raster + message. Laptop: `hardware.runs_on_weak_card` → offer → registry + `hardware/reprobe` → restart
+  (`restart_program`) → `_gpu_check_switch`. Tests replace `_ask_strong_card`, `_show_switch_help`. Offscreen
+  has no OpenGL (switching on fails cleanly there — tested); real GL test runs in a subprocess on Xvfb
+  (`test_opengl_draws_the_plot`, skipped when no X server answers). Software GL is refused by the box
+  (`PFL_GPU_ALLOW_SOFTWARE=1` for server tests; `benchmark.py --gpu` forces it). He has not tried it on Windows yet.
+- **Next: 20.4** — particles / pulses with higher maxima where the computer allows it (calibrated), then his
+  Windows numbers: `python scripts/benchmark.py --out after_cpu.json` and `--gpu --out after_gpu.json` vs
+  `benchmarks/windows_before.json`; rest of item 20 (Solid bodies, Surface pressure, export) from those numbers.
 - Then, in this order (all planned, "as if time were unlimited"):
   21 code cleanup without behaviour change (dead / duplicate code, names, docstrings, pyflakes, long files) →
   22 text and visual review **with him** (every UI string in one list + screenshot gallery; he marks what to

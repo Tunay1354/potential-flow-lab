@@ -170,6 +170,7 @@ LAYOUT = {
     "palette_button": (68, 58),     # size of one palette button (icon + name)
     "right_panel_width": 340,
     "surface_panel_width": 320,            # Surface pressure panel (left of the plot when opened)
+    "gpu_panel_max_height": 250,           # Graphics card panel: its contents, never more (Plot settings keeps the room)
     "elements_panel_min_height": 210,
     "plot_initial_range": {"x": (-4.0, 4.0), "y": (-2.6, 2.6)},
     "dividing_streamline_width": 2.4,
@@ -228,6 +229,14 @@ def build_stylesheet(t: dict) -> str:
     QMenu::separator {{ height: 1px; background: {t['border_soft']}; margin: 4px 8px; }}
     QLabel#PlankTitle {{ color: {t['plank_text']}; }}
     QLabel#PlankMuted {{ color: {t['plank_text_muted']}; font-family: "{mono}"; }}
+    QCheckBox#PlankGpu {{ color: {t['plank_text']}; spacing: 7px; }}
+    QCheckBox#PlankGpu::indicator {{ width: 11px; height: 11px; border: 2px solid {t['plank_text']};
+        background: transparent; }}
+    QCheckBox#PlankGpu::indicator:checked {{ background: {t['plank_text']}; }}
+    QCheckBox#PlankGpu::indicator:hover {{ background: {t['plank_edge']}; }}
+    QCheckBox#PlankGpu::indicator:checked:hover {{ background: {t['plank_text']}; }}
+    QCheckBox#PlankGpu:disabled {{ color: {t['plank_edge']}; }}
+    QCheckBox#PlankGpu::indicator:disabled {{ border-color: {t['plank_edge']}; }}
     QLabel#RulerScale {{ color: {t['ruler_text']}; font-family: "{mono}"; }}
 
     QWidget#ElementPalette QToolButton {{ padding: 6px 0 5px 0; border: 1px solid transparent;

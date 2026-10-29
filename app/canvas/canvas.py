@@ -11,6 +11,7 @@ import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QColor, QPainter, QPalette, QPen
+from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsView, QLabel, QVBoxLayout, QWidget
 
 from physics.field import reference_speed
@@ -23,6 +24,7 @@ from .body_layer import BodyLayer
 from .element_layer import ElementLayer
 from .field_layer import KEYS as FIELD_KEYS
 from .field_layer import FieldLayer
+from .gl_viewport import PlotGLViewport, PlotView
 from .interaction import DRAG_OPACITY, MOUSE_MODES, PlotInteraction, PlotViewBox
 from .particle_layer import ParticleLayer
 from .surface_layer import SurfaceLayer
@@ -90,12 +92,13 @@ class PlotCanvas(QWidget):
         self.banner.setVisible(False)
         lay.addWidget(self.banner)
         pg.setConfigOptions(antialias=True)
-        self.plot = pg.PlotWidget(viewBox=PlotViewBox())
+        self.plot = PlotView(viewBox=PlotViewBox())            # (counts its frames: the Graphics card panel)
         # no cached background: at a fractional display scale (125 %) the cached picture (logical
         # pixels) left the last device pixel column unpainted — a dark line beside the right frame,
         # depending on the plot's width (e.g. with a side panel open). The viewport fills itself too.
         self.plot.setCacheMode(QGraphicsView.CacheNone)
         self.plot.viewport().setAutoFillBackground(True)
+        self.gpu_info = None                     # what the graphics card said (PlotGLViewport.ready), or None
         self.plot.setAspectLocked(True)          # circles must look like circles
         self.plot.setMenuEnabled(False)
         self.plot.hideButtons()
@@ -259,6 +262,52 @@ class PlotCanvas(QWidget):
         for item in self.vb.addedItems:
             if item not in own:
                 item.setCacheMode(mode)
+
+    # ------------------------------------------------------------------ graphics card (OpenGL)
+    @property
+    def gpu(self) -> bool:
+        """The plot is drawn by the graphics card (an OpenGL viewport)."""
+        return isinstance(self.plot.viewport(), QOpenGLWidget)
+
+    def set_gpu(self, on: bool, samples: int = 4, factory=None):
+        """Draw the plot with the graphics card (OpenGL) or with the processor (as before). Everything else
+        stays: items, view, selection, animation. Returns the new viewport (a PlotGLViewport: listen to
+        its ready / failed / frameSwapped signals). factory: makes the OpenGL viewport (tests)."""
+        on = bool(on)
+        if on == self.gpu:
+            return self.plot.viewport()
+        new = (factory or (lambda: PlotGLViewport(samples)))() if on else QWidget()
+        self.gpu_info = None
+        self.plot.setViewport(new)                       # (Qt deletes the old viewport)
+        self._setup_viewport()
+        self.plot.meter.clear()
+        self.plot.viewport().update()
+        return new
+
+    def _setup_viewport(self):
+        """What the plot's viewport needs (also after a switch): background, update mode, the mouse and
+        drop handling of PlotInteraction."""
+        vp = self.plot.viewport()
+        gl = isinstance(vp, QOpenGLWidget)
+        # an OpenGL frame is drawn whole each time (its old content is not kept): repaint the whole plot,
+        # never only the changed part (that would leave the rest of the frame empty)
+        self.plot.setViewportUpdateMode(QGraphicsView.FullViewportUpdate if gl
+                                        else QGraphicsView.MinimalViewportUpdate)
+        if not gl:
+            vp.setAutoFillBackground(True)
+        self._viewport_palette()
+        self.interaction.viewport_changed()
+
+    def _viewport_palette(self):
+        pal = self.plot.viewport().palette()
+        pal.setColor(QPalette.Window, QColor(self.theme["plot_bg"]))
+        pal.setColor(QPalette.Base, QColor(self.theme["plot_bg"]))
+        self.plot.viewport().setPalette(pal)
+
+    def set_frame_interval(self, ms: int):
+        """Animation frames every ms milliseconds (the fps limit of the Graphics card panel)."""
+        for layer in self._animation_layers():
+            layer.set_frame_interval(ms)
 
     def set_setting(self, key: str, value):
         """A setting of the Plot settings panel (settings.SLIDERS): PlotCanvas.set_<key>(value)."""
@@ -462,10 +511,7 @@ class PlotCanvas(QWidget):
         self.update()                                # frame color
         self.bar.apply_theme(t)
         self.plot.setBackground(t["plot_bg"])
-        pal = self.plot.viewport().palette()
-        pal.setColor(QPalette.Window, QColor(t["plot_bg"]))
-        pal.setColor(QPalette.Base, QColor(t["plot_bg"]))
-        self.plot.viewport().setPalette(pal)
+        self._viewport_palette()
         pi = self.plot.getPlotItem()
         tick_font = font("mono", FONT["plot_label_size_pt"] - 1)
         for name in ("left", "bottom"):

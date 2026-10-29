@@ -173,6 +173,7 @@ class MenusMixin:
         panels.addAction(self.dock_elements.toggleViewAction())
         panels.addAction(self.dock_settings.toggleViewAction())
         panels.addAction(self.dock_surface.toggleViewAction())
+        panels.addAction(self.dock_gpu.toggleViewAction())
         panels.addSeparator()
         # sections of Plot settings (the same menu opens with a right-click on the panel's title)
         self.sections_menu = panels.addMenu("Plot settings sections")
@@ -194,6 +195,8 @@ class MenusMixin:
             a.setChecked(pal is self.theme)
             a.triggered.connect(lambda _=False, p=pal: self.apply_theme(p))
             tg.addAction(a)
+        self.act_gpu = m.addAction("Draw with the graphics card (GPU)")    # = the GPU box in the header
+        self.act_gpu.setCheckable(True)
         self.act_beaver = m.addAction("Beaver")
         self.act_beaver.setCheckable(True)
         self.act_beaver.setChecked(True)

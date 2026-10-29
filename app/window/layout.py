@@ -34,7 +34,7 @@ class LayoutMixin:
         return d
 
     def _docks(self):
-        return self.dock_elements, self.dock_settings, self.dock_surface
+        return self.dock_elements, self.dock_settings, self.dock_surface, self.dock_gpu
 
     def _place_dock_card(self, d):
         """Paper margin between the card and the window edge, depending on where the dock is."""
@@ -49,22 +49,26 @@ class LayoutMixin:
         d.widget().set_outer(body)
 
     def _default_dock_layout(self):
-        """Elements above Plot settings on the right; Surface pressure on the left (the graph needs the
-        height), hidden: View → Panels, or it opens with the Surface pressure layer."""
-        de, ds, du = self._docks()
-        for d in (de, ds, du):
+        """Elements above Plot settings on the right, Graphics card under them (only while the graphics card
+        draws); Surface pressure on the left (the graph needs the height), hidden: View → Panels, or it
+        opens with the Surface pressure layer."""
+        de, ds, du, dg = self._docks()
+        for d in (de, ds, du, dg):
             self.removeDockWidget(d)
         self.addDockWidget(Qt.RightDockWidgetArea, de)
         self.addDockWidget(Qt.RightDockWidgetArea, ds)
         self.addDockWidget(Qt.LeftDockWidgetArea, du)
         self.splitDockWidget(de, ds, Qt.Vertical)
-        for d in (de, ds, du):
+        self.splitDockWidget(ds, dg, Qt.Vertical)
+        for d in (de, ds, du, dg):
             d.show()
             self._place_dock_card(d)
         self.resizeDocks([de, ds, du], [LAYOUT["right_panel_width"], LAYOUT["right_panel_width"],
                                         LAYOUT["surface_panel_width"]], Qt.Horizontal)
-        self.resizeDocks([de, ds], [260, 560], Qt.Vertical)
+        self.resizeDocks([de, ds, dg], [240, 470, 150], Qt.Vertical)
         du.hide()
+        if not getattr(getattr(self, "canvas", None), "gpu", False):
+            dg.hide()
 
     def _sections_changed(self):
         """Plot settings sections hidden / shown: the note on the panel title and the menu ticks."""
@@ -105,6 +109,7 @@ class LayoutMixin:
             for d in self._docks():
                 self._place_dock_card(d)
         self.dock_surface.hide()             # its place is kept; it opens with its layer (or View → Panels)
+        self.dock_gpu.setVisible(self.canvas.gpu)  # only while the graphics card draws
         self.set_palette_side(str(s.value("layout/palette_side", "left")))
         hidden = str(s.value("layout/hidden_sections", "") or "").split(",")
         for key in self.settings_panel.sections:

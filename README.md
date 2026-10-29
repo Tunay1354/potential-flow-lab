@@ -136,6 +136,25 @@ Sonuçlar tek çekirdekle bit bit aynıdır. Kaç çekirdeğin kullanıldığı:
 ("16 threads (15 for computing)"). Karşılaştırmak için: `PFL_THREADS=1 python main.py` (PowerShell:
 `$env:PFL_THREADS=1; python main.py`).
 
+### Ekran kartı (GPU)
+
+Başlıktaki **GPU** kutusu (sağ üst, "SHEET" yazısının yanında; aynısı View → Draw with the graphics card):
+işaretlenince plot **ekran kartıyla (OpenGL)** çizilir, kaldırınca eskisi gibi işlemciyle. İlk açılışta kapalıdır,
+seçim hatırlanır. Görünüş aynıdır (çizgiler ekran kartında 4× MSAA ile yumuşatılır); export'lar hiç etkilenmez.
+- Kutu sadece gerçek bir ekran kartı OpenGL 2.0+ verdiğinde işaretlenebilir; yoksa gri kalır ve üstüne gelince
+  nedenini söyler (ör. sürücü yok, yazılım OpenGL).
+- Açıkken sağda **Graphics card** paneli çıkar: çizen kart, saniyedeki kare (FPS, canlı), bir karenin çizim süresi,
+  animasyonların **Frame rate** sınırı: Match screen (monitörün Hz'i) / 60 / 120 / 144. Monitör daha azını
+  gösteriyorsa panel söyler. GPU kapalıyken animasyon eskisi gibi ~60 fps.
+- **Güvenlik**: açıldıktan sonra birkaç saniye içinde ekran kartından resim gelmezse ya da OpenGL başlamazsa
+  program kendiliğinden işlemciyle çizmeye döner ve bir mesajla söyler (hiçbir şey kaybolmaz). Ekran kartı
+  çizerken program anormal kapanırsa (ör. sürücü çökmesi), bir sonraki açılış GPU kapalı başlar ve nedenini söyler.
+- **Laptop'ta iki kart (Intel + NVIDIA)**: Windows programa güç tasarruflu kartı (Intel) verdiyse, GPU
+  işaretlenince program sorar: **Use NVIDIA and restart** → Windows'a "bu programa yüksek performanslı kartı ver"
+  der (Settings → Display → Graphics'teki ayarın aynısı; sadece bu kullanıcı için, yönetici izni gerekmez),
+  sahneyi kaydetmeyi sorup yeniden açılır ve kartın gerçekten değiştiğini kontrol eder. Değişmediyse adım adım
+  elle nasıl yapılacağını gösterir (**Open Windows settings**). Panelde de **Use NVIDIA…** düğmesi vardır.
+
 ### Bir hata olursa
 
 Yakalanmamış bir hata programı kapatmaz: "Unexpected error" penceresi çıkar (ayrıntılar, Copy details, Open log
@@ -179,6 +198,8 @@ Exe (Faz 5): `pyinstaller packaging/potential_flow_lab.spec` → `dist/Potential
 `python scripts/smoothness.py` (pan / zoom sırasında kare aralıkları, arayüz akıcılığı),
 `python scripts/benchmark.py [--out sonuc.json] [--quick]` (programın her şeyinin hızı: açılış, hesaplar, çizim, pan /
 zoom / sürükleme, tepki süreleri, animasyon, export, verification — ~6 dk; ayarlarına / dosyalarına dokunmaz).
+`--gpu` ile plot ekran kartıyla çizilir (`--fps-cap screen|60|120|144`, varsayılan 60): aynı bilgisayarda `--gpu`'suz
+ve `--gpu`'lu iki çalıştırma karşılaştırılır (paint / interact / anim bölümleri).
 
 ## Klasör yapısı
 
@@ -192,8 +213,8 @@ zoom / sürükleme, tepki süreleri, animasyon, export, verification — ~6 dk; 
 | `packaging/` | Exe yapımı (PyInstaller spec) |
 | `presets/` | Hazır sahneler (`.pflow` dosyaları, klasör = menüdeki grup) |
 | `app/main_window.py` | Ana pencere: parçaları birleştirir, sinyalleri bağlar, element komutları (ekle / düzenle / taşı / sil, undo / redo) |
-| `app/window/` | Ana pencerenin parçaları: `layout.py` (yan paneller, palette sağ/sol, düzeni hatırlama), `menus.py` (palette, menüler, kısayollar), `files.py` (New / Open / Save, preset'ler), `exporting.py` (figür ve CSV export), `status.py` (durum çubuğu, probe, sahne kontrolü, başlıklar) |
-| `app/canvas/` | Plot kartı. `canvas.py` ortak durumu tutar (elementler, ayarlar, katman anahtarları, seçim) ve her olayı katmanlara iletir. Katmanlar: `streamline_layer.py` (arka planda hesap), `stagnation_layer.py`, `field_layer.py` (φ, \|V\|, Cp; `contours.py`, `legend.py`), `element_layer.py` (semboller, duvarlar, seçme), `animation_layer.py` + `particle_layer.py` + `pulse_layer.py` (animasyonlar: particle'lar, streamline üstünde darbeler), `body_layer.py` (cisimlerin içi dolu: Solid bodies), `surface_layer.py` (yüzeyler Cp renginde: Surface pressure). `interaction.py`: fare modları, sürükleme, palette'ten bırakma. `settings.py`: Plot settings slider'larının tablosu |
+| `app/window/` | Ana pencerenin parçaları: `layout.py` (yan paneller, palette sağ/sol, düzeni hatırlama), `menus.py` (palette, menüler, kısayollar), `files.py` (New / Open / Save, preset'ler), `exporting.py` (figür ve CSV export), `status.py` (durum çubuğu, probe, sahne kontrolü, başlıklar), `graphics.py` (GPU kutusu, Graphics card paneli, OpenGL başlamazsa geri dönüş, laptop'ta güçlü karta geçiş + yeniden başlatma) |
+| `app/canvas/` | Plot kartı. `canvas.py` ortak durumu tutar (elementler, ayarlar, katman anahtarları, seçim) ve her olayı katmanlara iletir. Katmanlar: `streamline_layer.py` (arka planda hesap), `stagnation_layer.py`, `field_layer.py` (φ, \|V\|, Cp; `contours.py`, `legend.py`), `element_layer.py` (semboller, duvarlar, seçme), `animation_layer.py` + `particle_layer.py` + `pulse_layer.py` (animasyonlar: particle'lar, streamline üstünde darbeler), `body_layer.py` (cisimlerin içi dolu: Solid bodies), `surface_layer.py` (yüzeyler Cp renginde: Surface pressure). `interaction.py`: fare modları, sürükleme, palette'ten bırakma. `settings.py`: Plot settings slider'larının tablosu. `gl_viewport.py`: ekran kartıyla çizim yüzeyi (OpenGL viewport) ve kare sayacı (FPS) |
 | `app/export/` | `figure.py` (PNG / SVG / PDF), `data.py` (CSV, Qt'siz), `dialogs.py` |
 | `app/chrome/` | Pencerenin "çizim kağıdı" görünümü: `style.py` (font, renk), `header.py` (logo, tahta şerit, cetvel + menüler), `cards.py` (panel kartları, title block), `palette.py` (element paleti) |
 | `app/panels.py`, `app/dialogs.py` | Elements / Plot settings panelleri; parametre penceresi (alanlar `app/element_specs.py`'den otomatik) |
@@ -203,6 +224,8 @@ zoom / sürükleme, tepki süreleri, animasyon, export, verification — ~6 dk; 
 | `app/splash.py` | Yükleme ekranı (`LoadingScreen`: adım, donanım satırları, ilerleme; uzun işler thread'de, ekran donmaz) |
 | `app/hardware.py` | Bu bilgisayar: işlemci / çekirdek, ekran kartları (Windows kayıt defteri), OpenGL (ayrı işlemde), ekranlar (Hz); profil QSettings'te, fingerprint değişince yeniden |
 | `app/hardware_dialog.py` | Help → Your computer… |
+| `app/gpu.py` | Ekran kartıyla çizim kuralları: ne zaman açılabilir, fps sınırı, çökme koruması (kilit dosyası), Windows'ta güçlü kart ayarı (kayıt defteri), yeniden başlatma komutu |
+| `app/gpu_panel.py` | Graphics card paneli (çizen kart, canlı FPS, frame rate sınırı, "Use NVIDIA…") |
 | `app/errors.py` | Beklenmeyen hatalar: log dosyası, hata penceresi (program açık kalır), çökme dosyası |
 | `app/beaver/` | Kunduz: `art.py` (koddan çizilen piksel art, her poz / açı keskin), `bubble.py` (piksel konuşma balonu, seçenekli diyaloglar), `lines.py` (İngilizce metinler), `faq.py` (soru–cevap), `tour.py` (tanıtım turu adımları), `spotlight.py` (turdaki vurgu), `beaver.py` (davranış: raf, tıklama menüsü, sürükleme, cam, akış, pulse, eve dönüş, tuşlar) |
 | `app/recovery.py` | Otomatik kopya ve çökme sonrası sahneyi geri getirme |
@@ -232,7 +255,7 @@ zoom / sürükleme, tepki süreleri, animasyon, export, verification — ~6 dk; 
 | `physics/program_checks.py` | Programın sayısal sonuçlarının kontrolü: çizilen streamline'lar, durma noktası araması, izlenen yüzeyler, Cp, basınç integrali (`--verify`) |
 | `tests/` | Otomatik doğrulama testleri (`pytest`) |
 | `scripts/verify_physics.py` | Doğrulama tablosunu yazdırır (`physics/verification.py`) |
-| `scripts/benchmark.py` | Her şeyin hızı tek çalıştırmada (açılış cold / warm, hesaplar, çizim, pan / zoom / sürükleme, tepki süresi, animasyon, export, verify); `--out` ile JSON |
+| `scripts/benchmark.py` | Her şeyin hızı tek çalıştırmada (açılış cold / warm, hesaplar, çizim, pan / zoom / sürükleme, tepki süresi, animasyon, export, verify); `--out` ile JSON, `--gpu` ile ekran kartıyla |
 | `benchmarks/` | Kaydedilmiş benchmark sonuçları (JSON): OpenGL vb. değişikliklerden önce / sonra karşılaştırmak için |
 | `scripts/streamline_quality.py` | Streamline resminin kalite ölçümü (aralık düzgünlüğü, kesik uçlar, süre) |
 

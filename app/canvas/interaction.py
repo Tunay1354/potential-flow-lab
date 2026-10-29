@@ -73,6 +73,16 @@ class PlotInteraction(QObject):
             item.setVisible(False)
             cv.plot.addItem(item)
 
+    def viewport_changed(self):
+        """The plot got a new viewport (graphics card on / off): drops and the cursor on the new one. A drag
+        in progress is cancelled (its pressed button belonged to the old viewport)."""
+        if self.drag is not None:
+            self.cancel_drag()
+        self._viewport = vp = self.canvas.plot.viewport()
+        vp.setAcceptDrops(True)
+        vp.installEventFilter(self)
+        vp.setCursor(Qt.OpenHandCursor if self.mode == "pan" else Qt.ArrowCursor)
+
     # ------------------------------------------------------------------ mouse modes
     def set_mode(self, mode: str) -> bool:
         """Change the mouse mode; True if it changed."""

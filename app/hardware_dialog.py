@@ -51,8 +51,7 @@ class HardwareDialog(QDialog):
         note = ""
         if weak is not None:
             note = (f"<p><b>Note:</b> this computer also has <b>{html.escape(weak['name'])}</b>, but OpenGL runs on "
-                    f"the other card. The program will offer to switch when graphics card drawing is turned "
-                    f"on.</p>")
+                    f"the other card. When you tick <b>GPU</b> in the header, the program offers to switch.</p>")
         when = html.escape(str(p.get("date", "?")))
         self.text.setText(f"<p>What the program found (checked {when}; again automatically when the computer "
                           f"changes):</p><ul>{rows}</ul>{note}")
@@ -62,6 +61,8 @@ class HardwareDialog(QDialog):
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             self.win.hardware, _fresh = hardware.detect(force=True, wait=QApplication.processEvents)
+            if hasattr(self.win, "_update_gpu_controls"):
+                self.win._update_gpu_controls()          # the GPU box: possible now / not any more
         finally:
             QApplication.restoreOverrideCursor()
             self.btn_check.setEnabled(True)

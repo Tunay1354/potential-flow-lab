@@ -95,7 +95,8 @@ class AnimatedLayer(PlotLayer):
         self.frame_ms = []                     # duration of the last frames (measurements)
         self._timer = QTimer(plot)
         self._timer.setTimerType(Qt.PreciseTimer)
-        self._timer.setInterval(FRAME_MS)
+        self.frame_interval = FRAME_MS        # ms between frames (the graphics card mode may set it lower)
+        self._timer.setInterval(self.frame_interval)
         self._timer.timeout.connect(self.frame)
         self.export_scale = None              # recording a GIF / MP4: picture pixels per screen pixel
 
@@ -140,6 +141,12 @@ class AnimatedLayer(PlotLayer):
             self._clear()
         self.visibility_changed()
 
+    def set_frame_interval(self, ms: int):
+        """Frames every ms milliseconds (16 = ~60 fps; PlotCanvas.set_frame_interval)."""
+        self.frame_interval = max(1, int(ms))
+        if self._timer.interval() != HIDDEN_MS:
+            self._timer.setInterval(self.frame_interval)
+
     def set_paused(self, on: bool):
         self.paused = bool(on)
         self._last = None
@@ -180,8 +187,8 @@ class AnimatedLayer(PlotLayer):
             self._timer.setInterval(HIDDEN_MS)          # nothing to draw: no work 60 times a second
             self._last = None
             return
-        if self._timer.interval() != FRAME_MS:
-            self._timer.setInterval(FRAME_MS)
+        if self._timer.interval() != self.frame_interval:
+            self._timer.setInterval(self.frame_interval)
             self._last = now
         image = self._picture()
         if image is None or (self.paused and not (self.DRAW_WHILE_PAUSED and self._fresh)):
