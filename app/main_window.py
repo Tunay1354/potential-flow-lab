@@ -107,9 +107,15 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         on = QSettings().value("beaver/enabled", True, bool)
         self.act_beaver.setChecked(on)
         self.beaver.set_enabled(on)
-        if on and not QSettings().value("beaver/greeted", False, bool):
-            QSettings().setValue("beaver/greeted", True)
-            QTimer.singleShot(1500, self, self.beaver.greet)
+        # first start (or `main.py --first-run`): the beaver offers the tour; later starts: no question
+        settings = QSettings()
+        starts = int(settings.value("beaver/starts", 0)) + 1
+        settings.setValue("beaver/starts", starts)
+        first = (QApplication.instance().property("first_run") is True
+                 or not settings.value("beaver/tour_offered", False, bool))
+        if first and on:
+            settings.setValue("beaver/tour_offered", True)
+        QTimer.singleShot(1200, self, lambda: self.beaver.start_session(first))
 
     def menuBar(self) -> QMenuBar:
         """The menus live on the ruler of the header (not in Qt's own menu bar)."""
@@ -174,7 +180,18 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         esc.activated.connect(lambda: self.canvas.cancel_drag() or self.select_element(-1))
 
     # ------------------------------------------------------------------ model -> view
+    def _beaver_scene(self):
+        """Tell the beaver (tour) which element types were added."""
+        types = [e.TYPE for e in self.elements]
+        before = getattr(self, "_types_before", [])
+        self._types_before = types
+        if getattr(self, "beaver", None) is not None:
+            for t in set(types):
+                if types.count(t) > before.count(t):
+                    self.beaver.notify("added", t)
+
     def _on_model_changed(self, focus):
+        self._beaver_scene()
         self.elements_panel.set_elements(self.elements, select=focus)
         self.surface_panel.set_elements(self.elements)
         self._update_cp_available()
@@ -305,6 +322,8 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         if not 0 <= row < len(self.elements):
             return
         el = self.elements[row]
+        if getattr(self, "beaver", None) is not None:
+            self.beaver.notify("edit", el.TYPE)
         spec = spec_for(el.TYPE)
         values = {p.key: getattr(el, p.key) for p in spec.params}
         dlg = ElementDialog(spec, self.theme, True, self, values=values,
@@ -322,6 +341,8 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         """Move mode: an element was dragged to a new place (one undoable step)."""
         if 0 <= row < len(self.elements):
             self.model.replace(row, moved, f"Move {element_title(self.elements[row]).lower()}")
+            if getattr(self, "beaver", None) is not None:
+                self.beaver.notify("moved", moved.TYPE)
             self._flash_done()
 
     def duplicate_element(self, row):
@@ -417,6 +438,12 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
 
     def paintEvent(self, _event):
         paint_paper_grid(self, self.theme)
+
+    def forget_first_start(self):
+        """Help → Beaver → Next start as a first-time user (to try the first start again)."""
+        QSettings().setValue("beaver/tour_offered", False)
+        QSettings().setValue("beaver/starts", 0)
+        self.flash("The next start will be like a first start: the beaver will offer the tour again.")
 
     def set_beaver(self, on: bool):
         """View → Beaver: show / hide the mascot (remembered)."""

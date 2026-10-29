@@ -1,13 +1,19 @@
 """
 bubble.py — the beaver's speech bubble: a pixel-art frame (stepped corners, a staircase tail, a drop
-shadow) with a pixel font, the text typed letter by letter with a blinking block cursor. Never takes the
-mouse. The size is fixed by the whole text, so the bubble does not grow while it types.
+shadow) with a pixel font, the text typed letter by letter with a blinking block cursor. Long lines wrap.
+The size is fixed by the whole text, so the bubble does not grow while it types.
+
+Two kinds:
+  a remark      say(text): types, stays a while, goes away; never takes the mouse
+  a dialog      say(text, choices=[...], hint=..., sticky=True): stays until it is answered; the choices
+                (numbered rows, shown when the text is typed) can be clicked or picked with the keys (the
+                beaver handles the keys); a click elsewhere on it gives clicked(-1) ("next" in the tour)
 """
 from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetricsF, QPainter
 from PySide6.QtWidgets import QWidget
 
@@ -17,27 +23,59 @@ HOLD_PER_CHAR_S = 0.035          # … plus this per character
 READ_S, READ_PER_CHAR_S = 0.7, 0.03   # never replaced by another line before this (time to read it)
 FONT_FAMILY = "Pixelify Sans"
 FONT_PX = 15
+HINT_PX = 12
 PAD = 9                          # text margin inside the frame (logical px)
 TAIL = 10                        # tail length (logical px)
+MAX_TEXT_W = 340                 # longer lines wrap
+ROW_GAP = 4
+
+
+def _font(px):
+    f = QFont(FONT_FAMILY)
+    f.setPixelSize(px)
+    f.setStyleStrategy(QFont.NoAntialias)
+    f.setHintingPreference(QFont.PreferFullHinting)
+    return f
+
+
+def wrap(text: str, fm: QFontMetricsF, width: float) -> list[str]:
+    """Lines of `text` (kept "\\n" breaks) no wider than `width`, broken between words."""
+    out = []
+    for para in text.split("\n"):
+        words, line = para.split(" "), ""
+        for w in words:
+            trial = w if not line else line + " " + w
+            if line and fm.horizontalAdvance(trial) > width:
+                out.append(line)
+                line = w
+            else:
+                line = trial
+        out.append(line)
+    return out
 
 
 class SpeechBubble(QWidget):
+    clicked = Signal(int)            # a choice (0, 1 …) or −1 (the text) of a dialog
+
     def __init__(self, parent):
         super().__init__(parent)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.setAttribute(Qt.WA_NoSystemBackground, True)
+        self.setMouseTracking(True)
         self.hide()
-        f = QFont(FONT_FAMILY)
-        f.setPixelSize(FONT_PX)
-        f.setStyleStrategy(QFont.NoAntialias)
-        f.setHintingPreference(QFont.PreferFullHinting)
-        self.font_ = f
+        self.font_, self.hint_font = _font(FONT_PX), _font(HINT_PX)
         self.text = ""
+        self.choices: list[str] = []
+        self.hint = ""
+        self.sticky = False
+        self.sel = -1                    # highlighted choice (keys / mouse)
         self.shown = 0.0                 # characters typed so far
         self.after = 0.0                 # seconds since the last character
         self.tail = "down"               # where the tail points: down (bubble above), left / right, up
-        self.colors = {"paper": QColor("#FBF7EC"), "ink": QColor("#211A12"), "shadow": QColor(33, 26, 18, 70)}
+        self.colors = {"paper": QColor("#FBF7EC"), "ink": QColor("#211A12"), "shadow": QColor(33, 26, 18, 70),
+                       "muted": QColor("#4E4434"), "sel": QColor("#EFE3CE")}
         self._lines = []
+        self._rows = []                  # choice rows: (rect in box coordinates)
         self._box = QRectF()
         self._anchor = QPointF()
         self._offset = QPointF()
@@ -49,50 +87,119 @@ class SpeechBubble(QWidget):
 
     @property
     def typing(self) -> bool:
-        return self.shown < len(self.text)
+        return self.shown < len(self._typed())
+
+    @property
+    def dialog(self) -> bool:
+        return bool(self.text) and (self.sticky or bool(self.choices))
 
     def busy(self) -> bool:
-        """Still typing, or typed but not yet readable (a new line would cut it off)."""
-        return bool(self.text) and (self.typing or self.after < READ_S + READ_PER_CHAR_S * len(self.text))
+        """Still typing, or typed but not yet readable (a new line would cut it off); a dialog is always busy."""
+        if not self.text:
+            return False
+        if self.dialog:
+            return True
+        return self.typing or self.after < READ_S + READ_PER_CHAR_S * len(self.text)
 
     def set_theme(self, theme: dict):
         self.colors = {"paper": QColor(theme["panel_bg"]), "ink": QColor(theme["ink"]),
-                       "shadow": QColor(0, 0, 0, 70)}
+                       "shadow": QColor(0, 0, 0, 70), "muted": QColor(theme["text_muted"]),
+                       "sel": QColor(theme["accent_soft"])}
         self.update()
 
-    def say(self, text: str, typed: bool = True):
+    def say(self, text: str, typed: bool = True, choices=None, hint: str = "", sticky: bool = False):
         self.text = text
-        self.shown = 0.0 if typed else float(len(text))
+        self.choices = list(choices or [])
+        self.hint = hint
+        self.sticky = bool(sticky)
+        self.sel = 0 if self.choices else -1
         self.after = 0.0
-        self._lines = text.split("\n")
-        fm = QFontMetricsF(self.font_)
+        fm, hm = QFontMetricsF(self.font_), QFontMetricsF(self.hint_font)
+        self._lines = wrap(text, fm, MAX_TEXT_W)
+        self.shown = 0.0 if typed else float(len(self._typed()))
         a = self.art()
-        w = max(fm.horizontalAdvance(l) for l in self._lines) + 2 * PAD + 6
-        h = fm.lineSpacing() * len(self._lines) + 2 * PAD - 2
+        w = max(fm.horizontalAdvance(l) for l in self._lines)
+        h = fm.lineSpacing() * len(self._lines)
+        self._rows = []
+        if self.choices:
+            h += 6
+            for k, c in enumerate(self.choices):
+                label = f"{(k + 1) % 10}  {c}"
+                w = max(w, fm.horizontalAdvance(label) + 12)
+                self._rows.append(QRectF(PAD - 4, PAD - 2 + h, 0, fm.lineSpacing() + ROW_GAP))
+                h += fm.lineSpacing() + ROW_GAP
+        if self.hint:
+            h += 4 + hm.lineSpacing()
+            w = max(w, hm.horizontalAdvance(self.hint))
+        w += 2 * PAD + 6
+        h += 2 * PAD - 2
         self._box = QRectF(0, 0, math.ceil(w / a) * a, math.ceil(h / a) * a)
+        for r in self._rows:
+            r.setWidth(self._box.width() - 2 * (PAD - 4))
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, not self.dialog)
+        self.update()
+
+    def _typed(self) -> str:
+        return "\n".join(self._lines)
+
+    def finish_typing(self):
+        self.shown = float(len(self._typed()))
         self.update()
 
     def clear(self):
         self.text = ""
+        self.choices = []
+        self.sticky = False
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.hide()
 
     def advance(self, dt: float):
-        """Type on / count the time it stays; hides itself when done."""
+        """Type on / count the time it stays; a remark hides itself when done (a dialog stays)."""
         if not self.text:
             return
         if self.typing:
-            self.shown = min(len(self.text), self.shown + CPS * dt)
+            self.shown = min(len(self._typed()), self.shown + CPS * dt)
         else:
             self.after += dt
-            if self.after > HOLD_S + HOLD_PER_CHAR_S * len(self.text):
+            if not self.dialog and self.after > HOLD_S + HOLD_PER_CHAR_S * len(self.text):
                 self.clear()
                 return
         self.update()
+
+    def move_selection(self, step: int):
+        if self.choices:
+            self.sel = (self.sel + step) % len(self.choices)
+            self.update()
 
     def art(self) -> float:
         """One art pixel in logical pixels (whole device pixels)."""
         dpr = self.devicePixelRatioF() or 1.0
         return max(2, round(2 * dpr)) / dpr
+
+    # ------------------------------------------------------------------ mouse (dialogs)
+    def _row_at(self, pos) -> int:
+        if self.typing:
+            return -1
+        p = pos - self._offset
+        for k, r in enumerate(self._rows):
+            if r.contains(p):
+                return k
+        return -1
+
+    def mouseMoveEvent(self, e):
+        k = self._row_at(e.position())
+        if k >= 0 and k != self.sel:
+            self.sel = k
+            self.update()
+        self.setCursor(Qt.PointingHandCursor if k >= 0 or self.sticky else Qt.ArrowCursor)
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.LeftButton and self.dialog:
+            if self.typing:
+                self.finish_typing()
+            else:
+                self.clicked.emit(self._row_at(e.position()))
+        e.accept()
 
     # ------------------------------------------------------------------ placement
     def place(self, anchor: QPointF, tail: str, bounds: QRectF):
@@ -145,7 +252,7 @@ class SpeechBubble(QWidget):
         fm = QFontMetricsF(self.font_)
         n = int(self.shown)
         y = y0 + PAD - 2 + fm.ascent()
-        for k, line in enumerate(self._lines):
+        for line in self._lines:
             part = line[:max(0, n)]
             p.drawText(QPointF(x0 + PAD + 1, y), part)
             if self.typing and 0 <= n <= len(line):
@@ -153,6 +260,19 @@ class SpeechBubble(QWidget):
                 p.fillRect(QRectF(cx, y - fm.ascent() + 2, a * 2.5, fm.ascent() - 1), ink)
             n -= len(line) + 1
             y += fm.lineSpacing()
+        # choices: numbered rows, the selected one marked (clickable once the text is typed)
+        for k, (c, rr) in enumerate(zip(self.choices, self._rows)):
+            row = rr.translated(o)
+            if k == self.sel and not self.typing:
+                p.fillRect(row.adjusted(0, 0, 0, -1), self.colors["sel"])
+                p.fillRect(QRectF(row.left(), row.top(), a, row.height() - 1), ink)
+            p.setPen(ink)
+            p.drawText(QPointF(row.left() + 6, row.top() + ROW_GAP / 2 + fm.ascent()), f"{(k + 1) % 10}  {c}")
+        if self.hint:
+            hm = QFontMetricsF(self.hint_font)
+            p.setFont(self.hint_font)
+            p.setPen(self.colors["muted"])
+            p.drawText(QPointF(x0 + PAD + 1, y0 + h - PAD + 2 - hm.descent()), self.hint)
         p.end()
 
     def _tail(self, p, a, x0, y0, w, h, ink, paper):

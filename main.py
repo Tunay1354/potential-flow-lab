@@ -2,6 +2,7 @@
 Potential Flow Lab
 Run:  python main.py                 (starts with the lifting-cylinder scene)
       python main.py scene.pflow     (opens a saved scene; also used when a file is double-clicked)
+      python main.py --first-run     (starts as for a first-time user: the beaver offers the tour)
 
 Without a window (app/cli):
       python main.py --verify [--out DIR]                    verification report (Markdown + CSV + figures)
@@ -23,6 +24,8 @@ def main():
     from app.theme import LAYOUT
     app = QApplication(sys.argv)
     setup_application(app)
+    if "--first-run" in sys.argv[1:]:                # try the first start again (the beaver offers the tour)
+        app.setProperty("first_run", True)
     setup_logging()                      # log file (+ crash file); before anything can go wrong
     qInstallMessageHandler(qt_message_handler)
     reporter = ErrorReporter(app).install()        # an uncaught error: logged + a window, the program goes on

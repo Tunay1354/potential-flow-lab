@@ -84,6 +84,20 @@ Cetvelde Help'in sağında duran piksel kunduz. Mouse ile tutup plota bırakıl�
 
 Çok yavaş akışta sıkılıp eve gider, çok yavaş pulse'lardan koşarak kaçar; çok hızlı akışta da her satır okunacak
 kadar ekranda kalır. Particles / Pulses'ta plota (veriye) bağlıdır: zoom / pan ile birlikte hareket eder, görünümden çıkarsa eve döner.
+**Tıklama ve sürükleme ayrı:** kunduza tıklayınca (fare kıpırdamadan) menüsü açılır — Questions & answers,
+Show me around (tour), Tell me a fun fact; basılı tutup sürükleyince eline alırsın. **P** tuşu (ya da Help → Beaver →
+Questions & answers) her yerden soru–cevap listesini açar: 1–9, 0, oklar + Enter ya da tıklama; Esc kapatır.
+
+**Tanıtım turu:** ilk açılışta kunduz "First time here? Want a quick tour?" diye sorar (bir kez). Evet → boş bir
+sayfadan başlayıp pencerenin parçalarını tek tek gösterir (kırmızı çerçeve, gerisi hafif karartılmış) ve asıl
+işleri yaptırır: uniform flow ekle, doublet ekle, elementi düzenle, Move ile taşı, Particles'ı aç; sonra Export,
+File, Presets, Help, kendisi ve P tuşu. Okuma adımları Enter / Space / tıklama ile geçer, "Your turn!" adımları
+yapınca geçer (Enter atlar), Esc turu bitirir. Bitince boş bir plot bırakır. Tekrar: Help → Beaver → Show me
+around ya da kunduza tıkla → 2. Sonraki açılışlarda sormaz (arada "Welcome back!").
+
+**İlk açılışı tekrar denemek için:** `python main.py --first-run` (o seferlik ilk açılış gibi davranır) ya da
+Help → Beaver → Next start as a first-time user (bir sonraki açılış ilk açılış olur).
+
 Konuşmalar İngilizce, piksel fontla harf harf yazılır (Pixelify Sans, `assets/fonts/pixelify-sans`, OFL). Export
 edilen figür ve animasyonlarda görünmez; tekerlek üstündeyken de plotu zoom'lar. **View → Beaver** ile kapatılır.
 
@@ -148,7 +162,7 @@ Exe (Faz 5): `pyinstaller packaging/potential_flow_lab.spec` → `dist/Potential
 | `app/panels.py`, `app/dialogs.py` | Elements / Plot settings panelleri; parametre penceresi (alanlar `app/element_specs.py`'den otomatik) |
 | `app/surface_panel.py` | Surface pressure paneli: Cp grafiği, kuvvetler, CSV |
 | `app/errors.py` | Beklenmeyen hatalar: log dosyası, hata penceresi (program açık kalır), çökme dosyası |
-| `app/beaver/` | Kunduz: `art.py` (koddan çizilen piksel art, her poz / açı keskin), `bubble.py` (piksel konuşma balonu), `lines.py` (İngilizce metinler), `beaver.py` (davranış: raf, sürükleme, cam, akış, pulse, eve dönüş) |
+| `app/beaver/` | Kunduz: `art.py` (koddan çizilen piksel art, her poz / açı keskin), `bubble.py` (piksel konuşma balonu, seçenekli diyaloglar), `lines.py` (İngilizce metinler), `faq.py` (soru–cevap), `tour.py` (tanıtım turu adımları), `spotlight.py` (turdaki vurgu), `beaver.py` (davranış: raf, tıklama menüsü, sürükleme, cam, akış, pulse, eve dönüş, tuşlar) |
 | `app/recovery.py` | Otomatik kopya ve çökme sonrası sahneyi geri getirme |
 | `app/verification_dialog.py` | Help → Run verification…: raporu arka planda üretir, check ağacı ve "nasıl hesaplandı" paneli |
 | `app/theme.py` | Renkler (açık / koyu), fontlar, boyutlar, marker'lar |

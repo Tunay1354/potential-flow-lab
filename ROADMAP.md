@@ -381,8 +381,18 @@ bırakıldı (kullanıcı kararı).
       - Diyaloglar: 39 durum, 177 satır (her durumda 2–10 seçenek), son söylenen birkaç satır tekrar seçilmez
       - Testler: yavaş yolculuk, çok hızlı akışta satırların okunabilir kalması, yavaş pulse'tan kaçış, uzun
         duraklatma (toplam 25 test)
-    - ☐ Aşama 2: ilk açılışta atlanabilir tanıtım turu (aynı balon ve İngilizce); sonra isim (Psi geçici) ve
-      yan / akış pozlarının rötuşu (kullanıcı: "yan görünüşler hâlâ biraz garip, sonra düzeltiriz")
+    - ✅ Aşama 2 (29 Ekim): tıklama / sürükleme ayrımı (6 px'ten az kıpırdayan basış = tıklama → menü:
+      Questions & answers, tour, fun fact; kıpırdarsa eline alınır). Soru–cevap: P (değiştirilebilir kısayol) ya
+      da Help → Beaver; 10 soru, 1–9 / 0 / oklar + Enter / tıklama, cevaptan tıklayınca listeye döner.
+      Tanıtım turu (`tour.py`, 16 adım): ilk açılışta bir kez sorulur; boş sayfadan başlar, her adımda ilgili
+      parça kırmızı piksel çerçeveyle vurgulanır (gerisi hafif karartılır, her şey tıklanabilir kalır), kunduz
+      yanına gider; okuma adımları Enter / Space / tıklama, "Your turn!" adımları kullanıcı yapınca geçer
+      (uniform ekle, doublet ekle, düzenleme penceresini aç, Move ile taşı, Particles), Enter atlar, Esc bitirir;
+      sonunda boş plot. Turda Space / Esc / Enter kısayollar yerine tura gider (ShortcutOverride), yazı alanında
+      ya da açık bir pencerede tuşlara karışmaz. Sonraki açılışlarda sormaz; %35 "Welcome back!". Test için:
+      `python main.py --first-run` ve Help → Beaver → Next start as a first-time user. Balon: uzun satırlar
+      kırılıyor, seçenek satırları + ipucu satırı; testler: toplam 31
+    - ☐ Sonra: isim (Psi geçici) ve yan / akış pozlarının rötuşu (kullanıcı: "yan görünüşler hâlâ biraz garip")
 20. ☐ **Optimizasyon (+ Paket E2)**: ölçüm → iyileştirme: açılış ve ilk Numba derleme süresi, sürükleme, zoom /
     pan, animasyon (gerekirse "Use graphics card (OpenGL)", açılamazsa normal çizim), Solid bodies, Surface
     pressure, export süreleri; ölçümler `scripts/` altında, önce / sonra sayılarıyla

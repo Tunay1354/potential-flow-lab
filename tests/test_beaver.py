@@ -94,10 +94,10 @@ def test_clicking_him_does_not_clear_the_element_selection(win, qapp):
     b = win.beaver
     QTest.mousePress(b.sprite, Qt.LeftButton, Qt.NoModifier, b.sprite.rect().center())
     qapp.processEvents()
-    assert b.state == "held" and win.elements_panel.current_row() == 1
+    assert win.elements_panel.current_row() == 1
     QTest.mouseRelease(b.sprite, Qt.LeftButton, Qt.NoModifier, b.sprite.rect().center())
     qapp.processEvents()
-    assert b.state != "held"
+    assert b.state == "perch" and b.dialog == "menu"                # a click (no drag) opens his menu
 
 
 def test_static_glass_joke_then_home(win, qapp):
@@ -290,12 +290,13 @@ def test_drag_him_from_the_ruler_onto_the_plot(win, qapp):
         qapp.sendEvent(b.sprite, ev)
 
     send(QEvent.MouseButtonPress, QPointF(start), Qt.LeftButton)
-    assert b.state == "held"
+    assert b.state == "perch"                                       # not yet: a press is a click until it moves
     target = b.to_window(complex(1.0, 1.0))
     g = QPointF(win.mapToGlobal(target.toPoint()))
     for k in range(1, 11):
         send(QEvent.MouseMove, QPointF(start) + (g - QPointF(start)) * (k / 10), Qt.LeftButton)
         b.advance(DT)
+        assert b.state == "held"
     assert (b.center - target).manhattanLength() < 120              # hanging just under the cursor
     send(QEvent.MouseButtonRelease, g, Qt.NoButton)
     qapp.processEvents()
@@ -368,3 +369,141 @@ def test_paused_too_long_he_walks_home(win, qapp):
     win.canvas.set_paused(True)
     run(qapp, win, 10, until=lambda b: b.state != "flow")
     assert b.state == "hop" and "paused" in b.said and "paused_leave" in b.said
+
+
+# ---------------------------------------------------------------------- click menu, questions & answers, tour
+def _key(qapp, win, key):
+    from PySide6.QtTest import QTest
+    QTest.keyClick(win, key)
+    qapp.processEvents()
+
+
+def test_click_opens_the_menu_and_a_drag_carries_him(win, qapp):
+    from PySide6.QtCore import QEvent, QPointF, Qt
+    from PySide6.QtGui import QMouseEvent
+    b = win.beaver
+    run(qapp, win, 0.2)
+    c = QPointF(b.sprite.mapToGlobal(b.sprite.rect().center()))
+
+    def send(kind, g, buttons):
+        ev = QMouseEvent(kind, QPointF(b.sprite.mapFromGlobal(g.toPoint())), g, Qt.LeftButton, buttons, Qt.NoModifier)
+        qapp.sendEvent(b.sprite, ev)
+
+    send(QEvent.MouseButtonPress, c, Qt.LeftButton)
+    send(QEvent.MouseMove, c + QPointF(2, 1), Qt.LeftButton)       # a tiny wobble is still a click
+    assert b.state == "perch"
+    send(QEvent.MouseButtonRelease, c, Qt.NoButton)
+    assert b.dialog == "menu" and b.bubble.choices
+    b.close_dialog()
+    send(QEvent.MouseButtonPress, c, Qt.LeftButton)
+    send(QEvent.MouseMove, c + QPointF(30, 40), Qt.LeftButton)     # moved: a drag
+    assert b.state == "held"
+    send(QEvent.MouseButtonRelease, c + QPointF(30, 40), Qt.NoButton)
+
+
+def test_questions_and_answers_with_p_and_number_keys(win, qapp):
+    from PySide6.QtCore import Qt
+
+    from app.beaver.faq import FAQ
+    b = win.beaver
+    win.activateWindow()
+    win.act_faq.trigger()                                          # P
+    assert b.dialog == "faq" and len(b.bubble.choices) == len(FAQ)
+    _key(qapp, win, Qt.Key_3)
+    assert b.dialog == "answer" and b.bubble.text == FAQ[2][1]
+    b._bubble_clicked(-1)                                          # click: back to the questions
+    assert b.dialog == "faq"
+    _key(qapp, win, Qt.Key_Down)
+    _key(qapp, win, Qt.Key_Return)
+    assert b.dialog == "answer" and b.bubble.text == FAQ[1][1]
+    _key(qapp, win, Qt.Key_Escape)
+    assert b.dialog is None and not b.bubble.active
+
+
+def test_the_menu_starts_the_tour_and_says_fun_facts(win, qapp):
+    b = win.beaver
+    b.open_menu()
+    b._choose(2)                                                   # a fun fact
+    from app.beaver.lines import LINES
+    assert b.dialog is None and b.bubble.text in LINES["facts"]
+    b.bubble.clear()
+    b.open_menu()
+    b._choose(1)                                                   # the tour
+    assert b.tour.active and b.state == "tour"
+    b.tour.end(completed=False)
+    assert not b.tour.active
+
+
+def test_the_whole_tour_needs_the_actions_and_ends_on_an_empty_plot(win, qapp):
+    from PySide6.QtCore import Qt
+
+    from app.beaver.tour import STEPS
+    from physics.elements import Doublet, Uniform
+    b = win.beaver
+    win.activateWindow()
+    win.model.mark_clean()
+    b.start_tour()
+    assert b.tour.active and b.tour.i == 0 and win.elements == []   # starts from an empty sheet
+    assert b.spotlight.isVisible()
+    for _ in range(200):
+        s = b.tour.step
+        if s is None:
+            break
+        if s.wait is None:
+            _key(qapp, win, Qt.Key_Space)                           # finish the typing …
+            if b.tour.step is s:
+                _key(qapp, win, Qt.Key_Space)                       # … then next
+            continue
+        i = b.tour.i
+        _key(qapp, win, Qt.Key_Space)                              # Space does not skip an action step …
+        assert b.tour.i == i or b.bubble.typing is False
+        ev, val = s.wait
+        if ev == "added":
+            win.model.add(Uniform() if val == "uniform" else Doublet(mu=1.0))
+        elif ev == "edit":
+            b.notify("edit", "doublet")
+        elif ev == "moved":
+            b.notify("moved", "doublet")
+        elif ev == "view_mode":
+            win.canvas.set_view_mode(val)
+        run(qapp, win, 1.5)                                         # "Nice!", then the next step
+        assert b.tour.i == i + 1 or not b.tour.active
+    assert not b.tour.active and win.elements == [] and win.canvas.view_mode == "static"
+    assert not b.spotlight.isVisible()
+    run(qapp, win, 3)
+    assert b.state == "perch"
+    assert len(STEPS) >= 12
+
+
+def test_esc_ends_the_tour(win, qapp):
+    from PySide6.QtCore import Qt
+    b = win.beaver
+    win.activateWindow()
+    win.model.mark_clean()
+    b.start_tour()
+    _key(qapp, win, Qt.Key_Escape)
+    assert not b.tour.active and not b.spotlight.isVisible()
+
+
+def test_first_start_offers_the_tour_and_later_starts_do_not(qapp):
+    from PySide6.QtCore import QSettings
+
+    from app.main_window import MainWindow
+    s = QSettings()
+    s.setValue("beaver/tour_offered", False)
+    try:
+        w1 = MainWindow()
+        w1.beaver.timer.stop()
+        w1.beaver.start_session(True)                              # (what the 1.2 s timer does)
+        assert w1.beaver.dialog == "ask_tour"
+        assert s.value("beaver/tour_offered", False, bool)
+        w1.beaver._choose(1)                                       # "No, thanks"
+        assert not w1.beaver.tour.active
+        w1.close()
+        w2 = MainWindow()                                          # second start
+        assert not (qapp.property("first_run") is True)
+        w2.forget_first_start()                                    # Help → Beaver → Next start as a first-time user
+        assert not s.value("beaver/tour_offered", True, bool)
+        w2.close()
+    finally:
+        s.setValue("beaver/tour_offered", True)

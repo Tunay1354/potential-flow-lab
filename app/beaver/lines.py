@@ -10,6 +10,15 @@ import random
 LINES = {
     "hello": ["Hi! I'm Psi, your flow buddy.\nGrab me and drop me on the plot!",
               "Hello there! I'm Psi.\nDrag me onto the plot, I dare you."],
+    "menu": ["What can I do for you?", "Yes? Need a paw?", "Hi! How can I help?", "At your service!"],
+    "poked": ["Hey! I'm busy!", "Hehe, that tickles.", "Not now, I'm working!", "Boop!", "Paws off, I'm flowing!"],
+    "ask_tour": ["Hi! I'm Psi, your flow buddy. First time here? Want a quick tour? It takes about two minutes.",
+                 "Hello! I'm Psi. Looks like you're new here. Shall I show you around? Two minutes, promise."],
+    "tour_declined": ["Okay! Click me or press P whenever you need help.",
+                      "No problem. Click me any time, I'll show you around later."],
+    "tour_skipped": ["Okay! The tour is in Help -> Beaver, or click me.", "Tour ended. Click me if you need me!"],
+    "tour_nice": ["Nice!", "Well done!", "Perfect!", "Just like that!", "You're a natural!", "Great!"],
+    "welcome_back": ["Welcome back!", "Oh, you're back! Let's flow.", "Hello again!", "Ready for more streamlines?"],
     "grabbed": ["Whoa, whoa!", "Hey, hey! What are you doing?!", "Put me down gently,\nI bruise like a peach.",
                 "Wheee— wait, where are we going?", "Careful, that's my good scruff!",
                 "I can walk, you know.", "Up we go! I hope you know\nwhat you're doing.",
@@ -97,8 +106,9 @@ PRIORITY.update({k: 2 for k in ("glass_drop", "glass_tap", "glass_back", "glass_
                                 "zoomed_out", "vortex_dizzy", "drain_gone", "stagnation", "solid", "wall", "no_flow",
                                 "flow_gone", "pulse_bonk", "pulse_run", "pulse_leave", "no_pulses", "paused_leave",
                                 "error", "verify_ok", "verify_fail", "hello", "flow_slow", "pulse_slow", "paused",
-                                "flow_too_fast", "saved")})
-PRIORITY.update({k: 0 for k in ("flow_fast", "pulse_wait", "sleep")})
+                                "flow_too_fast", "saved", "tour_declined",
+                                "tour_skipped")})
+PRIORITY.update({k: 0 for k in ("flow_fast", "pulse_wait", "sleep", "welcome_back")})
 
 
 class Picker:

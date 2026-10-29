@@ -36,7 +36,10 @@ from physics.particles import time_scale, typical_speed
 
 from . import art
 from .bubble import SpeechBubble
+from .faq import FAQ
 from .lines import PRIORITY, Picker
+from .spotlight import Spotlight
+from .tour import Tour
 
 ACTIVE_MS, IDLE_MS = 33, 120          # timer: while something happens / sitting on the ruler
 WALK_PX_S = 270.0                     # walking speed on the ruler
@@ -52,13 +55,15 @@ PULSE_SLOW_S = 2.0                    # pulses further apart (in time) than this
 PULSE_DODGE_S = 0.6                   # … when the next one is still at least this far away
 RUN_FRACTION_S = 0.22                 # running: this part of the view width per second
 PAUSED_LEAVE_S = 8.0
+DRAG_PX = 6                           # a press that moves further than this is a drag, otherwise a click
+MENU = ["Questions & answers  (P)", "Show me around (tour)", "Tell me a fun fact", "Nothing, thanks"]
 
 
 class BeaverSprite(QWidget):
     """The beaver's picture: a small child widget of the main window, shaped like the sprite (clicks on its
     transparent pixels go to what is below)."""
-    pressed = Signal()
-    double_clicked = Signal()
+    pressed = Signal(QPointF)           # global position
+    released = Signal(QPointF)
     wheel = Signal(object)
 
     def __init__(self, parent):
@@ -87,16 +92,18 @@ class BeaverSprite(QWidget):
 
     def mousePressEvent(self, e):
         if e.button() == Qt.LeftButton:
-            self.setCursor(Qt.ClosedHandCursor)
-            self.pressed.emit()
+            self.pressed.emit(e.globalPosition())
         e.accept()
 
     def mouseReleaseEvent(self, e):
         self.setCursor(Qt.OpenHandCursor)
+        if e.button() == Qt.LeftButton:
+            self.released.emit(e.globalPosition())
         e.accept()
 
-    def mouseDoubleClickEvent(self, e):
-        self.double_clicked.emit()
+    def mouseDoubleClickEvent(self, e):                # (a second click: the same as a click)
+        if e.button() == Qt.LeftButton:
+            self.pressed.emit(e.globalPosition())
         e.accept()
 
     def wheelEvent(self, e):
@@ -151,8 +158,13 @@ class Beaver(QObject):
         self.timer.setInterval(IDLE_MS)
         self.timer.timeout.connect(self._tick)
         self._last_tick = None
-        self.sprite.pressed.connect(self._grab)
-        self.sprite.double_clicked.connect(self._double_click)
+        self.sprite.pressed.connect(self._pressed)
+        self.sprite.released.connect(self._released)
+        self.bubble.clicked.connect(self._bubble_clicked)
+        self.spotlight = Spotlight(window)
+        self.tour = Tour(self, window, self.spotlight)
+        self.dialog = None              # an open dialog bubble: "menu", "faq", "answer", "ask_tour"
+        self._press = None              # global position of a press that is not (yet) a drag
         self.sprite.wheel.connect(self._forward_wheel)
         self.cv.view_mode_changed.connect(self.mode_changed)
         QApplication.instance().installEventFilter(self)
@@ -163,6 +175,9 @@ class Beaver(QObject):
     def set_enabled(self, on: bool):
         self.enabled = bool(on)
         if not self.enabled:
+            if self.tour.active:
+                self.tour.end(completed=False)
+            self.dialog = None
             self.sprite.hide()
             self.bubble.clear()
             self.waiting = None
@@ -177,6 +192,8 @@ class Beaver(QObject):
 
     def set_theme(self, theme):
         self.bubble.set_theme(theme)
+        if hasattr(self, "spotlight"):
+            self.spotlight.set_theme(theme)
 
     def say(self, key: str, cooldown: float = 0.0, **fmt) -> bool:
         """A line of `key` (lines.py) unless one was said less than `cooldown` seconds ago. A line is never
@@ -188,6 +205,8 @@ class Beaver(QObject):
         if cooldown and last is not None and self.clock - last < cooldown:
             return False
         prio = PRIORITY.get(key, 1)
+        if self.tour.active or self.dialog:
+            return False                                   # (a dialog / the tour has the bubble)
         if self.bubble.busy():
             if prio >= 2 and (self.waiting is None or self.waiting[0] <= prio):
                 self.waiting = (prio, key, fmt)
@@ -222,6 +241,15 @@ class Beaver(QObject):
     def greet(self):
         self.say("hello")
 
+    def start_session(self, first: bool):
+        """The program has started: a first-time user is offered the tour; later, now and then, a hello."""
+        if not self.enabled:
+            return
+        if first:
+            self.ask_tour()
+        elif self.lines.rng.random() < 0.35:
+            self.say("welcome_back")
+
     def shutdown(self):
         self.timer.stop()
         QApplication.instance().removeEventFilter(self)
@@ -248,6 +276,10 @@ class Beaver(QObject):
         self.clock += dt
         self.t += dt
         getattr(self, "_s_" + self.state)(dt)
+        if self.tour.active:
+            self.tour.advance(dt)
+        if self.dialog and not self.bubble.active:
+            self.dialog = None
         busy = self.state != "perch" or self.bubble.active
         self.timer.setInterval(ACTIVE_MS if busy else IDLE_MS)
         self._draw()
@@ -358,16 +390,205 @@ class Beaver(QObject):
         if t == QEvent.Resize and obj is self.win and self.enabled:
             QTimer.singleShot(0, self, lambda: self.advance(0.0))        # stay on the ruler / plot
             return False
+        if t == QEvent.ShortcutOverride and self._keys(obj, event, act=False):
+            event.accept()                                  # Space / Esc are ours in the tour and dialogs
+            return True
+        if t == QEvent.KeyPress and self._keys(obj, event):
+            return True
         if t in (QEvent.MouseMove, QEvent.MouseButtonPress, QEvent.KeyPress, QEvent.Wheel):
             self.last_input = self.clock
             if t == QEvent.MouseMove:
                 self._mouse = event.globalPosition()
+                if self._press is not None and (event.globalPosition() - self._press).manhattanLength() > DRAG_PX:
+                    self._press = None                      # moved: it is a drag
+                    self._grab()
             if self.asleep:
                 self._wake(say=True)
         elif t == QEvent.MouseButtonRelease and self.state == "held":
             self._mouse = event.globalPosition()
             QTimer.singleShot(0, self._release)
         return False
+
+    def _keys(self, obj, event, act: bool = True) -> bool:
+        """Keys for the tour and the dialog bubbles (not while another window or a text field has them).
+        act=False: only whether the key is ours."""
+        if not self.enabled or not (self.tour.active or self.dialog):
+            return False
+        from PySide6.QtWidgets import QAbstractSpinBox, QLineEdit
+        if QApplication.activeModalWidget() is not None:
+            return False
+        if not isinstance(obj, QWidget) or obj.window() is not self.win:
+            return False
+        if isinstance(QApplication.focusWidget(), (QLineEdit, QAbstractSpinBox)):
+            return False
+        k = event.key()
+        if self.tour.active:
+            if k in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space, Qt.Key_Right):
+                if act:
+                    self.tour.next()
+                return True
+            if k == Qt.Key_Escape:
+                if act:
+                    self.tour.end(completed=False)
+                return True
+            return False
+        b = self.bubble
+        if not act:
+            return k in (Qt.Key_Escape, Qt.Key_Return, Qt.Key_Enter, Qt.Key_Up, Qt.Key_Down) or \
+                (bool(b.choices) and Qt.Key_0 <= k <= Qt.Key_9)
+        if k == Qt.Key_Escape:
+            self.close_dialog()
+            return True
+        if b.choices:
+            if Qt.Key_0 <= k <= Qt.Key_9:
+                i = (k - Qt.Key_0 - 1) % 10
+                if i < len(b.choices):
+                    b.finish_typing()
+                    self._choose(i)
+                return True
+            if k in (Qt.Key_Up, Qt.Key_Down):
+                b.finish_typing()
+                b.move_selection(-1 if k == Qt.Key_Up else 1)
+                return True
+            if k in (Qt.Key_Return, Qt.Key_Enter):
+                if b.typing:
+                    b.finish_typing()
+                else:
+                    self._choose(b.sel)
+                return True
+        elif k in (Qt.Key_Return, Qt.Key_Enter):
+            if b.typing:
+                b.finish_typing()
+            else:
+                self.close_dialog()
+            return True
+        return False
+
+    def _pressed(self, gpos: QPointF):
+        if self.tour.active:
+            self.tour.next()                                # clicking him goes on in the tour
+            return
+        self._press = QPointF(gpos)
+        self._mouse = QPointF(gpos)
+
+    def _released(self, gpos: QPointF):
+        if self._press is not None:                         # did not move: a click
+            self._press = None
+            self.on_click()
+
+    def on_click(self):
+        """A click on him: on his shelf the menu (questions, tour, a fun fact); elsewhere a remark."""
+        if self.state in ("perch", "walk") or self.dialog:
+            if self.dialog == "menu":
+                self.close_dialog()
+            else:
+                self.open_menu()
+        else:
+            self.say("poked", cooldown=1.0)
+
+    # ------------------------------------------------------------------ dialogs
+    def _dialog(self, kind, text, choices=None, hint=""):
+        if self.state not in ("perch", "walk", "tour"):
+            self._go("perch")
+        self.waiting = None
+        self.dialog = kind
+        self.bubble.say(text, choices=choices, hint=hint, sticky=True)
+        self._place_bubble()
+
+    def open_menu(self):
+        self._dialog("menu", self.lines.pick("menu"), MENU, "1-4, arrows + Enter or click   Esc: close")
+
+    def open_faq(self):
+        if not self.enabled:
+            return
+        if self.dialog == "faq":
+            self.close_dialog()
+            return
+        if self.tour.active:
+            return
+        self._dialog("faq", "Ask me something:", [q for q, _a in FAQ], "1-9, 0, arrows + Enter or click   Esc: close")
+
+    def answer(self, i: int):
+        q, a = FAQ[i]
+        self._dialog("answer", a, hint="P or click: more questions   Esc: close")
+        self.data["question"] = i
+
+    def ask_tour(self):
+        """First start: offer the tour."""
+        self._dialog("ask_tour", self.lines.pick("ask_tour"), ["Yes, show me around", "No, thanks"],
+                     "1-2, arrows + Enter or click")
+
+    def close_dialog(self):
+        if self.dialog:
+            self.dialog = None
+            self.bubble.clear()
+
+    def _bubble_clicked(self, k: int):
+        if self.tour.active:
+            self.tour.next()
+        elif self.dialog == "answer":
+            self.open_faq()
+        elif k >= 0:
+            self._choose(k)
+
+    def _choose(self, k: int):
+        kind = self.dialog
+        if kind == "menu":
+            self.close_dialog()
+            [self.open_faq, self.start_tour, lambda: self.say("facts"), lambda: None][k]()
+        elif kind == "faq":
+            self.answer(k)
+        elif kind == "ask_tour":
+            self.close_dialog()
+            if k == 0:
+                self.start_tour()
+            else:
+                self.say("tour_declined")
+
+    # ------------------------------------------------------------------ the tour
+    def start_tour(self):
+        if not self.enabled:
+            return
+        self.close_dialog()
+        self.waiting = None
+        self._press = None
+        self._go("tour", feet=None)
+        self.tour.start()
+
+    def tour_goto(self, feet):
+        """The tour moves him next to the part it explains (feet: window point; None: his shelf)."""
+        self.data["feet"] = feet
+
+    def tour_ended(self, completed: bool):
+        self.bubble.clear()
+        self._go("hop", start=QPointF(self.center)) if self.state == "tour" and self.data.get("feet") else \
+            self._go("perch")
+        if not completed:
+            self.say("tour_skipped")
+
+    def notify(self, event: str, value=None):
+        """The window tells what the user did (the tour waits for some of it)."""
+        if self.tour.active:
+            self.tour.notify(event, value)
+
+    def _s_tour(self, dt):
+        feet = self.data.get("feet")
+        if feet is None:                                   # on his shelf
+            self.kind, self.flip, self.rot = "perch", False, 0.0
+            target = self._feet_to_center(self.perch_feet(), "perch")
+        else:
+            self.kind, self.flip, self.rot = "front", False, 0.0
+            target = self._feet_to_center(feet, "front")
+        if self.center.isNull():
+            self.center = target
+        d = target - self.center
+        k = min(1.0, dt * 7.0)
+        self.center = self.center + d * k if d.manhattanLength() > 1 else target
+        hop = d.manhattanLength() > 20
+        blink = (self.clock % 4.3) < 0.14
+        self.pose = {"mood": "closed" if blink else ("happy" if hop else "open"), "f": self._f()}
+        if self.kind == "front":
+            self.pose["arm"] = "up" if hop else "down"
 
     def _wake(self, say=False):
         if self.asleep:
@@ -376,8 +597,9 @@ class Beaver(QObject):
                 self.say("wake")
 
     def _grab(self):
-        if self.state in ("vanish", "gone"):
+        if self.state in ("vanish", "gone", "tour") or self.tour.active:
             return
+        self.close_dialog()
         self._mouse = QPointF(QCursor.pos()) if getattr(self, "_mouse", None) is None else self._mouse
         self._go("held", angle=0.0, speed=0.0, prev=self._cursor())
         self.say("grabbed", cooldown=1.5)
@@ -411,10 +633,6 @@ class Beaver(QObject):
         else:
             self._start_pulse(self.to_data(center + QPointF(0, art.FEET["side"] * self.S())))
 
-    def _double_click(self):
-        if self.state == "perch":
-            self.say("facts")
-
     def _forward_wheel(self, e):
         """Zoom with the wheel works over him too (the plot gets the event)."""
         vp = self.cv.plot.viewport()
@@ -427,6 +645,7 @@ class Beaver(QObject):
 
     def mode_changed(self, mode: str):
         """The view mode changed while he is on the plot: onto the glass, into the flow, onto a line."""
+        self.notify("view_mode", mode)
         if self.state in ("flow", "pulse"):
             if mode == "static":
                 self.rel = self.to_window(self.z) - self._origin()
@@ -872,8 +1091,12 @@ class Beaver(QObject):
             return                                       # (gone: the last words stay where he left)
         S = self.S()
         bounds = QRectF(self.win.rect())
-        if self.state == "perch":
+        if self.state == "perch" or (self.state == "tour" and self.data.get("feet") is None):
             anchor, tail = self.center + QPointF(13 * S, -3 * S), "left"
+        elif self.state == "tour":
+            anchor, tail = self.center + QPointF(12 * S, -6 * S), "left"
+            if anchor.x() + 360 > self.win.width():
+                anchor, tail = self.center + QPointF(-12 * S, -6 * S), "right"
         else:
             anchor, tail = self.center + QPointF(2 * S, -HEAD_TOP * S), "down"
             if anchor.y() - 70 < self.ruler_bottom():

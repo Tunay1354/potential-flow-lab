@@ -18,6 +18,7 @@ def qapp(tmp_path_factory):
     from app.main_window import setup_application
     app = widgets.QApplication.instance() or widgets.QApplication([])
     setup_application(app)
+    QSettings().setValue("beaver/tour_offered", True)     # no first-start tour question during the tests
     return app
 
 
