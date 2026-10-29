@@ -198,7 +198,8 @@ Exe (Faz 5): `pyinstaller packaging/potential_flow_lab.spec` → `dist/Potential
 `python scripts/smoothness.py` (pan / zoom sırasında kare aralıkları, arayüz akıcılığı),
 `python scripts/benchmark.py [--out sonuc.json] [--quick]` (programın her şeyinin hızı: açılış, hesaplar, çizim, pan /
 zoom / sürükleme, tepki süreleri, animasyon, export, verification — ~6 dk; ayarlarına / dosyalarına dokunmaz).
-`--gpu` ile plot ekran kartıyla çizilir (`--fps-cap screen|60|120|144`, varsayılan 60): aynı bilgisayarda `--gpu`'suz
+`python scripts/gpu_check.py [--write-registry]` (laptop'ta program hangi ekran kartını alıyor, hangi yolla NVIDIA'ya
+geçiyor; çıktıyı gönder). `--gpu` ile plot ekran kartıyla çizilir (`--fps-cap screen|60|120|144`, varsayılan 60): aynı bilgisayarda `--gpu`'suz
 ve `--gpu`'lu iki çalıştırma karşılaştırılır (paint / interact / anim bölümleri).
 
 ## Klasör yapısı
@@ -255,6 +256,7 @@ ve `--gpu`'lu iki çalıştırma karşılaştırılır (paint / interact / anim 
 | `physics/program_checks.py` | Programın sayısal sonuçlarının kontrolü: çizilen streamline'lar, durma noktası araması, izlenen yüzeyler, Cp, basınç integrali (`--verify`) |
 | `tests/` | Otomatik doğrulama testleri (`pytest`) |
 | `scripts/verify_physics.py` | Doğrulama tablosunu yazdırır (`physics/verification.py`) |
+| `scripts/gpu_check.py` | Laptop'ta OpenGL hangi kartta: bugünkü hâl, SHIM_MCCOMPAT ile, (isteğe bağlı) Windows ayarından sonra |
 | `scripts/benchmark.py` | Her şeyin hızı tek çalıştırmada (açılış cold / warm, hesaplar, çizim, pan / zoom / sürükleme, tepki süresi, animasyon, export, verify); `--out` ile JSON, `--gpu` ile ekran kartıyla |
 | `benchmarks/` | Kaydedilmiş benchmark sonuçları (JSON): OpenGL vb. değişikliklerden önce / sonra karşılaştırmak için |
 | `scripts/streamline_quality.py` | Streamline resminin kalite ölçümü (aralık düzgünlüğü, kesik uçlar, süre) |

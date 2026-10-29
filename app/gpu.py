@@ -34,6 +34,8 @@ log = logging.getLogger("pflab")
 KEY_ENABLED = "gpu/enabled"
 KEY_CAP = "gpu/fps_cap"
 KEY_SWITCHING = "gpu/switching"
+KEY_OPTIMUS = "gpu/optimus"               # the user chose the NVIDIA card: SHIM_MCCOMPAT at start
+SHIM_ENV, SHIM_VALUE = "SHIM_MCCOMPAT", "0x800000001"      # NVIDIA Optimus: run this process on the NVIDIA card
 KEY_REPROBE = "hardware/reprobe"          # main.py: find the OpenGL renderer again at the next start
 
 FPS_CAPS = (("screen", "Match screen"), ("60", "60 fps"), ("120", "120 fps"), ("144", "144 fps"))
@@ -101,14 +103,39 @@ def frame_ms(cap: str, screen_hz: float) -> int:
 
 # ------------------------------------------------------------------------------- Windows: which card
 def program_paths() -> list[str]:
-    """The files Windows sees as "this program": the exe; with Python, python.exe — in a virtual
-    environment also the Python it starts (the window belongs to that process)."""
+    """The files Windows may see as "this program": the exe; with Python, python.exe — in a virtual
+    environment also the Python it starts, and the file the process really runs from (Microsoft Store
+    Python: a file in WindowsApps). Windows decides the graphics card by the last one."""
+    from .hardware import process_image_path
     paths = [sys.executable]
     if not getattr(sys, "frozen", False):
-        base = getattr(sys, "_base_executable", None)
-        if base and os.path.normcase(os.path.abspath(base)) != os.path.normcase(os.path.abspath(sys.executable)):
-            paths.append(base)
-    return [os.path.abspath(p) for p in paths if p]
+        paths.append(getattr(sys, "_base_executable", None))
+    paths.append(process_image_path())
+    out, seen = [], set()
+    for p in paths:
+        if not p:
+            continue
+        p = os.path.abspath(p)
+        if os.path.normcase(p) not in seen:
+            seen.add(os.path.normcase(p))
+            out.append(p)
+    return out
+
+
+def store_python(paths=None) -> bool:
+    """Python from the Microsoft Store: Windows' graphics setting by file path may not reach it."""
+    return any("\\windowsapps\\" in p.lower() for p in (program_paths() if paths is None else paths))
+
+
+def apply_startup_env():
+    """At the very start (main.py, before any graphics): after "Use NVIDIA" on a laptop, also ask NVIDIA's
+    Optimus layer directly for the NVIDIA card (environment variable SHIM_MCCOMPAT; ignored by other cards).
+    Inherited by the OpenGL check's process and a restart."""
+    try:
+        if sys.platform == "win32" and _settings().value(KEY_OPTIMUS, False, bool):
+            os.environ.setdefault(SHIM_ENV, SHIM_VALUE)
+    except Exception as exc:                          # noqa: BLE001
+        log.info("startup environment not set: %s", exc)
 
 
 def merge_preference(old: str | None, value: str = PREF_HIGH) -> str:

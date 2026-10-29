@@ -108,6 +108,22 @@ def display_adapters(winreg_module=None) -> list[dict]:
     return out
 
 
+def process_image_path() -> str:
+    """The file this process really runs from. Usually sys.executable — but not with a virtual environment
+    on Windows (its python.exe only starts the real Python) nor with Python from the Microsoft Store (the
+    real file is in C:\\Program Files\\WindowsApps). Windows decides the graphics card by this file."""
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            buf = ctypes.create_unicode_buffer(32768)
+            n = ctypes.windll.kernel32.GetModuleFileNameW(None, buf, len(buf))
+            if n:
+                return buf.value
+        except Exception as exc:                      # noqa: BLE001
+            log.info("process path not readable: %s", exc)
+    return os.path.abspath(sys.executable)
+
+
 def vendor_of(name: str) -> str:
     """"nvidia", "amd", "intel", "software" or "other" from an adapter / renderer name."""
     n = (name or "").lower()
@@ -243,7 +259,7 @@ def _probe_in(_app) -> dict:
     vendor, renderer, version = (str(f.glGetString(k) or "") for k in (0x1F00, 0x1F01, 0x1F02))
     fmt = ctx.format()
     ctx.doneCurrent()
-    return {"ok": True, "vendor": vendor, "renderer": renderer, "version": version,
+    return {"ok": True, "vendor": vendor, "renderer": renderer, "version": version, "exe": process_image_path(),
             "major": fmt.majorVersion(), "minor": fmt.minorVersion(),
             "software": vendor_of(renderer) == "software" or vendor_of(vendor) == "software"}
 

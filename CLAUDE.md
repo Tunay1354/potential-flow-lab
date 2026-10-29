@@ -235,6 +235,10 @@ GUI / Qt
   has no OpenGL (switching on fails cleanly there — tested); real GL test runs in a subprocess on Xvfb
   (`test_opengl_draws_the_plot`, skipped when no X server answers). Software GL is refused by the box
   (`PFL_GPU_ALLOW_SOFTWARE=1` for server tests; `benchmark.py --gpu` forces it). He has not tried it on Windows yet.
+- **29 Oct, 20.3b**: on his laptop the registry entry for `.venv\Scripts\python.exe` did not help (still Intel): his
+  base Python is the **Microsoft Store** one (WindowsApps; the venv exe only starts it). Now the real process file
+  (`hardware.process_image_path`) is registered too, and after "Use NVIDIA" `SHIM_MCCOMPAT=0x800000001` is set at
+  every start (`gpu.apply_startup_env`). `scripts/gpu_check.py` shows which way works — waiting for his output.
 - **Next: 20.4** — particles / pulses with higher maxima where the computer allows it (calibrated), then his
   Windows numbers: `python scripts/benchmark.py --out after_cpu.json` and `--gpu --out after_gpu.json` vs
   `benchmarks/windows_before.json`; rest of item 20 (Solid bodies, Surface pressure, export) from those numbers.

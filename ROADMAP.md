@@ -532,6 +532,18 @@ bırakıldı (kullanıcı kararı).
       dönüş, viewport değişiminde fare / bırakma, güçlü kart sorusu + yeniden başlatma sonrası kontrol, kare
       sayacı; Xvfb + Mesa varsa ayrı işlemde gerçek OpenGL resmi normal çizimle piksel piksel (%0.56 fark,
       yumuşatma), seçimden sonra plot'un geri kalanı yerinde.
+    - ✅ **20.3b Laptop kartı düzeltmesi** (29 Ekim, kullanıcının ilk Windows denemesinden): Windows ayarında
+      `.venv\Scripts\python.exe` "High performance (RTX 3050)" olduğu hâlde OpenGL Intel'de kaldı. Neden: venv'in
+      python.exe'si sadece asıl Python'u başlatıyor; asıl Python **Microsoft Store**'dan (WindowsApps), Windows kartı
+      işlemin gerçek dosyasına göre seçiyor. Düzeltme: (1) işlemin gerçek dosyası (`hardware.process_image_path`,
+      GetModuleFileNameW) da kayıt defterine yazılıyor ve OpenGL sorgusu onu bildiriyor; (2) "Use NVIDIA" seçilince
+      ayrıca NVIDIA Optimus'un kendi anahtarı `SHIM_MCCOMPAT=0x800000001` her açılışta grafikten önce ayarlanıyor
+      (`gpu.apply_startup_env`, `gpu/optimus`); sorgu işlemi ve yeniden başlatma bunu miras alıyor; (3) Store Python ise
+      elle yapma penceresinde not. Hangisinin işe yaradığını bulmak için `scripts/gpu_check.py` (A bugünkü hâl, B
+      başlangıçta SHIM, C işlem içinde SHIM, `--write-registry` ile D gerçek dosyaya Windows ayarı). Kullanıcının
+      denemesi: terminalde `SHIM_MCCOMPAT=0x800000001` ile açınca panel **NVIDIA GeForce RTX 3050 Laptop GPU** dedi.
+      Ayrıca panel "no smoothing" diyordu: `format().samples()` widget'ın frame buffer'ında 0 döndürüyor; gerçek değer
+      ilk kareden sonra GL_SAMPLES ile okunuyor (`PlotGLViewport._read_samples`) → 4×.
     - ☐ 20.4 GPU particles / pulses + kalibrasyondan üst sınırlar; aynı script'le karşılaştırma (`--gpu`)
 21. ☐ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,
     dosya yapısı, uyarılar (pyflakes), çok uzun dosyaların bölünmesi, testlerin süresi, README klasör tablosu.

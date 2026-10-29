@@ -294,6 +294,8 @@ class GraphicsMixin:
             self._manual_switch_help(message)
             return
         s = QSettings()
+        if hardware.vendor_of(strong["name"]) == "nvidia":
+            s.setValue(gpu.KEY_OPTIMUS, True)             # also NVIDIA's own switch (gpu.apply_startup_env)
         s.setValue(gpu.KEY_SWITCHING, strong["name"])
         s.setValue(gpu.KEY_REPROBE, True)             # main.py: ask OpenGL again at the next start
         s.sync()
@@ -332,7 +334,10 @@ class GraphicsMixin:
                     "<li>Click it → <b>Options</b> → <b>High performance</b> → Save</li>"
                     "<li>Start the program again.</li></ol>"
                     "Some computers set this in the NVIDIA Control Panel instead (Manage 3D settings → "
-                    "Program Settings → High-performance NVIDIA processor).")
+                    "Program Settings → High-performance NVIDIA processor)."
+                    + ("<br><br><b>Note:</b> this Python comes from the Microsoft Store; Windows often cannot set "
+                       "the graphics card for it. Python from python.org (or the program's own exe, later) "
+                       "does not have this problem." if gpu.store_python() else ""))
         b_open = box.addButton("Open Windows settings", QMessageBox.AcceptRole)
         box.addButton("Close", QMessageBox.RejectRole)
         box.exec()

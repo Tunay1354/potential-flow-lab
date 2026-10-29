@@ -33,6 +33,8 @@ def main():
     from app.theme import LAYOUT
     app = QApplication(sys.argv)
     setup_application(app)
+    from app.gpu import apply_startup_env
+    apply_startup_env()                              # (before any graphics: the chosen laptop card)
     if "--first-run" in args:                        # try the first start again (the beaver offers the tour)
         app.setProperty("first_run", True)
     setup_logging()                      # log file (+ crash file); before anything can go wrong

@@ -118,6 +118,21 @@ def test_program_paths_and_restart_command():
     assert gpu.restart_command(None)[1] == [args[0]]
 
 
+def test_store_python_and_optimus_switch(qapp, monkeypatch):
+    from PySide6.QtCore import QSettings
+    assert gpu.store_python([r"C:\Users\x\AppData\Local\Microsoft\WindowsApps\PythonSoftwareFoundation"
+                             r".Python.3.13_qbz5n2kfra8p0\python.exe"])
+    assert not gpu.store_python([r"C:\Python313\python.exe"])
+    monkeypatch.delenv("SHIM_MCCOMPAT", raising=False)
+    monkeypatch.setattr(sys, "platform", "win32")
+    gpu.apply_startup_env()
+    assert "SHIM_MCCOMPAT" not in os.environ                   # only after "Use NVIDIA"
+    QSettings().setValue(gpu.KEY_OPTIMUS, True)
+    gpu.apply_startup_env()
+    assert os.environ.pop("SHIM_MCCOMPAT") == "0x800000001"
+    QSettings().remove(gpu.KEY_OPTIMUS)
+
+
 def test_strong_and_weak_cards():
     intel = {"name": "Intel(R) UHD Graphics", "memory_mb": 128}
     nvidia = {"name": "NVIDIA GeForce RTX 3050 Ti Laptop GPU", "memory_mb": 4096}
@@ -258,13 +273,14 @@ def test_faster_card_offer_and_check_after_restart(window, monkeypatch):
     w.canvas.gpu_info = {"renderer": "Intel(R) UHD Graphics", "vendor": "Intel"}
     asked, restarted = [], []
     monkeypatch.setattr(gpu, "ask_for_strong_card", lambda: (True, "ok"))
+    monkeypatch.delenv("SHIM_MCCOMPAT", raising=False)
     w._ask_strong_card = lambda strong: asked.append(strong) or "yes"
     w.restart_program = lambda: restarted.append(True) or True
     w.offer_strong_card()
     assert asked and restarted
     s = QSettings()
     assert s.value(gpu.KEY_SWITCHING) == GL_PROFILE["adapters"][1]["name"]
-    assert s.value(gpu.KEY_REPROBE, False, bool)
+    assert s.value(gpu.KEY_REPROBE, False, bool) and s.value(gpu.KEY_OPTIMUS, False, bool)     # NVIDIA: also Optimus
     # after the restart: the new profile says NVIDIA -> a note, the flag is gone
     flashed = []
     w.flash = flashed.append

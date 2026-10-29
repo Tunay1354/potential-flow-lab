@@ -93,7 +93,8 @@ class GpuPanel(QWidget):
         else:
             self.card.setText(info.get("renderer") or "unknown graphics card")
             version = (info.get("version") or "").split(" ")[0]
-            smooth = f" · {info['samples']}× smoothing" if info.get("samples") else " · no smoothing"
+            n = info.get("samples")
+            smooth = "" if n is None else f" · {n}× smoothing" if n > 1 else " · no smoothing"
             self.detail.setText(f"OpenGL {version}{smooth}")
         self.weak_note.setVisible(weak is not None)
         self.btn_switch.setVisible(weak is not None)
