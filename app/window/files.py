@@ -136,6 +136,7 @@ class FilesMixin:
             self._notify_user("warning", "Cannot load the preset", str(exc))
             return False
         self.load_scene(doc.elements, doc.view, title=doc.title or preset.title)
+        self._tell_beaver("preset")
         return True
 
     def load_scene(self, elements, view=None, title=""):
@@ -183,6 +184,8 @@ class FilesMixin:
                  "graphics card" if self.canvas.gpu else "processor")
         self.flash("Restarted: " + ("the graphics card draws" if self.canvas.gpu else "the processor draws")
                    + " — your scene is as it was.")
+        on = self.canvas.gpu
+        QTimer.singleShot(2500, self, lambda: self._tell_beaver("gpu", on))
         return True
 
     def offer_recovery(self, folder: str | None = None, ask=None) -> bool:

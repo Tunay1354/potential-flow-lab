@@ -130,7 +130,14 @@ Konuşmalar İngilizce, harf harf yazılır. Konuşma balonu "çizim kartı" gö
 köşeler, gölge; üstte adı (PSI, isim geçici) ve sağda etiket (TOUR 3/19, MENU, QUESTIONS …); yazı IBM Plex Mono;
 sağ altta düğmeler (asıl düğme başlıktaki ahşap renginde: Next ›, Yes, show me around ›, More questions ›). Kunduz
 export edilen figür ve animasyonlarda görünmez; tekerlek üstündeyken de plotu zoom'lar. Güvenlik ağı: ne olursa olsun
-plotta 15 s'den uzun kalırsa bir şey söyleyip rafına zıplar. **View → Beaver** ile kapatılır.
+plotta 15 s'den uzun kalırsa bir şey söyleyip rafına zıplar.
+
+Konuşmalar (`app/beaver/lines.py`): 78 durum, ~570 cümle; her durumdan rastgele seçer, bir durumun son
+söylediklerinin yarısını (en az 3) tekrar seçmez. Yaptıklarına arada bir yorum yapar (rafındayken, konuşmuyorken,
+en çok 20 s'de bir, her durumun kendi olasılığıyla: `REMARK_CHANCE`): element eklenince (türüne göre), silince,
+hepsini silince, undo / redo (nadiren), silindir ya da dönen silindir oluşunca, kalabalık sahne (8+ element),
+preset, export (figür / animasyon / veri), tema, GPU açık / kapalı yeniden başlatmadan sonra, her saat başı
+"stretch!", açılışta bazen günün saatine göre selam. **View → Beaver** ile kapatılır.
 
 ### Açılış ve "Your computer"
 

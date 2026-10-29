@@ -690,6 +690,13 @@ bırakıldı (kullanıcı kararı).
       Store Python'unda programın veri klasörü tarayıcıya kapalı — "açılmayan sayfa" bundandı; verification raporunun
       "Open full report"u da aynı klasörü kullanıyor: exe'de sorun olmaz, 24'te kontrol); kunduz için güvenlik ağı:
       plotta (glass / flow / bored / pulse / run / vanish / gone) 15 s'den uzun kalırsa "rescue" cümlesi + rafına zıplama.
+    - ✅ **20.7F Kunduzun konuşmaları** (30 Ekim 02:49, kullanıcının onayıyla): sohbette önerilen tüm cümleler eklendi
+      (78 durum, ~570 cümle; tekrar önleme: son söylenenlerin yarısı); yeni durumlar `Beaver.remark` ile — sadece
+      rafındayken, konuşmuyorken, en çok 20 s'de bir ve olasılıkla (undo / redo %12, silme %20, ekleme %35, silindir
+      %80 …: `lines.REMARK_CHANCE`), ciddi çalışmayı bölmesin diye. Pencere bildiriyor: element_added (sink ayrı),
+      deleted, cleared, undo, redo, preset, exported (figure / animation / data), theme, gpu (yeniden başlatmadan
+      sonra), scene (`scene_shape`: cylinder / lifting, 8+ element crowded); saat başı long_session; açılışta bazen
+      günün saatine göre selam. Testler: sayılar, tekrar önleme, olasılık + 20 s aralık, sessiz undo, şekiller.
 21. ☐ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,
     dosya yapısı, uyarılar (pyflakes), çok uzun dosyaların bölünmesi, testlerin süresi, README klasör tablosu.
     Ölçüt: tüm testler + verification aynı sonuç

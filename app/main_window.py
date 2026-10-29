@@ -212,13 +212,20 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
             self.beaver.notify(event, value)
 
     def _beaver_scene(self):
-        """Tell the beaver (tour) which element types were added."""
+        """Tell the beaver which element types were added (the tour waits for them; one element added by
+        the user may get a remark) and the scene (a cylinder appeared …)."""
         types = [e.TYPE for e in self.elements]
         before = getattr(self, "_types_before", [])
         self._types_before = types
         for t in set(types):
             if types.count(t) > before.count(t):
                 self._tell_beaver("added", t)
+        if len(types) == len(before) + 1 and self.elements:
+            new = next((e for e in reversed(self.elements) if types.count(e.TYPE) > before.count(e.TYPE)), None)
+            if new is not None:
+                kind = "sink" if new.TYPE == "source" and getattr(new, "m", 1.0) < 0 else new.TYPE
+                self._tell_beaver("element_added", kind)
+        self._tell_beaver("scene", list(self.elements))
 
     def _on_model_changed(self, focus):
         self._beaver_scene()
@@ -403,24 +410,28 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         if 0 <= row < len(self.elements):
             self.model.remove(row)
             self._flash_done()
+            self._tell_beaver("deleted")
 
     def clear_all(self):
         if self.model.clear() is None:
             self.flash("Nothing to clear.")
         else:
             self._flash_done()
+            self._tell_beaver("cleared")
 
     def model_undo(self):
         text = self.model.undo_text
         self.model.undo()
         if text:
             self.flash(f"Undone: {text}")
+            self._tell_beaver("undo")
 
     def model_redo(self):
         text = self.model.redo_text
         self.model.redo()
         if text:
             self.flash(f"Redone: {text}")
+            self._tell_beaver("redo")
 
     def _flash_done(self):
         if self.model.can_undo:
@@ -459,6 +470,7 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
             self.gpu_panel.apply_theme(theme)
         if getattr(self, "_guide", None) is not None:
             self._guide.apply_theme(theme)
+        self._tell_beaver("theme", theme.get("name"))
         app = QApplication.instance()
         app.setStyleSheet(build_stylesheet(theme))
         # Qt draws the "panel will go here" band of a dragged dock in the palette's Highlight color

@@ -310,7 +310,11 @@ GUI / Qt
   (Store Python's AppData is private to it — the browser cannot open files there; check the verification
   report's "Open full report" for the same in 24); `beaver._safety_net`: ON_PLOT_STATES longer than 15 s →
   say("rescue") + hop home.
-- **Next**: his Windows check of 20.7D / 20.7E, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
+- **30 Oct, 20.7F**: lines.py has ~570 lines in 78 keys (Picker forgets after half a key's lines). New situations go
+  through `Beaver.remark(key)` (chance `REMARK_CHANCE`, gap `REMARK_GAP_S`, only on his shelf, silent while
+  talking / tour / dialog); the window sends element_added / deleted / cleared / undo / redo / preset / exported /
+  theme / gpu / scene via `_tell_beaver` → `notify` → `_react` (the tour gets them instead while it runs).
+- **Next**: his Windows check of 20.7D–F, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
   remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
 - Then, in this order (all planned, "as if time were unlimited"):
   21 code cleanup without behaviour change (dead / duplicate code, names, docstrings, pyflakes, long files) →

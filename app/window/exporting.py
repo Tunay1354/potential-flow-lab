@@ -41,6 +41,7 @@ class ExportMixin:
             return False
         self._save_export_settings("figure", opt, path)
         self.flash(f"Figure saved: {os.path.basename(path)}")
+        self._tell_beaver("exported", "figure")
         return True
 
     def export_animation(self):
@@ -91,6 +92,7 @@ class ExportMixin:
         saved.update(opt, **{fmt: per_format})
         self._save_export_settings("animation", saved, path)
         self.flash(f"Animation saved: {os.path.basename(path)}")
+        self._tell_beaver("exported", "animation")
         return True
 
     def _progress_dialog(self, text):
@@ -125,6 +127,7 @@ class ExportMixin:
             return False
         self._save_export_settings("data", opt, path)
         self.flash("Saved " + ", ".join(os.path.basename(p) for p in written))
+        self._tell_beaver("exported", "data")
         return True
 
     def export_surface(self):

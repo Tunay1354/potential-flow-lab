@@ -37,7 +37,7 @@ from physics.particles import time_scale, typical_speed
 from . import art
 from .bubble import SpeechBubble
 from .faq import FAQ
-from .lines import NAME, PRIORITY, Picker
+from .lines import NAME, PRIORITY, REMARK_CHANCE, REMARK_GAP_S, Picker
 from .spotlight import Spotlight
 from .tour import Tour
 
@@ -45,7 +45,9 @@ ACTIVE_MS, IDLE_MS = 33, 120          # timer: while something happens / sitting
 WALK_PX_S = 270.0                     # walking speed on the ruler
 HOP_S = 0.6
 ON_PLOT_STATES = ("glass", "flow", "bored", "pulse", "run", "vanish", "gone")   # he is out on the plot
-ON_PLOT_MAX_S = 15.0                  # a safety net: out on the plot this long -> a remark and a hop home
+ON_PLOT_MAX_S = 15.0
+CROWDED = 8                           # elements: "That's a crowded flow!"
+SESSION_REMINDER_S = 3600.0           # an hour of work: "stretch!"                  # a safety net: out on the plot this long -> a remark and a hop home
 SLEEP_AFTER_S = 180.0
 HEAD_TOP = 15.0                       # art px from the canvas centre up to the top of the head (front / perch)
 STAG_FRACTION = 0.03                  # slower than this × the typical speed = at a stagnation point
@@ -61,6 +63,28 @@ DRAG_PX = 6                           # a press that moves further than this is 
 TOUR_MOUSE = (QEvent.MouseButtonPress, QEvent.MouseButtonDblClick, QEvent.Wheel, QEvent.ContextMenu)   # (the lock)
 SAVE_FIRST, CLEAR_AND_START = "Save first", "Clear and start \u203a"     # before a tour on a full plot
 MENU = ["Questions & answers", "Show me around (tour)", "Tell me a fun fact", "Nothing, thanks"]
+
+
+def scene_shape(elements) -> str | None:
+    """"cylinder" (uniform flow + a doublet along it), "lifting" (+ a vortex at the doublet's centre), else None."""
+    act = [e for e in elements if e.enabled]
+    doublets = [(i, e) for i, e in enumerate(elements) if e.enabled and e.TYPE == "doublet"]
+    if (not any(e.TYPE == "uniform" for e in act) or len(doublets) != 1
+            or any(e.TYPE not in ("uniform", "doublet", "vortex") for e in act)):
+        return None
+    try:
+        from physics.validation import doublet_misalignment
+        if doublets[0][0] in doublet_misalignment(elements):
+            return None
+    except Exception:                                    # noqa: BLE001 - an invalid scene: no remark
+        return None
+    d = doublets[0][1]
+    vortices = [e for e in act if e.TYPE == "vortex"]
+    if not vortices:
+        return "cylinder"
+    if len(vortices) == 1 and abs(complex(vortices[0].x0, vortices[0].y0) - complex(d.x0, d.y0)) < 1e-9:
+        return "lifting"
+    return None
 
 
 class BeaverSprite(QWidget):
@@ -147,6 +171,9 @@ class Beaver(QObject):
         self.state = "perch"
         self.t = 0.0                    # seconds in this state
         self.on_plot_t = 0.0            # seconds out on the plot without coming home (ON_PLOT_MAX_S)
+        self.last_remark = -1e9         # clock of the last remark (remark: at most one every REMARK_GAP_S)
+        self.session_t = 0.0            # seconds the window was open (an hour: "stretch!")
+        self._shape, self._crowded = None, False
         self.clock = 0.0
         self.center = QPointF()         # sprite centre, window coordinates (perch, held, hop, walk, glass)
         self.z = 0j                     # data point (flow, pulse)
@@ -246,6 +273,44 @@ class Beaver(QObject):
         self._wake()
         self.say("verify_ok" if n_ok == n else "verify_fail", n=n)
 
+    def remark(self, key: str, **fmt) -> bool:
+        """A remark on something the user did (lines.REMARK_CHANCE): only now and then (its chance), only from
+        his shelf, never while he talks, a dialog / the tour is open, and at most one every REMARK_GAP_S
+        seconds — so serious work is not interrupted."""
+        if not self.enabled or self.tour.active or self.dialog or self.state not in ("perch", "walk"):
+            return False
+        if self.talking() or self.clock - self.last_remark < REMARK_GAP_S:
+            return False
+        if self.lines.rng.random() >= REMARK_CHANCE.get(key, 1.0):
+            return False
+        self.last_remark = self.clock
+        return self.say(key, **fmt)
+
+    def _react(self, event: str, value=None):
+        """What the window told him, outside the tour: maybe a remark."""
+        if event == "element_added" and value in ("uniform", "source", "sink", "vortex", "doublet", "sector", "wall"):
+            self.remark(f"add_{value}")
+        elif event in ("deleted", "cleared", "undo", "redo", "preset"):
+            self.remark(event)
+        elif event == "exported":
+            self.remark({"animation": "exported_animation", "data": "exported_data"}.get(value, "exported"))
+        elif event == "theme":
+            self.remark("theme_dark" if value == "dark" else "theme_light")
+        elif event == "gpu":
+            self.remark("gpu_on" if value else "gpu_off")
+        elif event == "scene":
+            self._scene_remark(value)
+
+    def _scene_remark(self, elements):
+        """A cylinder / a lifting cylinder / a crowded scene just appeared."""
+        shape = scene_shape(elements)
+        crowded = sum(1 for e in elements if e.enabled) >= CROWDED
+        if shape != self._shape and shape is not None:
+            self.remark(shape)
+        elif crowded and not self._crowded:
+            self.remark("crowded")
+        self._shape, self._crowded = shape, crowded
+
     def greet(self):
         self.say("hello")
 
@@ -256,7 +321,10 @@ class Beaver(QObject):
         if first:
             self.ask_tour()
         elif self.lines.rng.random() < 0.35:
-            self.say("welcome_back")
+            import datetime
+            h = datetime.datetime.now().hour
+            daytime = "night" if h < 5 or h >= 23 else "morning" if h < 12 else "afternoon" if h < 18 else "evening"
+            self.say(daytime if self.lines.rng.random() < 0.5 else "welcome_back")
 
     def shutdown(self):
         self.timer.stop()
@@ -283,6 +351,10 @@ class Beaver(QObject):
             return
         self.clock += dt
         self.t += dt
+        self.session_t += dt
+        if self.session_t >= SESSION_REMINDER_S:
+            self.session_t = 0.0
+            self.remark("long_session")
         self._safety_net(dt)
         getattr(self, "_s_" + self.state)(dt)
         if self.tour.active:
@@ -688,6 +760,8 @@ class Beaver(QObject):
         """The window tells what the user did (the tour waits for some of it)."""
         if self.tour.active:
             self.tour.notify(event, value)
+        else:
+            self._react(event, value)
 
     def _s_tour(self, dt):
         feet = self.data.get("feet")

@@ -990,3 +990,49 @@ def test_safety_net_brings_him_home_after_15_s_on_the_plot(win, qapp):
     run(qapp, win, 5)
     assert b.state == "perch"
     win.canvas.set_view_mode("static")
+
+
+def test_lots_of_lines_and_remarks_now_and_then(win, qapp, monkeypatch):
+    """His wish (30 Oct): many more lines, new situations with several variants each, picked at random without
+    quick repeats; remarks on what he does only now and then (never every undo), never while talking."""
+    from app.beaver.lines import LINES, REMARK_CHANCE, Picker
+    from physics.elements import Doublet, Source, Uniform, Vortex
+    assert sum(len(v) for v in LINES.values()) >= 500
+    assert all(len(LINES[k]) >= 3 for k in REMARK_CHANCE)
+    p = Picker(seed=3)
+    said = [p.pick("tour_nice") for _ in range(7)]
+    assert all(said[i] not in said[i + 1:i + 7] for i in range(len(said)))        # (half of 14 lines: 7 apart)
+    b = win.beaver
+    win.model.reset([])
+    run(qapp, win, 0.5)
+    b.bubble.clear()
+    rolls = iter([0.0] * 50)
+    monkeypatch.setattr(b.lines.rng, "random", lambda: next(rolls))              # every chance taken …
+    win.model.add(Uniform())
+    assert b.bubble.text in LINES["add_uniform"]
+    b.bubble.clear()
+    win.model.add(Doublet(mu=1.0))                                                # … but one remark per 20 s
+    assert not b.bubble.active
+    b.last_remark = -1e9
+    win.model.add(Source(m=-1.0, x0=3.0))                                         # a sink
+    assert b.bubble.text in LINES["add_sink"]
+    b.bubble.clear()
+    win.model.remove(2)
+    b.last_remark = -1e9
+    win.model.add(Vortex(Gamma=-2.0))                                             # → lifting cylinder
+    assert b.bubble.text in LINES["add_vortex"] + LINES["lifting"]
+    monkeypatch.setattr(b.lines.rng, "random", lambda: 0.99)                      # a chance not taken: quiet
+    b.bubble.clear()
+    b.last_remark = -1e9
+    win.model_undo()
+    assert not b.bubble.active
+
+
+def test_scene_shapes():
+    from app.beaver.beaver import scene_shape
+    from physics.elements import Doublet, Source, Uniform, Vortex
+    assert scene_shape([Uniform(), Doublet(mu=1.0)]) == "cylinder"
+    assert scene_shape([Uniform(alpha=30.0), Doublet(mu=1.0)]) is None                 # not along the flow
+    assert scene_shape([Uniform(), Doublet(mu=1.0), Vortex(Gamma=-2.0)]) == "lifting"
+    assert scene_shape([Uniform(), Doublet(mu=1.0), Vortex(Gamma=-2.0, x0=2.0)]) is None
+    assert scene_shape([Uniform(), Doublet(mu=1.0), Source(m=1.0, x0=3.0)]) is None
