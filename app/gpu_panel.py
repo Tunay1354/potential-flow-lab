@@ -1,8 +1,8 @@
 """
-gpu_panel.py — the "Graphics card" panel: opened with the small arrow beside the GPU box in the header, it lies
-OVER the right part of the window (where Elements and Plot settings are by default, wherever the panels were
-moved; app/window/graphics.py places it) and is closed with the same arrow. No side panel: the layout stays
-as the user left it.
+gpu_panel.py — the "Graphics card" panel: a drop-down card hanging from the small arrow beside the GPU box in
+the header (a notch points at the arrow; the program's "drafting card" look: ink frame, hard shadow, like the
+beaver's bubble), over whatever is below it; the same arrow closes it (app/window/graphics.py places it). No
+side panel: the layout stays as the user left it.
 
 It works with and without the graphics card:
   - which card draws (or "the processor"), frames per second (live) and how long a frame takes to draw
@@ -24,7 +24,10 @@ from . import gpu
 from .chrome import button_font, font, heading_font, themed_combo
 
 REFRESH_MS = 500
-WIDTH = 333                                  # px (the right side panels' card)
+WIDTH = 330                                  # px, with the shadow
+NOTCH = 9                                    # px: the notch pointing up at the arrow
+SHADOW = 5                                   # px: the hard shadow right and below
+FRAME = 2                                    # px: the ink frame
 
 
 class GpuPanel(QFrame):
@@ -38,11 +41,12 @@ class GpuPanel(QFrame):
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.theme = None
         self.on_card = False
+        self.notch_x = WIDTH - 40                # where the notch is (the window sets it under the arrow)
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 12, 16, 14)
+        lay.setContentsMargins(18, 12 + NOTCH, 18 + SHADOW, 14 + SHADOW)
         lay.setSpacing(4)
 
-        head = QLabel("GRAPHICS CARD")
+        head = self.head = QLabel("GRAPHICS CARD")
         head.setObjectName("GpuHead")
         head.setFont(heading_font(11))
         lay.addWidget(head)
@@ -138,7 +142,7 @@ class GpuPanel(QFrame):
     def apply_theme(self, theme: dict):
         self.theme = t = theme
         self.setStyleSheet(f"""
-            QFrame#GpuOverlay {{ background: {t['panel_bg']}; border: 2px solid {t['ink']}; }}
+            QFrame#GpuOverlay {{ background: transparent; border: none; }}
             QFrame#GpuOverlay QLabel {{ background: transparent; }}
             QLabel#GpuMode {{ color: {t['accent']}; }}
             QFrame#GpuOnly {{ background: {t['window_bg']}; border: 1px solid {t['border_soft']}; }}
@@ -146,15 +150,42 @@ class GpuPanel(QFrame):
         """)
         self.update()
 
+    def card_rect(self):
+        from PySide6.QtCore import QRectF
+        return QRectF(FRAME / 2, NOTCH + FRAME / 2, self.width() - SHADOW - FRAME, self.height() - NOTCH - SHADOW - FRAME)
+
     def paintEvent(self, e):
-        super().paintEvent(e)
         if self.theme is None:
             return
+        from PySide6.QtCore import QPointF
+        from PySide6.QtGui import QPainterPath
+        t = self.theme
+        ink, paper = QColor(t["ink"]), QColor(t["panel_bg"])
+        shadow = QColor(t["ink"])
+        shadow.setAlpha(46)
+        r = self.card_rect()
+        nx = min(max(self.notch_x, r.left() + 18), r.right() - 18)
         p = QPainter(self)
-        p.setPen(QPen(QColor(self.theme["ink"]), 1.5))           # the rule under the heading, as on the panels
-        y = 12 + self.layout().itemAt(0).widget().height() + 5.5
-        p.drawLine(16, int(y), self.width() - 16, int(y))
+        p.fillRect(r.translated(SHADOW, SHADOW), shadow)                  # the hard shadow
+        path = QPainterPath()                                             # the card with its notch
+        path.moveTo(r.topLeft())
+        path.lineTo(QPointF(nx - NOTCH, r.top()))
+        path.lineTo(QPointF(nx, r.top() - NOTCH + 1))
+        path.lineTo(QPointF(nx + NOTCH, r.top()))
+        path.lineTo(r.topRight())
+        path.lineTo(r.bottomRight())
+        path.lineTo(r.bottomLeft())
+        path.closeSubpath()
+        p.setRenderHint(QPainter.Antialiasing, True)
+        p.setPen(QPen(ink, FRAME, Qt.SolidLine, Qt.SquareCap, Qt.MiterJoin))
+        p.setBrush(paper)
+        p.drawPath(path)
+        p.setRenderHint(QPainter.Antialiasing, False)
+        p.setPen(QPen(ink, 1.5))                                          # the rule under the heading
+        y = self.head.geometry().bottom() + 5.5
+        p.drawLine(QPointF(18, y), QPointF(r.right() - 14, y))
         p.end()
+
 
     # ------------------------------------------------------------------ filled by the window
     def set_mode(self, on_card: bool, possible: bool = True, why: str = ""):

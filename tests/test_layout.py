@@ -249,3 +249,46 @@ def test_background_grid_can_be_switched_off_and_is_remembered(qapp):
         assert not w.canvas._grid.isVisible()
     finally:
         w.close()
+
+
+def test_surface_pressure_panel_can_be_dragged_to_the_right_and_stays_there(qapp):
+    """His report (30 Oct): after 20.7B the panel could not be moved any more (opening it put it back on the
+    left while Qt was dragging it). Dragged to the right it stays there, also closed and opened again and at
+    the next start."""
+    from PySide6.QtCore import QPoint, Qt
+    from PySide6.QtTest import QTest
+    from physics.elements import Doublet, Uniform
+    w = make_window(qapp, (1536, 830))
+    try:
+        w.model.add(Uniform())
+        w.model.add(Doublet(mu=1.0))
+        box = w.settings_panel.layer_boxes["surface"]
+        box.setChecked(True)
+        _settle(qapp)
+        du, title = w.dock_surface, w.dock_surface.titleBarWidget()
+        assert w.dockWidgetArea(du) == Qt.LeftDockWidgetArea
+        start = QPoint(60, 10)
+        QTest.mousePress(title, Qt.LeftButton, Qt.NoModifier, start)
+        target = w.mapToGlobal(QPoint(1300, 300))
+        for k in range(1, 30):
+            g = title.mapToGlobal(start) + (target - title.mapToGlobal(start)) * k / 29
+            QTest.mouseMove(title, title.mapFromGlobal(g))
+            QTest.qWait(20)
+        QTest.mouseRelease(title, Qt.LeftButton, Qt.NoModifier, title.mapFromGlobal(target))
+        QTest.qWait(800)                                             # (the docks' animation)
+        assert w.dockWidgetArea(du) == Qt.RightDockWidgetArea and not du.isFloating()
+        box.setChecked(False)
+        _settle(qapp)
+        box.setChecked(True)
+        _settle(qapp)
+        assert w.dockWidgetArea(du) == Qt.RightDockWidgetArea
+        w.save_layout()
+    finally:
+        w.close()
+    w = make_window(qapp, (1536, 830))
+    try:
+        w.settings_panel.layer_boxes["surface"].setChecked(True)
+        _settle(qapp)
+        assert w.dockWidgetArea(w.dock_surface) == Qt.RightDockWidgetArea
+    finally:
+        w.close()

@@ -3,7 +3,7 @@ graphics.py — part of MainWindow: drawing the plot with the graphics card (the
 Draw with the graphics card) and the Graphics card panel (the arrow beside the box), safely.
 
     off on a first start; remembered (app/gpu.py)
-    ticking / unticking the box restarts the program (app/restart.py): the graphics card — on a laptop the
+    ticking / unticking the box restarts the program at once (app/restart.py): the graphics card — on a laptop the
         NVIDIA card, gpu.relaunch_on_strong_card — can only be chosen when a program starts, and a window that
         once had OpenGL in it keeps it. The scene, its file name, unsaved changes, the view, the layers and
         the view mode come back exactly; nothing has to be saved first
@@ -123,7 +123,8 @@ class GraphicsMixin:
 
     # ------------------------------------------------------------------ the box: switch = restart
     def gpu_box_changed(self, on: bool):
-        """The user ticked / unticked GPU: remember it and start the program again (asked first)."""
+        """The user ticked / unticked GPU: remember it and start the program again at once (no question: nothing
+        is lost, the restart takes a few seconds)."""
         on = bool(on)
         if on == self.canvas.gpu:
             self._update_gpu_controls()
@@ -134,9 +135,6 @@ class GraphicsMixin:
                 self._update_gpu_controls()
                 self._notify_user("information", "Graphics card drawing", why)
                 return
-        if not self._ask_restart(on):
-            self._update_gpu_controls()              # (the box goes back)
-            return
         before = gpu.enabled()
         gpu.set_enabled(on)
         if on:
@@ -145,23 +143,6 @@ class GraphicsMixin:
         if not self.restart_program():
             gpu.set_enabled(before)                  # could not start again: everything stays as it was
             self._update_gpu_controls()
-
-    def _ask_restart(self, on: bool) -> bool:
-        """"Restart now?" (Tests replace it.)"""
-        box = QMessageBox(self)
-        box.setWindowTitle("Draw with the graphics card" if on else "Draw with the processor")
-        box.setIcon(QMessageBox.Question)
-        box.setText(("The graphics card will draw the plot." if on else "The processor will draw the plot.")
-                    + " For that the program starts again (a few seconds).")
-        box.setInformativeText("Your scene, the view and the settings stay as they are; unsaved changes stay "
-                               "unsaved. Nothing has to be saved first.")
-        b_go = box.addButton("Restart now", QMessageBox.AcceptRole)
-        box.addButton("Cancel", QMessageBox.RejectRole)
-        box.setDefaultButton(b_go)
-        box.exec()
-        clicked = box.clickedButton()
-        box.deleteLater()
-        return clicked is b_go
 
     # ------------------------------------------------------------------ the viewport (live)
     def set_gpu(self, on: bool, user: bool = False) -> bool:
@@ -311,19 +292,24 @@ class GraphicsMixin:
             p.hide()
 
     def _place_gpu_panel(self):
-        """Over the right part of the window — where Elements and Plot settings are by default, wherever they
-        are now: right-aligned, from the top of the plot card down, as tall as its contents."""
+        """Hanging from the arrow beside the GPU box: its notch under the arrow, right edge near the window's,
+        as tall as its contents (never below the status bar)."""
         p = getattr(self, "gpu_panel", None)
         if p is None or not p.isVisible():
             return
-        g = 16
-        top = self.desk.mapTo(self, self.desk.rect().topLeft()).y()
-        bottom = self.height() - (self.statusBar().height() if self.statusBar().isVisible() else 0) - g
+        from PySide6.QtCore import QPoint
+        arrow, plank = self.header.plank.gpu_more, self.header.plank
+        a = arrow.mapTo(self, QPoint(arrow.width() // 2, arrow.height()))
+        top = plank.mapTo(self, QPoint(0, plank.height())).y() - 3          # the notch reaches into the plank's edge
+        right = min(self.width() - 6, a.x() + 36)
+        bottom = self.height() - (self.statusBar().height() if self.statusBar().isVisible() else 0) - 8
         lay = p.layout()
         need = lay.totalHeightForWidth(p.width()) if lay.hasHeightForWidth() else lay.sizeHint().height()
-        h = min(max(need, lay.minimumSize().height()) + 14, max(120, bottom - top))   # (+ rich text slack)
-        p.setGeometry(self.width() - g - p.width(), top, p.width(), h)
+        h = min(max(need, lay.minimumSize().height()) + 14, max(160, bottom - top))   # (+ rich text slack)
+        p.setGeometry(right - p.width(), top, p.width(), h)
+        p.notch_x = a.x() - (right - p.width())
         p.raise_()
+        p.update()
         if getattr(self, "beaver", None) is not None:
             for w in (self.beaver.sprite, self.beaver.bubble):   # (the beaver stays in front)
                 if w.isVisible():

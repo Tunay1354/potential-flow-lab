@@ -129,12 +129,20 @@ class LayoutMixin:
 
     # ------------------------------------------------------------------ the Surface pressure panel's width
     def _surface_dock_visible(self, visible: bool):
-        """Opened: as wide as last time (or the default); closed: its width is remembered."""
+        """Opened: as wide as last time (or the default); closed: its width is remembered. Not while it is
+        dragged to another place (Qt hides and shows it then; his report of 30 Oct: it could not be moved)."""
+        if self._surface_dragged():
+            return
         if visible:
-            QTimer.singleShot(0, self, self._fit_surface_dock)
+            if not getattr(self, "_surface_fitted", False):
+                QTimer.singleShot(0, self, self._fit_surface_dock)
         elif getattr(self, "_surface_fitted", False):      # (not the hiding while a layout is restored)
             self._remember_surface_width()
             self._surface_fitted = False
+
+    def _surface_dragged(self) -> bool:
+        from PySide6.QtWidgets import QApplication
+        return self.dock_surface.isFloating() or bool(QApplication.mouseButtons() & Qt.LeftButton)
 
     def _remember_surface_width(self):
         du = self.dock_surface
@@ -164,12 +172,8 @@ class LayoutMixin:
 
     def _fit_surface_dock(self):
         du = self.dock_surface
-        if not du.isVisible():
-            return
-        if du.isFloating() or self.dockWidgetArea(du) not in SIDE_AREAS:       # never a forbidden place
-            du.setFloating(False)
-            self.addDockWidget(Qt.LeftDockWidgetArea, du)
-            self._place_dock_card(du)
+        if not du.isVisible() or self._surface_dragged():
+            return                                      # (where the user drags it, it stays: saveState keeps it)
         if self._surface_alone():
             self._resize_dock(du, self.surface_width(), Qt.Horizontal)
         self._surface_fitted = True

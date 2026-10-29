@@ -24,7 +24,7 @@ için). İşaretler / açılar: **Help → Sign conventions** (her element için
 | Çoğalt | **Duplicate** butonu / Ctrl+D (kopya (0.5, 0.5) kaydırılır) |
 | Sil | **Delete** butonu / listede veya plot'ta Delete tuşu |
 | Geri al / yinele | **Edit → Undo / Redo**, Ctrl+Z / Ctrl+Y |
-| Yüzey basıncı | **Layers → Surface pressure (Cp on surfaces)**: cisim yüzeyleri ve duvarlar Cp'ye göre renklenir, solda **Surface pressure** paneli açılır: Cp grafiği (θ / s / x boyunca; silindirde analitik eğri kesikli), kapalı cisimde basınç integraliyle lift / drag ve Kutta–Joukowski / d'Alembert karşılaştırması, ρ ile N/m, **Export CSV…**. Grafiğin üstünde gezinince plot'ta o nokta halkayla gösterilir. Panel: **View → Panels → Surface pressure**. Katmanın tiki kalkınca panel kapanır. Panel solda ~330 px açılır; genişliğini değiştirirsen sonraki açılışlarda öyle açılır (tuhaf bir genişlik kayıtlıysa ya da Reset layout'tan sonra yine 330) |
+| Yüzey basıncı | **Layers → Surface pressure (Cp on surfaces)**: cisim yüzeyleri ve duvarlar Cp'ye göre renklenir, solda **Surface pressure** paneli açılır: Cp grafiği (θ / s / x boyunca; silindirde analitik eğri kesikli), kapalı cisimde basınç integraliyle lift / drag ve Kutta–Joukowski / d'Alembert karşılaştırması, ρ ile N/m, **Export CSV…**. Grafiğin üstünde gezinince plot'ta o nokta halkayla gösterilir. Panel: **View → Panels → Surface pressure**. Katmanın tiki kalkınca panel kapanır. Panel solda ~330 px açılır; başlığından tutup başka yere (sağa, plot ile Elements arasına …) taşınabilir, orada kalır; genişliğini değiştirirsen sonraki açılışlarda öyle açılır (tuhaf bir genişlik kayıtlıysa ya da Reset layout'tan sonra yine 330) |
 | Izgara | **Layers → Background grid** (ya da View → Layers): plotun arka plandaki ızgarası; seçim hatırlanır, export'lar da plot'ta görüneni çizer |
 | Hazır sahne | **Presets** menüsü (bu da geri alınabilir); ilk grup hocanın doğrulama durumları |
 | Kaydet / aç | **File → Save** (Ctrl+S), **Save as…** (Ctrl+Shift+S), **Open…** (Ctrl+O), **Open recent**; `.pflow` dosyasını pencereye sürükleyip bırakmak da açar |
@@ -107,12 +107,15 @@ Plotta element varken tur başlatılırsa kunduz önce sorar: kaydedilmemiş de�
   tooltip'ler çalışır).
 - Okuma adımları Enter / Space / **sağ ok** / balona veya kunduza tıklama / **Next ›** butonu ile geçer. "Your turn!"
   adımları istenen yapılınca kendiliğinden geçer; Enter / Space / sağ ok / **Skip** atlar. **Sol ok** ya da **‹ Back**
-  bir önceki adıma döner (ilk adımın temizliği tekrarlanmaz; yapılmış bir iş "Done already" diye Next ile gösterilir).
+  bir önceki adıma döner ve o adımda yapılanı geri alır (eklenen element, düzenleme, taşıma, Move modu, slider,
+  Particles), yani adım yeniden ister; ilk adımın temizliği tekrarlanmaz.
   Esc veya **End tour** turu bitirir. Diğer tuşlar tur boyunca çalışmaz (Move adımında M hariç).
 - Density adımı slider bırakılınca geçer (sürüklerken değil). Element pencereleri sadece kendi adımlarında açılır
   (düzenleme adımında palette'e tıklamak bir şey açmaz).
 - Uniform flow'a açı verildiyse doublet penceresi uyarı gösterir: kunduz kısaca hangi δ'nın uyarıyı kaldırdığını
-  söyler (δ = α); düzenleme penceresinde uyarı yeniden çıkarsa sadece "That's the warning we talked about".
+  söyler ("The doublet must point the same way as the flow… set Orientation δ to 30°"; açılar yuvarlanmış: 1e-07
+  yerine 0); düzenleme penceresinde uyarı yeniden çıkarsa kısa: "That warning again: pick any angle you like and go
+  on. With δ = 0° it goes away."
 - Palette'ten sürüklerken plot aydınlanır; element penceresi açılınca kunduz yanına geçip ne yapılacağını söyler
   (Apply → devam, Cancel → adıma geri). Konuşma balonu gösterdiği yerin üstüne binmez. Plot settings adımlarında
   panel açılır ve slider görünür yere kaydırılır (slider'ın bölümü gizliyse o adım atlanır).
@@ -157,7 +160,7 @@ Sonuçlar tek çekirdekle bit bit aynıdır. Kaç çekirdeğin kullanıldığı:
 Başlıktaki **GPU** kutusu (sağ üst; aynısı View → Draw with the graphics card): işaretlenince plot **ekran kartıyla
 (OpenGL)** çizilir. İlk açılışta kapalıdır, seçim hatırlanır. Görünüş aynıdır (ekran kartında 4× MSAA); export'lar
 hiç etkilenmez.
-- **Kutuyu işaretlemek de kaldırmak da programı yeniden başlatır** (birkaç saniye; önce "Restart now / Cancel" sorar).
+- **Kutuyu işaretlemek de kaldırmak da programı hemen yeniden başlatır** (birkaç saniye; soru sormaz, çünkü hiçbir şey kaybolmaz).
   Neden: bir program ekran kartını sadece başlarken seçebiliyor (laptop'ta NVIDIA anahtarı), ve OpenGL bir kez
   pencereye girince pencere öyle kalıyor (eskiden kutuyu kaldırınca "hiçbir şey değişmiyordu"). Hiçbir şey
   kaybolmaz ve kaydetmen istenmez: sahne, dosya adı, kaydedilmemiş değişiklikler (yine kaydedilmemiş olarak), görünüm,
@@ -169,15 +172,15 @@ hiç etkilenmez.
 - Kutu sadece gerçek bir ekran kartı OpenGL 2.0+ verdiğinde işaretlenebilir; yoksa gri kalır ve üstüne gelince
   nedenini söyler (ör. sürücü yok, yazılım OpenGL).
 - **Graphics card paneli**: kutunun yanındaki küçük **ok** (ya da View → Panels → Graphics card) açar, aynı ok kapatır.
-  Yan panel değil: pencerenin sağ tarafının üstüne açılır (paneller nereye taşınmış olursa olsun, gerekirse plotun
-  üstüne), boyu içeriği kadar. GPU kapalıyken de çalışır: kimin çizdiği, saniyedeki kare (FPS, canlı), bir karenin
+  Yan panel değil: okun altından sarkan bir kart (çentiği oku gösterir; kunduzun balonu gibi mürekkep çerçeve ve
+  gölge), altındakilerin üstüne açılır, boyu içeriği kadar. GPU kapalıyken de çalışır: kimin çizdiği, saniyedeki kare (FPS, canlı), bir karenin
   çizim süresi, animasyonların **Frame rate** sınırı (Match screen / 60 / 120 / 144; her mod kendi seçimini
   hatırlar, işlemcide varsayılan 60). Alttaki **WITH THE GRAPHICS CARD** bölümü sadece GPU açıkken kullanılır (kapalıyken
   gri): **Higher limits in Plot settings** (varsayılan açık) ve sınırların listesi.
 - **Genişleyen slider sınırları** (GPU + Higher limits): Density 2 → 3, Particles 5000 → bu bilgisayarın kaldırdığı
   kadar (bir kez ölçülür, en çok 100 000), Particle speed 10 → 13, Trail length 10 → 14, Pulse speed 10 → 13, Pulse
-  length 10 → 14, Pulse spacing 10 → 14. Çubuğun boyu aynı kalır; üstünde kısa dikey bir **çizgi** işlemcinin
-  sınırını gösterir. GPU kapanınca sınırlar geri döner, üstündeki değerler sınıra iner (o ayarlarla kaydedilmiş bir
+  length 10 → 14, Pulse spacing 10 → 14. Çubuğun boyu aynı kalır; üstünde kısa, ceviz renginde dikey bir **çizgi**
+  (hepsi aynı kalınlıkta, tutamacın altında kalır) işlemcinin sınırını gösterir. GPU kapanınca sınırlar geri döner, üstündeki değerler sınıra iner (o ayarlarla kaydedilmiş bir
   sahne GPU'suz açılınca da).
 - GPU açıkken **Particles ve Pulses da ekran kartında çizilir** (işlemci sadece noktaların yerini hesaplar).
 - **Güvenlik**: açıldıktan sonra birkaç saniye içinde ekran kartından resim gelmezse ya da OpenGL başlamazsa

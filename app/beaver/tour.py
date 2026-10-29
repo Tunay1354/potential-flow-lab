@@ -106,18 +106,23 @@ DRAG_TEXT = "Now let go over the plot, where you want it."
 NO_CHANGE_TEXT = "Nothing changed! Double-click the DOUBLET row again and type a bigger mu."
 DONE_TEXT = "Done already: Next goes on, or do it again."
 # a doublet dialog showing the alignment warning (validation.doublet_misalignment): the first time …
-ALIGN_TEXT = "See the warning? Your uniform flow goes at {alpha}°. Give the doublet the same angle, δ = {want}°, " \
-             "and it goes away."
-ALIGN_TEXT_REVERSED = "See the warning? Your uniform flow goes at {alpha}°. With a negative mu the doublet needs " \
-                      "δ = {want}°, then it goes away."
-ALIGN_TEXT_OTHER = "See the warning? The flow at the doublet goes at {alpha}°: set δ = {want}° and it goes away."
-# … and again later
-ALIGN_AGAIN_TEXT = "That's the warning we talked about: δ = {want}° makes it go away."
+ALIGN_TEXT = ("See the warning? The doublet must point the same way as the flow. Your uniform flow goes at "
+              "{alpha}° (its angle α), so set Orientation δ to {want}° too, and the warning goes away.")
+ALIGN_TEXT_REVERSED = ("See the warning? Your uniform flow goes at {alpha}° (its angle α). With a negative strength "
+                       "the doublet points the other way round: set Orientation δ to {want}°, and the warning goes away.")
+ALIGN_TEXT_OTHER = ("See the warning? The other elements turn the flow at the doublet to {alpha}°. Set Orientation δ "
+                    "to {want}°, and the warning goes away.")
+# … and again later (short: any angle is fine)
+ALIGN_AGAIN_TEXT = "That warning again: pick any angle you like and go on. With δ = {want}° it goes away."
 HINT_EVERY_S = 0.25                  # how often an open doublet dialog is checked for the warning
 
 
 def _deg(x: float) -> str:
-    return f"{x:.4g}".replace("-", "−")
+    """An angle as a person writes it: 0, 30, 12.5 (round-off like 1.03e-07 is 0)."""
+    v = round(float(x), 1)
+    if abs(v) < 0.05:
+        v = 0.0
+    return f"{v:g}".replace("-", "−")
 
 
 class Tour:
@@ -132,7 +137,8 @@ class Tour:
         self.dialog_kind = "add"
         self.note = None                 # a text shown instead of the step's text (e.g. nothing changed)
         self._restore = {}               # settings changed by the tour: put back at the end
-        self.done = set()                # steps whose action the user did (shown as done when he comes back)
+        self.done = set()                # steps whose action the user did
+        self.marks = {}                  # step -> (model's last undo id, slider value) when it began (back())
         self.released = None             # a slider step: the value changed, waiting for the slider to be let go
         self.hint = ""                   # the alignment hint shown beside a doublet dialog
         self.hint_t = 0.0
@@ -149,6 +155,7 @@ class Tour:
         self.i = -1
         self._restore = {}
         self.done = set()
+        self.marks = {}
         self.warned = False
         self.done_wait = None
         self.beaver.bubble.clear()                       # a remark still typing must not hold up step 1
@@ -182,16 +189,25 @@ class Tour:
             b.finish_typing()
             self.next()
             return
+        slider_value = None
         if s.target and s.target.startswith("slider:"):
             key = s.target.split(":")[1]
             sl = self.win.settings_panel.sliders.get(key)
-            if sl is not None and key not in self._restore:
-                self._restore[key] = sl.value()
+            if sl is not None:
+                slider_value = sl.value()
+                self._restore.setdefault(key, sl.value())
+        self.marks[self.i] = (self._model_mark(), slider_value)     # how things were when this step began
         self.show()
 
+    def _model_mark(self):
+        undo = self.win.model._undo
+        return undo[-1].id if undo else None
+
     def back(self):
-        """Left arrow / the Back button: the step before (never its "enter" again: no second clearing). An
-        action done there is shown as done, with Next."""
+        """Left arrow / the Back button: the step before (never its "enter" again: no second clearing). What
+        was done in that step and after it is taken back (the element added, the edit, the move, Move mode,
+        the slider, Particles), so the step asks for it again (his report of 30 Oct: the uniform stayed and
+        he had to add a second one)."""
         if self.i <= 0 or self.sub is not None or self.done_wait is not None:
             return
         j = self.i - 1
@@ -199,8 +215,30 @@ class Tour:
             j -= 1
         self.i = j
         self._reset_step()
+        self._take_back(j)
         self._prepare(self.step)
         self.show()
+
+    def _take_back(self, j: int):
+        """Undo what happened since step j began (it is shown fresh again)."""
+        win, s = self.win, STEPS[j]
+        mark, slider_value = self.marks.get(j, (self._model_mark(), None))
+        model = win.model
+        for _ in range(100):                             # (the tour's own few steps; never the user's earlier work)
+            if self._model_mark() == mark or not model.can_undo:
+                break
+            model.undo()
+        if s.wait is not None:
+            ev, val = s.wait
+            if ev == "mouse_mode" and win.canvas.mode == val:
+                win.canvas.set_mode("select")
+            elif ev == "view_mode" and win.canvas.view_mode == val:
+                win.canvas.set_view_mode("static")
+            elif ev == "setting" and slider_value is not None:
+                sl = win.settings_panel.sliders.get(val)
+                if sl is not None:
+                    sl.setValue(slider_value)
+        self.done = {k for k in self.done if k < j}
 
     def _reset_step(self):
         self.done_wait = None

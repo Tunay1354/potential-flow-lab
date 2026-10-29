@@ -299,7 +299,13 @@ GUI / Qt
   Limits: `gpu.GPU_LIMITS` + `particles_max()` (measured, cached per fingerprint) → `_apply_limits()` →
   `SettingsPanel.set_slider_max(key, hi, mark)`; `LimitSlider.mark_x/paintEvent`; `_limit_sliders` (old name
   `_limit_particles` kept as alias). pulse_length / pulse_spacing clamp at 14 now. Item 17 not reproducible here.
-- **Next**: his Windows check of 20.7 (A, B, C), then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
+- **30 Oct, 20.7D (his Windows check)**: Surface dock drag fixed (`layout._surface_dragged`: do nothing while
+  floating / left button down — Qt hides+shows a dragged dock); tour `back()` → `_take_back(j)` undoes to
+  `marks[j]` (model's top undo id when the step began) + Move/Particles/slider; hint angles via `tour._deg`
+  (rounded); GPU box restarts WITHOUT a question (`_ask_restart` removed); `LimitSlider` mark = device-snapped
+  3×14 px rect in theme `logo_dot`, clipped out of the handle; `GpuPanel` paints its own card (notch at
+  `notch_x`, ink frame, hard shadow), placed by `_place_gpu_panel` under the arrow.
+- **Next**: his Windows check of 20.7D, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
   remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
 - Then, in this order (all planned, "as if time were unlimited"):
   21 code cleanup without behaviour change (dead / duplicate code, names, docstrings, pyflakes, long files) →

@@ -631,13 +631,14 @@ def test_tour_bubble_has_buttons_and_a_click_only_goes_on_in_a_reading_step(win,
 
 
 def test_tour_arrow_keys_go_on_and_back(win, qapp):
-    """Right = next (like Space), Left = the step before; coming back to an action already done shows it as
-    done with Next; going back to the first step does not clear the plot again; Left in a "Nice!" or with a
-    dialog open does nothing."""
+    """Right = next (like Space), Left = the step before. Going back takes back what was done in that step
+    (his report, 30 Oct: the uniform he added stayed and the step asked for another one): the element, Move
+    mode, Particles, the slider. Going back to the first step does not clear the plot again; Left in a "Nice!"
+    does nothing."""
     from PySide6.QtCore import Qt
 
-    from app.beaver.tour import DONE_TEXT, NEXT_BUTTON, STEPS
-    from physics.elements import Uniform
+    from app.beaver.tour import STEPS
+    from physics.elements import Doublet, Uniform
     b = win.beaver
     _tour_at(b, win, qapp, 3)                                          # drag a UNIFORM flow
     _key(qapp, win, Qt.Key_Left)
@@ -647,24 +648,53 @@ def test_tour_arrow_keys_go_on_and_back(win, qapp):
     assert b.tour.i == 3 and STEPS[3].wait == ("added", "uniform")
     win.model.add(Uniform())                                           # the action …
     run(qapp, win, 1.5)                                                # … "Nice!", then step 4
-    assert b.tour.i == 4
-    _key(qapp, win, Qt.Key_Left)                                       # back: shown as done, with Next
-    assert b.tour.i == 3 and b.tour.is_done() and DONE_TEXT in b.bubble.text
-    assert b.bubble.buttons[b.bubble.primary] == NEXT_BUTTON and not b.tour.tag().startswith("your turn")
+    assert b.tour.i == 4 and len(win.elements) == 1
+    _key(qapp, win, Qt.Key_Left)                                       # back: the uniform is taken back
+    assert b.tour.i == 3 and win.elements == [] and b.tour.tag().startswith("your turn")
+    win.model.add(Uniform())
+    run(qapp, win, 1.5)
     b.bubble.finish_typing()
-    _key(qapp, win, Qt.Key_Right)
-    assert b.tour.i == 4
-    for _ in range(4):
+    _key(qapp, win, Qt.Key_Right)                                      # (step 4 → 5: drag a DOUBLET)
+    win.model.add(Doublet(mu=1.0))
+    run(qapp, win, 1.5)
+    assert b.tour.i == 6 and len(win.elements) == 2
+    while b.tour.i < 8:
+        b.bubble.finish_typing()
+        b.tour.next()
+    win.canvas.set_mode("move")                                        # the Move step done …
+    run(qapp, win, 1.5)
+    assert b.tour.i == 9
+    _key(qapp, win, Qt.Key_Left)                                       # … taken back
+    assert b.tour.i == 8 and win.canvas.mode == "select"
+    for _ in range(8):
         b.bubble.finish_typing()
         _key(qapp, win, Qt.Key_Left)
-    assert b.tour.i == 0 and len(win.elements) == 1                    # step 1 again: nothing cleared
-    _key(qapp, win, Qt.Key_Left)
-    assert b.tour.i == 0 and b.tour.active
+    assert b.tour.i == 0 and win.elements == [] and b.tour.active      # first step again: nothing cleared twice
     _tour_at(b, win, qapp, 5)
     win.model.add(Uniform())
     b.tour.notify("added", "doublet")                                  # "Nice!" running: Left waits
     _key(qapp, win, Qt.Key_Left)
     assert b.tour.done_wait is not None and b.tour.i == 5
+    b.tour.end(completed=False)
+
+
+def test_tour_back_puts_the_slider_and_particles_back(win, qapp):
+    b = win.beaver
+    _tour_at(b, win, qapp, 11)
+    sl = win.settings_panel.sliders["density"]
+    v0 = sl.value()
+    sl.setValue(v0 + 3)
+    run(qapp, win, 1.5)
+    assert b.tour.i == 12
+    win.canvas.set_view_mode("particles")
+    run(qapp, win, 1.5)
+    assert b.tour.i == 13
+    from PySide6.QtCore import Qt
+    _key(qapp, win, Qt.Key_Left)
+    assert b.tour.i == 12 and win.canvas.view_mode == "static"
+    b.bubble.finish_typing()
+    _key(qapp, win, Qt.Key_Left)
+    assert b.tour.i == 11 and sl.value() == v0
     b.tour.end(completed=False)
 
 
@@ -743,13 +773,13 @@ def test_tour_explains_the_doublet_warning_in_the_dialog(win, qapp):
         return d
     dlg = dialog({p.key: p.default for p in spec.params}, None)        # δ = 0: the warning
     b.notify("dialog_open", ("add", "doublet", dlg))
-    assert "30\u00b0" in b.bubble.text and "\u03b4 = 30" in b.bubble.text
+    assert "30\u00b0" in b.bubble.text and "Orientation \u03b4 to 30\u00b0" in b.bubble.text
     dlg.widgets["delta"].setValue(30.0)                                # fixed: the hint goes
     run(qapp, win, 0.5)
     assert "warning" not in b.bubble.text
     dlg.widgets["delta"].setValue(10.0)                                # back: it comes again
     run(qapp, win, 0.5)
-    assert "\u03b4 = 30" in b.bubble.text
+    assert "to 30\u00b0" in b.bubble.text
     b.notify("dialog_closed", (False, False))
     dlg.deleteLater()
     win.model.add(Doublet(mu=1.0, delta=30.0))
@@ -766,7 +796,10 @@ def test_tour_explains_the_doublet_warning_in_the_dialog(win, qapp):
     assert "warning" not in b.bubble.text
     dlg.widgets["delta"].setValue(0.0)                                 # the angle: the warning, short now
     run(qapp, win, 0.5)
-    assert "talked about" in b.bubble.text and "\u03b4 = 30" in b.bubble.text
+    assert "warning again" in b.bubble.text and "\u03b4 = 30\u00b0" in b.bubble.text
+
+    from app.beaver.tour import _deg
+    assert _deg(1.029e-07) == "0" and _deg(-1e-9) == "0" and _deg(30.0) == "30" and _deg(12.54) == "12.5"
     b.notify("dialog_closed", (False, False))
     dlg.deleteLater()
     b.tour.end(completed=False)

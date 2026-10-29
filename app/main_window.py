@@ -454,7 +454,7 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
 
     def apply_theme(self, theme):
         self.theme = theme
-        LimitSlider.mark_color = theme["ink"]
+        LimitSlider.mark_color = theme["logo_dot"]
         if getattr(self, "gpu_panel", None) is not None:
             self.gpu_panel.apply_theme(theme)
         if getattr(self, "_guide", None) is not None:

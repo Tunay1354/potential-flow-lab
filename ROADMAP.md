@@ -672,6 +672,17 @@ bırakıldı (kullanıcı kararı).
       kontrol edilecek. Düzen sürümü 3 (dock_gpu yok). Testler: yeniden başlatma (iptal, başlatılamama, her şeyin geri
       gelmesi), kaldırınca da yeniden başlatma, panel (taşınmış panellerde de sağda), sınırlar + çizgi + açılan
       sahnede indirme, `--resume` ayrıştırma.
+    - ✅ **20.7D Windows denemesinden düzeltmeler** (30 Ekim 02:12, ekran görüntüleriyle): (1) Surface pressure paneli
+      taşınamıyordu: Qt sürüklerken paneli gizleyip gösteriyor, 20.7B'nin "açılınca genişliğini ayarla / yasak yerde
+      ise sola koy" kodu her seferinde onu sola geri koyuyordu → sürüklenirken (yüzer / sol tuş basılı) hiçbir şey
+      yapılmıyor, genişlik sadece gerçek açılışta (test: başlıktan sağa sürükle, kapat-aç, sonraki açılış). (2) Turda
+      geri gidince o adımda yapılan geri alınıyor (adım başındaki undo noktasına kadar undo, Move → Select,
+      Particles → Static, slider eski değerine); adım yeniden "your turn". (3) Doublet uyarı ipucu: açılar yuvarlak
+      (1.029e-07 → 0), "Orientation δ" alan adıyla, anlaşılır cümle; tekrarında kısa ("pick any angle you like and go
+      on. With δ = 0° it goes away"). (4) GPU kutusu soru sormadan yeniden başlatıyor. (5) Slider sınır çizgisi: 3 px
+      (ekran pikseline oturtulmuş: hepsi aynı kalınlık), 14 px boy, ceviz rengi (tema `logo_dot`), tutamacın altında.
+      (6) Graphics card paneli okun altından sarkan kart: çentik oku gösteriyor, mürekkep çerçeve + sert gölge
+      (kunduz balonu / çizim kartı görünümü), plank'ın kenarına değiyor.
 21. ☐ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,
     dosya yapısı, uyarılar (pyflakes), çok uzun dosyaların bölünmesi, testlerin süresi, README klasör tablosu.
     Ölçüt: tüm testler + verification aynı sonuç

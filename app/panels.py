@@ -2,7 +2,7 @@
 panels.py — right-side panels: Elements list and Plot settings.
 """
 from PySide6.QtCore import QEvent, QModelIndex, QObject, QRect, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFontMetrics, QKeySequence, QPainter, QPen, QShortcut
+from PySide6.QtGui import QColor, QFontMetrics, QKeySequence, QPainter, QShortcut
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout,
                                QGroupBox, QHBoxLayout, QHeaderView, QLabel, QPushButton, QScrollArea, QSlider,
                                QStyle, QStyledItemDelegate, QStyleOptionViewItem, QTreeWidget, QTreeWidgetItem,
@@ -278,7 +278,7 @@ class ElementsPanel(QWidget):
 class LimitSlider(QSlider):
     """A Plot settings slider that may reach further with the graphics card: the bar keeps its length, a short
     vertical mark shows where the processor's limit (`mark`) is."""
-    mark_color = "#211A12"                  # the theme's ink (MainWindow.apply_theme)
+    mark_color = "#8C6A45"                  # walnut (MainWindow.apply_theme: theme["logo_dot"])
 
     def __init__(self, *args):
         super().__init__(*args)
@@ -288,16 +288,20 @@ class LimitSlider(QSlider):
         self.mark = position
         self.update()
 
-    def mark_x(self) -> float | None:
-        """Where the mark is (widget px), None when it is not shown (no higher limit)."""
+    def _rects(self):
         from PySide6.QtWidgets import QStyle, QStyleOptionSlider
-        if self.mark is None or self.mark >= self.maximum():
-            return None
         opt = QStyleOptionSlider()
         self.initStyleOption(opt)
         st = self.style()
-        groove = st.subControlRect(QStyle.CC_Slider, opt, QStyle.SC_SliderGroove, self)
-        handle = st.subControlRect(QStyle.CC_Slider, opt, QStyle.SC_SliderHandle, self)
+        return (st.subControlRect(QStyle.CC_Slider, opt, QStyle.SC_SliderGroove, self),
+                st.subControlRect(QStyle.CC_Slider, opt, QStyle.SC_SliderHandle, self))
+
+    def mark_x(self) -> float | None:
+        """Where the mark is (widget px), None when it is not shown (no higher limit)."""
+        from PySide6.QtWidgets import QStyle
+        if self.mark is None or self.mark >= self.maximum():
+            return None
+        groove, handle = self._rects()
         span = max(1, groove.width() - handle.width())
         return groove.x() + handle.width() / 2.0 + QStyle.sliderPositionFromValue(
             self.minimum(), self.maximum(), int(self.mark), span)
@@ -307,11 +311,21 @@ class LimitSlider(QSlider):
         x = self.mark_x()
         if x is None:
             return
-        p = QPainter(self)
-        p.setPen(QPen(QColor(self.mark_color), 1.5))
+        from PySide6.QtCore import QRectF
+        from PySide6.QtGui import QRegion
+        dpr = self.devicePixelRatioF() or 1.0
+        snap = lambda v: round(v * dpr) / dpr                    # noqa: E731 - whole screen pixels: every mark alike
+        w, h = max(snap(MARK_W), 2.0 / dpr), snap(MARK_H)
         c = self.height() / 2.0
-        p.drawLine(int(round(x)), int(c - 7), int(round(x)), int(c + 7))
+        r = QRectF(snap(x - w / 2.0), snap(c - h / 2.0), w, h)
+        p = QPainter(self)
+        _groove, handle = self._rects()
+        p.setClipRegion(QRegion(self.rect()).subtracted(QRegion(handle)))   # (under the handle, never over it)
+        p.fillRect(r, QColor(self.mark_color))
         p.end()
+
+
+MARK_W, MARK_H = 3.0, 14.0                  # px: the processor's-limit mark on a LimitSlider
 
 
 class SettingsPanel(QScrollArea):

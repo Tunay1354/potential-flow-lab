@@ -659,11 +659,7 @@ def test_the_gpu_box_restarts_with_everything_kept(window, qapp, tmp_path):
     w.settings_panel.layer_boxes["bodies"].setChecked(True)
     w.canvas.set_view_mode("pulses")
     w.select_element(1)
-    asked, started = [], []
-    w._ask_restart = lambda on: asked.append(on) or False             # Cancel: nothing happens
-    w.header.plank.gpu.setChecked(True)
-    assert asked == [True] and not gpu.enabled() and not w.header.plank.gpu.isChecked()
-    w._ask_restart = lambda on: True
+    started = []
     w._start_again = lambda p: False                                  # could not start: nothing changes
     before = set(os.listdir(restart.folder())) if os.path.isdir(restart.folder()) else set()
     w.header.plank.gpu.setChecked(True)
@@ -698,7 +694,6 @@ def test_unticking_gpu_restarts_too(window, monkeypatch):
     assert w.header.plank.gpu.isChecked()
     gpu.set_enabled(True)
     started = []
-    w._ask_restart = lambda on: on is False
     w._start_again = lambda p: started.append(p) or True
     w.header.plank.gpu.setChecked(False)
     assert started and not gpu.enabled()
@@ -707,7 +702,7 @@ def test_unticking_gpu_restarts_too(window, monkeypatch):
 
 
 def test_graphics_card_panel_over_the_right_side(window, qapp):
-    """The arrow beside the box opens the panel over the right part (also when the panels were moved left),
+    """The arrow beside the box opens the panel hanging from it (also when the panels were moved left),
     the same arrow closes it; it works with the processor too (fps, frame rate), the card's part greyed."""
     from PySide6.QtCore import Qt
     w = window
@@ -722,7 +717,11 @@ def test_graphics_card_panel_over_the_right_side(window, qapp):
     qapp.processEvents()
     p = w.gpu_panel
     assert p.isVisible() and w.act_gpu_panel.isChecked()
-    assert abs(p.geometry().right() - (w.width() - 16)) <= 1 and p.y() >= w.menuWidget().height()
+    from PySide6.QtCore import QPoint
+    plank = w.header.plank
+    a = arrow.mapTo(w, QPoint(arrow.width() // 2, 0)).x()
+    assert p.geometry().right() <= w.width() - 6 and abs(p.y() - plank.height()) <= 4    # hangs from the plank
+    assert abs(p.x() + p.notch_x - a) <= 1                            # its notch under the arrow
     assert not p.gpu_only.isEnabled() and p.cap.isEnabled() and "processor" in p.mode.text().lower()
     p.cap.setCurrentIndex(p.cap.findData("120"))
     assert gpu.fps_cap(False) == "120"
