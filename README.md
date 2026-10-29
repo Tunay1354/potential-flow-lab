@@ -113,6 +113,21 @@ köşeler, gölge; üstte adı (PSI, isim geçici) ve sağda etiket (TOUR 3/18, 
 sağ altta düğmeler (asıl düğme başlıktaki ahşap renginde: Next ›, Yes, show me around ›, More questions ›). Kunduz
 export edilen figür ve animasyonlarda görünmez; tekerlek üstündeyken de plotu zoom'lar. **View → Beaver** ile kapatılır.
 
+### Açılış ve "Your computer"
+
+Program açılırken bir **yükleme ekranı** çıkar: ahşap başlık, ne yapıldığı ve bulunan donanım satırları, ilerleme
+çubuğu.
+- **Bu bilgisayarda ilk açılış** (ya da güncellemeden sonra): ~15–20 s. Hızlı hesap çekirdekleri (Numba) bu
+  işlemci için hazırlanır; işlemci, çekirdek sayısı, ekran kartları, OpenGL ve monitörün Hz'i bir kez bulunur.
+  Ekranda "First start on this computer … (only once)" yazar.
+- **Sonraki açılışlar**: ~1–2 s; hepsi hatırlanır. Bilgisayar değişirse (başka monitör, yeni kart, program /
+  Numba güncellemesi) kendiliğinden yeniden bulunur.
+- Pencere açıldığında derlenecek bir şey kalmaz: ilk Particles / Pulses / Solid bodies tıklamasında da bekleme
+  yok.
+- Ekran kartı sorusu ayrı bir işlemde sorulur: bozuk bir ekran kartı sürücüsü programı çökertemez.
+- **Help → Your computer…**: bulunanlar (işlemci, ekran kartları, OpenGL, ekranlar); **Check again** yeniden
+  bulur. Laptop'ta OpenGL zayıf (Intel) kartta çalışıyorsa not düşer.
+
 ### Bir hata olursa
 
 Yakalanmamış bir hata programı kapatmaz: "Unexpected error" penceresi çıkar (ayrıntılar, Copy details, Open log
@@ -162,7 +177,7 @@ zoom / sürükleme, tepki süreleri, animasyon, export, verification — ~6 dk; 
 | Klasör / dosya | İçerik |
 |---|---|
 | `CLAUDE.md` | Projeyi devralacak bir AI asistan için özet: proje, çalışma tercihleri, mimari, dersler, şu anki durum |
-| `main.py` | Programı başlatır (`python main.py sahne.pflow` dosyayı da açar); `--verify`, `--figure`, `--data` ile komut satırı |
+| `main.py` | Programı başlatır (`python main.py sahne.pflow` dosyayı da açar): yükleme ekranı → donanım → çekirdekler → pencere; `--verify`, `--figure`, `--data` ile komut satırı; `--probe-gpu` (içeride: OpenGL sorusu ayrı işlemde) |
 | `app/cli/` | Komut satırı: `__init__.py` (seçenekler), `headless.py` (ekranda görünmeyen plot, görünüme göre boyut), `report.py` (doğrulama raporu: HTML, Markdown, CSV, figürler; komut satırı ve Help menüsü ortak) |
 | `app_info.py` | Program adı ve sürümü |
 | `app/paths.py` | Programın dosyalarının yeri (kaynak klasör veya exe) |
@@ -175,6 +190,10 @@ zoom / sürükleme, tepki süreleri, animasyon, export, verification — ~6 dk; 
 | `app/chrome/` | Pencerenin "çizim kağıdı" görünümü: `style.py` (font, renk), `header.py` (logo, tahta şerit, cetvel + menüler), `cards.py` (panel kartları, title block), `palette.py` (element paleti) |
 | `app/panels.py`, `app/dialogs.py` | Elements / Plot settings panelleri; parametre penceresi (alanlar `app/element_specs.py`'den otomatik) |
 | `app/surface_panel.py` | Surface pressure paneli: Cp grafiği, kuvvetler, CSV |
+| `app/startup.py` | Uygulama ayarları (sayı biçimi, fontlar, stil) — hafif: yükleme ekranı ağır modüllerden önce çıkabilsin |
+| `app/splash.py` | Yükleme ekranı (`LoadingScreen`: adım, donanım satırları, ilerleme; uzun işler thread'de, ekran donmaz) |
+| `app/hardware.py` | Bu bilgisayar: işlemci / çekirdek, ekran kartları (Windows kayıt defteri), OpenGL (ayrı işlemde), ekranlar (Hz); profil QSettings'te, fingerprint değişince yeniden |
+| `app/hardware_dialog.py` | Help → Your computer… |
 | `app/errors.py` | Beklenmeyen hatalar: log dosyası, hata penceresi (program açık kalır), çökme dosyası |
 | `app/beaver/` | Kunduz: `art.py` (koddan çizilen piksel art, her poz / açı keskin), `bubble.py` (piksel konuşma balonu, seçenekli diyaloglar), `lines.py` (İngilizce metinler), `faq.py` (soru–cevap), `tour.py` (tanıtım turu adımları), `spotlight.py` (turdaki vurgu), `beaver.py` (davranış: raf, tıklama menüsü, sürükleme, cam, akış, pulse, eve dönüş, tuşlar) |
 | `app/recovery.py` | Otomatik kopya ve çökme sonrası sahneyi geri getirme |

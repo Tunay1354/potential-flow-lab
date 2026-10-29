@@ -6,6 +6,9 @@ says "Preparing…"). The others — particles, their trails, pulses, solid bodi
 compiled the first time the user presses Particles / Pulses or switches Solid bodies on, and the window
 would stop for a second or two then (only after installing / updating; later starts load them from the
 cache in milliseconds). The window calls warm_up_in_background() when the first streamlines are drawn.
+
+The loading screen (app/splash.py, main.py) runs steps() before the window opens: the streamline engine
+on the starting scene, then warm_up(); afterwards the window has nothing left to compile.
 """
 from __future__ import annotations
 
@@ -16,6 +19,34 @@ import numpy as np
 from . import kernel
 
 _started = False
+
+
+def mark_done():
+    """The loading screen did it already: warm_up_in_background() has nothing to do."""
+    global _started
+    _started = True
+
+
+def streamline_engine() -> float:
+    """The streamline computation of the starting scene (lifting cylinder) as the window does it: compiles
+    every kernel it uses (tracing, rasters, seeds, arrows, line ends, stagnation points). Returns ms."""
+    import time
+
+    from .elements import Doublet, Uniform, Vortex
+    from .streamlines import StreamlineCache, fade_piece_boxes
+    t = time.perf_counter()
+    r = StreamlineCache((Uniform(), Doublet(mu=1.0), Vortex(Gamma=-2.0)), 1.0).update(((-4.0, 4.0), (-3.0, 3.0)),
+                                                                                     1.0, force=True)
+    fade_piece_boxes(r.lines, r.tapers, r.separation)         # the fading line ends, as the plot draws them
+    return (time.perf_counter() - t) * 1000.0
+
+
+def steps() -> list[tuple[str, object]]:
+    """(text for the loading screen, function) — everything that is compiled, in the order it is needed."""
+    if not kernel.HAVE_NUMBA:
+        return []
+    return [("Preparing the streamline engine…", streamline_engine),
+            ("Preparing particles, pulses and solid bodies…", warm_up)]
 
 
 def warm_up_in_background():

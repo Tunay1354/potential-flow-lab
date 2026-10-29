@@ -236,6 +236,9 @@ class MenusMixin:
         logs.setToolTip("The log file: start-up information and every unexpected error (send it if something "
                         "goes wrong)")
         logs.triggered.connect(open_log_folder)
+        comp = m.addAction("Your computer…")
+        comp.setToolTip("The processor, graphics cards and screens the program found (and uses)")
+        comp.triggered.connect(self.show_hardware)
         m.addAction("About").triggered.connect(self._show_about)
 
     def _rebuild_elements_menu(self):

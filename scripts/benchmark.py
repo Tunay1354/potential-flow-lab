@@ -160,10 +160,11 @@ from PySide6.QtCore import QStandardPaths, QSettings
 QStandardPaths.setTestModeEnabled(True)
 from PySide6.QtWidgets import QApplication
 app = QApplication([])
-from app.main_window import MainWindow, setup_application
-t_import = time.perf_counter()
+from app.startup import setup_application
 setup_application(app); QSettings().setValue("beaver/tour_offered", True)
-w = MainWindow(); w._ask_save_changes = lambda: "discard"; w.setFixedSize(%d, %d); w.show()
+t_import = time.perf_counter()
+import main as M                                   # the real start: detect the computer, prepare the kernels
+w = M.open_window(None); w._ask_save_changes = lambda: "discard"; w.setFixedSize(%d, %d); w.show()
 app.processEvents()
 t_window = time.perf_counter()
 cv = w.canvas
@@ -451,7 +452,8 @@ def print_report(res: dict):
     print(f"Potential Flow Lab benchmark  {m['date']}  |  {m['platform']}  |  {m['cpus']} CPUs  |  Qt: "
           f"{m['qt_platform']}  |  viewport: {m.get('opengl_viewport', '?')}")
     if "startup" in res:
-        print("\nSTARTUP (fresh process)                       to window   first lines   all kernels ready")
+        print("\nSTARTUP (fresh process; since 29 Oct the kernels are prepared before the window opens)\n"
+              "                                              to window   first lines   all kernels ready")
         for k, r in res["startup"].items():
             if "error" in r:
                 print(f"  {k:<44} ERROR {r['error'][:60]}")

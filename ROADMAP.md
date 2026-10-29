@@ -472,7 +472,30 @@ bırakıldı (kullanıcı kararı).
       - Sonuç: kullanıcının da gözlemi gibi her şey yeterince hızlı; tek darboğazlar tüm katmanlar açıkken pan /
         zoom'daki tek tük takılmalar (GUI thread'de renk bantları) ve kalabalık sahnelerin arka plan hesap süresi
         (OpenGL'in etkilemeyeceği hesap)
-    - ☐ OpenGL seçeneği + aynı script'le karşılaştırma (burada ve kullanıcının Windows'unda)
+    - Kullanıcının Windows'u (29 Ekim, `benchmarks/windows_before.json`, 16 CPU, RTX 3050 Ti laptop): hesaplar
+      %25–45 hızlı, çizim aynı (15–30 ms / kare); pan / zoom normal katmanlarla ~50 fps, tüm katmanlar açıkken
+      32–45 fps (p95 31–37 ms) → asıl kazanç çizimde (GPU). Kararlar (kullanıcıyla): ekran kartı modu başlıkta bir
+      kutu (ilk açılışta kapalı), açıkken ayrı "Graphics card" paneli (FPS, fps seçimi, genişletilmiş üst sınırlar);
+      çok çekirdek her zaman açık; donanım kendiliğinden bulunur; ilk açılışta yükleme ekranı; laptop'ta Intel →
+      NVIDIA geçişi program içinden. Dört paket:
+    - ✅ **20.1 Yükleme ekranı + donanım tanıma** (29 Ekim): `app/splash.py` (yükleme ekranı: adım, donanım
+      satırları, ilerleme; uzun işler thread'de, ekran donmuyor — ölçüldü: derleme sırasında her 0.7 s'de çizildi),
+      `app/hardware.py` (işlemci adı / thread sayısı, ekran kartları Windows kayıt defterinden, OpenGL renderer
+      **ayrı bir işlemde** sorulur — bu sunucuda OpenGL'siz bir bağlamda glGetString çağrısının işlemi segfault
+      ile düşürdüğü görüldü; çökme / takılma (25 s) → "not available", program devam —, ekranlar ve Hz; profil
+      QSettings'te, fingerprint (işlemci, çekirdek, kartlar, ekranlar + Hz, program / Numba sürümü) değişince
+      yeniden), `app/startup.py` (hafif açılış ayarları: yükleme ekranı 0.3 s'de çıkıyor), Help → **Your
+      computer…** (`hardware_dialog.py`, Check again), log'a donanım satırları. `physics/warmup.steps()`: pencere
+      açılmadan önce her çekirdek hazır — eskiden pencerenin ilk hesabı `fade_cut` vb. ~3.8 s derliyordu, artık
+      pencere açıldıktan sonra hiçbir şey derlenmiyor (Numba compile olayları dinlenerek, boş önbellekle,
+      bütün katmanlar + Particles / Pulses + kanal / sector sahneleriyle kontrol edildi: 145 fonksiyon önceden, 0
+      sonra). Ölçüm (bu sunucu): ilk açılış pencere 13.0 s / ilk çizgiler 17.1 s (önce 2.6 / 16.6 s ama boş pencere
+      + ilk tıklamalarda derleme), sonraki açılışlar 1.2 / 1.3 s. Testler: `tests/test_hardware.py` (12: sahte
+      kayıt defteri, laptop Intel / NVIDIA durumu, fingerprint, gerçek alt işlemle OpenGL yokken çökmeme, takılan /
+      düşen sorgu, profil hatırlama / yenileme, bozuk profil, yükleme ekranı, açılış, Your computer)
+    - ☐ 20.2 Çok çekirdekli hesap (her zaman açık)
+    - ☐ 20.3 GPU kutusu + OpenGL çizim + Graphics card paneli (FPS, fps seçimi) + Intel → NVIDIA
+    - ☐ 20.4 GPU particles / pulses + kalibrasyondan üst sınırlar; aynı script'le karşılaştırma (`--gpu`)
 21. ☐ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,
     dosya yapısı, uyarılar (pyflakes), çok uzun dosyaların bölünmesi, testlerin süresi, README klasör tablosu.
     Ölçüt: tüm testler + verification aynı sonuç

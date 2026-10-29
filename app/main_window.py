@@ -15,10 +15,10 @@ shortcuts), files.py (New / Open / Save, presets), exporting.py (figure and CSV 
 commands (add / edit / move / duplicate / delete, undo / redo).
 """
 from PySide6.QtCore import QEvent, QSettings, Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QKeySequence, QPalette, QShortcut
+from PySide6.QtGui import QColor, QKeySequence, QPalette, QShortcut
 from PySide6.QtWidgets import QAbstractButton, QApplication, QHBoxLayout, QMainWindow, QMenuBar, QMessageBox, QWidget
 
-from app_info import APP_NAME, APP_VERSION, ORGANIZATION
+from app_info import APP_VERSION
 from model import SceneModel, preview_change
 from physics import ELEMENT_TYPES
 from physics.warmup import warm_up_in_background
@@ -29,12 +29,13 @@ from .recovery import SessionRecovery
 from .chrome import HeaderBar, load_fonts, paint_paper_grid, tint_title_bar
 from .dialogs import ElementDialog, dispose
 from .element_specs import spec_for
+from .hardware import load_profile
 from .icons import make_app_icon, make_palette_icon
 from .panels import ElementsPanel, SettingsPanel, element_title
 from .recent_files import RecentFiles
 from .scene import starter_scene
 from .surface_panel import SurfacePanel
-from .theme import DEFAULT_THEME, FONT, LAYOUT, build_stylesheet
+from .theme import DEFAULT_THEME, LAYOUT, build_stylesheet
 from .window import ExportMixin, FilesMixin, LayoutMixin, MenusMixin, StatusMixin
 
 DUPLICATE_OFFSET = (0.5, 0.5)
@@ -46,6 +47,7 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         load_fonts()
         self.theme = DEFAULT_THEME
         self._verification = None                # Help → Run verification (created on first use)
+        self.hardware = load_profile()           # this computer (app/hardware.py; main.py sets the fresh one)
         # a copy of an unsaved scene, restored if the program does not close normally (app/recovery.py)
         self.recovery = SessionRecovery(self._document, lambda: self.model.is_modified,
                                         lambda: (self.current_path, self.scene_title), parent=self)
@@ -487,6 +489,15 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
                                 "<b>Wall</b>: V·n = 0 by the method of images<br>"
                                 "<b>Pressure</b>: Cp = 1 − (V/V∞)²")
 
+    def show_hardware(self):
+        """Help → Your computer…"""
+        from .hardware_dialog import HardwareDialog
+        dlg = HardwareDialog(self)
+        try:
+            dlg.exec()
+        finally:
+            dispose(dlg)
+
     def _show_about(self):
         QMessageBox.about(self, "About Potential Flow Lab",
                           "<b>Potential Flow Lab</b><br>"
@@ -494,31 +505,5 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
                           "Aerodynamics semester project, IZTECH Mechanical Engineering.")
 
 
-def setup_application(app):
-    """Settings that must be identical on every computer (Windows TR/EN, macOS)."""
-    import sys
-
-    from PySide6.QtCore import QLocale
-    # numbers always with a decimal POINT (1.000), whatever the system region is (TR uses 1,000)
-    QLocale.setDefault(QLocale(QLocale.English, QLocale.UnitedStates))
-    # the streamline thread and the window share Python's interpreter lock (GIL); hand it over every
-    # 0.5 ms instead of every 5 ms, so drawing never waits long for the background computation
-    sys.setswitchinterval(0.0005)
-    app.setOrganizationName(ORGANIZATION)        # where QSettings keeps recent files etc.
-    app.setApplicationName(APP_NAME)
-    app.setApplicationVersion(APP_VERSION)
-    app.setStyle("Fusion")          # same look on Windows and macOS
-    load_fonts()                    # bundled fonts (assets/fonts), the same on every computer
-    app.setFont(default_font())
-
-
-def default_font():
-    from PySide6.QtGui import QFontDatabase
-    families = set(QFontDatabase.families())
-    f = QFont()
-    for fam in FONT["families"]:
-        if fam in families:
-            f.setFamily(fam)
-            break
-    f.setPointSizeF(FONT["size_pt"])
-    return f
+# (moved to app/startup.py: light, so the loading screen can show before this module is imported)
+from .startup import default_font, setup_application  # noqa: E402,F401

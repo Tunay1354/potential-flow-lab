@@ -207,6 +207,18 @@ GUI / Qt
   Everything fine; only stutters: pan / zoom with every layer on (p95 25–40 ms, rare 90–130 ms) and the background
   compute of busy scenes (8 elements: 1.4 s). He asked to add OpenGL next and compare with the SAME script, also on
   his Windows PC (ask him to run `python scripts/benchmark.py --out before.json` there before the change).
+- **29 Oct, 20.1 loading screen + hardware (ROADMAP 20.1)**: main.py → `app/splash.LoadingScreen` (shown
+  after the light `app/startup.setup_application`, before heavy imports) → `app/hardware.detect()` (profile in
+  QSettings "hardware/profile", re-detected when `fingerprint()` changes; OpenGL asked ONLY in a child process
+  `main.py --probe-gpu FILE` — a GL call on a non-current context segfaults, seen here) → `physics/warmup.steps()`
+  (everything compiled before the window; checked with numba compile events: nothing compiles later) →
+  MainWindow (`win.hardware`). Help → Your computer… (`hardware_dialog.py`). This server now has Xvfb + Mesa
+  (llvmpipe, GL 4.5): `Xvfb :99 &`, then DISPLAY=:99 QT_QPA_PLATFORM=xcb for OpenGL tests (software only).
+  His PC: Windows 11 laptop, 16 threads, RTX 3050 Ti (+ probably Intel), Hz unknown; his baseline numbers in
+  ROADMAP 20. Next packages: 20.2 multi-core (always on), 20.3 GPU box in the header + OpenGL plot + Graphics card
+  panel (FPS, fps cap Match screen / 60 / 120 / 144) + Intel → NVIDIA (write HKCU\Software\Microsoft\DirectX\
+  UserGpuPreferences "GpuPreference=2;" for the exe / python.exe after asking, restart, check the renderer;
+  fallback: open ms-settings:display-advancedgraphics), 20.4 GPU particles / pulses + calibrated maxima.
 - **Next: item 20 — optimization (+ E2)**: measure first, then improve: start-up and first Numba compile,
   dragging, zoom / pan, animation (maybe an "Use graphics card (OpenGL)" option with a fallback), Solid bodies,
   Surface pressure, export times; scripts in `scripts/`, before / after numbers in ROADMAP.
