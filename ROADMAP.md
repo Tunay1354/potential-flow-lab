@@ -393,6 +393,8 @@ bırakıldı (kullanıcı kararı).
       `python main.py --first-run` ve Help → Beaver → Next start as a first-time user. Balon: uzun satırlar
       kırılıyor, seçenek satırları + ipucu satırı; testler: toplam 31
     - ☐ Sonra: isim (Psi geçici) ve yan / akış pozlarının rötuşu (kullanıcı: "yan görünüşler hâlâ biraz garip")
+    - `CLAUDE.md` baştan yazıldı (29 Ekim): başka bir hesaptaki asistan için projenin özeti, kullanıcının çalışma
+      tercihleri, çalıştırma / test, mimari, gün gün yapılanlar, karşılaşılan hatalar ve çözümleri, sıradaki işler
 20. ☐ **Optimizasyon (+ Paket E2)**: ölçüm → iyileştirme: açılış ve ilk Numba derleme süresi, sürükleme, zoom /
     pan, animasyon (gerekirse "Use graphics card (OpenGL)", açılamazsa normal çizim), Solid bodies, Surface
     pressure, export süreleri; ölçümler `scripts/` altında, önce / sonra sayılarıyla
