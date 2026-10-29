@@ -683,6 +683,13 @@ bırakıldı (kullanıcı kararı).
       (ekran pikseline oturtulmuş: hepsi aynı kalınlık), 14 px boy, ceviz rengi (tema `logo_dot`), tutamacın altında.
       (6) Graphics card paneli okun altından sarkan kart: çentik oku gösteriyor, mürekkep çerçeve + sert gölge
       (kunduz balonu / çizim kartı görünümü), plank'ın kenarına değiyor.
+    - ✅ **20.7E Kunduz ve User guide** (30 Ekim 02:36): doublet uyarısının açıklaması bir kez çıktıysa silinmiyor (açı
+      düzelince sonuna "That's it: the warning is gone." ekleniyor, yalnız yeni kelimeler yazılıyor); düzenleme adımında
+      değiştirmeden Apply da ilerletiyor; User guide aramasında Enter artık "Open in browser"ı tetiklemiyor (butonlar
+      autoDefault değil) ve o buton "Save as web page…" oldu (dosyayı kullanıcının seçtiği yere yazıp açıyor: Microsoft
+      Store Python'unda programın veri klasörü tarayıcıya kapalı — "açılmayan sayfa" bundandı; verification raporunun
+      "Open full report"u da aynı klasörü kullanıyor: exe'de sorun olmaz, 24'te kontrol); kunduz için güvenlik ağı:
+      plotta (glass / flow / bored / pulse / run / vanish / gone) 15 s'den uzun kalırsa "rescue" cümlesi + rafına zıplama.
 21. ☐ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,
     dosya yapısı, uyarılar (pyflakes), çok uzun dosyaların bölünmesi, testlerin süresi, README klasör tablosu.
     Ölçüt: tüm testler + verification aynı sonuç

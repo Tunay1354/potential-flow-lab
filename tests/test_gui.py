@@ -754,15 +754,30 @@ def test_user_guide_opens_with_f1_and_finds_words(window, qapp):
     assert g.isVisible() and g.toc.count() == len(CHAPTERS) and "Getting started" in g.text.toPlainText()
     g.show_key("keys")
     assert "Ctrl+S" in g.text.toPlainText()                          # the live shortcut table
+    saved = []
+    g.save_web_page = lambda path=None: saved.append(path)
     g.find.setText("Kutta")
-    g.find_next()
-    assert "Kutta" in g.text.toPlainText()
+    g.find.setFocus()
+    QTest.keyClick(g.find, Qt.Key_Return)                            # Enter searches, nothing else (his report)
+    qapp.processEvents()
+    assert "Kutta" in g.text.toPlainText() and not saved and g.isVisible()
     g.find.setText("no such word xyz")
     g.find_next()
     assert "not in the guide" in g.note.text()
     from app.user_guide import full_html
     page = full_html(window.theme, window.shortcuts)
     assert all(t in page for _k, t, _x in CHAPTERS[:1]) and "{keys}" not in page
+    g.close()
+
+
+def test_user_guide_saves_a_web_page(window, qapp, tmp_path, monkeypatch):
+    from PySide6.QtGui import QDesktopServices
+    opened = []
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url.toLocalFile()) or True)
+    window.show_user_guide()
+    g = window._guide
+    path = g.save_web_page(str(tmp_path / "guide.html"))
+    assert path and open(path, encoding="utf-8").read().startswith("<!doctype html>") and opened == [path]
     g.close()
 
 

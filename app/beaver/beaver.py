@@ -44,6 +44,8 @@ from .tour import Tour
 ACTIVE_MS, IDLE_MS = 33, 120          # timer: while something happens / sitting on the ruler
 WALK_PX_S = 270.0                     # walking speed on the ruler
 HOP_S = 0.6
+ON_PLOT_STATES = ("glass", "flow", "bored", "pulse", "run", "vanish", "gone")   # he is out on the plot
+ON_PLOT_MAX_S = 15.0                  # a safety net: out on the plot this long -> a remark and a hop home
 SLEEP_AFTER_S = 180.0
 HEAD_TOP = 15.0                       # art px from the canvas centre up to the top of the head (front / perch)
 STAG_FRACTION = 0.03                  # slower than this × the typical speed = at a stagnation point
@@ -144,6 +146,7 @@ class Beaver(QObject):
         self.enabled = True
         self.state = "perch"
         self.t = 0.0                    # seconds in this state
+        self.on_plot_t = 0.0            # seconds out on the plot without coming home (ON_PLOT_MAX_S)
         self.clock = 0.0
         self.center = QPointF()         # sprite centre, window coordinates (perch, held, hop, walk, glass)
         self.z = 0j                     # data point (flow, pulse)
@@ -280,6 +283,7 @@ class Beaver(QObject):
             return
         self.clock += dt
         self.t += dt
+        self._safety_net(dt)
         getattr(self, "_s_" + self.state)(dt)
         if self.tour.active:
             self.tour.advance(dt)
@@ -294,6 +298,23 @@ class Beaver(QObject):
             self.waiting = None
             self._show(key, fmt)
         self._place_bubble()
+
+    def _safety_net(self, dt: float):
+        """Whatever he does out on the plot: after ON_PLOT_MAX_S without coming home he says so and hops home
+        (only a net in case something keeps him there by mistake; normally he comes back long before)."""
+        if self.state not in ON_PLOT_STATES:
+            self.on_plot_t = 0.0
+            return
+        self.on_plot_t += dt
+        if self.on_plot_t < ON_PLOT_MAX_S:
+            return
+        self.on_plot_t = 0.0
+        self.waiting = None
+        if not self.dialog:
+            self.bubble.clear()                         # (says it now, not after the line he was saying)
+        self.say("rescue")
+        start = QPointF(self.center) if not self.center.isNull() else self.perch_feet()
+        self._go("hop", start=start)
 
     def _go(self, state: str, **data):
         self.state, self.t, self.data = state, 0.0, data

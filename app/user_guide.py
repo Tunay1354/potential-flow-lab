@@ -1,7 +1,7 @@
 """
 user_guide.py — Help → User guide (F1): the chapters of user_guide_text.py in a window that can stay open
 next to the program (not modal): the chapters on the left, the text on the right, a search field
-(Enter = next match), and "Open in browser" (the whole guide as one HTML page, e.g. to print it).
+(Enter = next match, nothing else), and "Save as web page…" (the whole guide as one HTML page, e.g. to print it).
 """
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ def chapter_html(key: str, shortcuts=None) -> str:
 
 
 def full_html(theme: dict, shortcuts=None) -> str:
-    """The whole guide as one web page (Open in browser)."""
+    """The whole guide as one web page (Save as web page…)."""
     body = "\n<hr>\n".join(chapter_html(k, shortcuts) for k, _t, _x in CHAPTERS)
     toc = "".join(f"<li>{html.escape(t)}</li>" for _k, t, _x in CHAPTERS)
     return (f"<!doctype html><html><head><meta charset='utf-8'><title>Potential Flow Lab — User guide</title>"
@@ -108,14 +108,16 @@ class UserGuideDialog(QDialog):
         self.note = QLabel("")
         self.note.setObjectName("Muted")
         bottom.addWidget(self.note, 1)
-        browser = QPushButton("Open in browser")
-        browser.setToolTip("The whole guide as one web page (to read or print it)")
-        browser.clicked.connect(self.open_in_browser)
+        browser = QPushButton("Save as web page…")
+        browser.setToolTip("The whole guide as one web page (to read it in the browser or print it)")
+        browser.clicked.connect(self.save_web_page)
         close = QPushButton("Close")
         close.setObjectName("Primary")
         close.clicked.connect(self.close)
         for b in (browser, close):
             b.setCursor(Qt.PointingHandCursor)
+            b.setAutoDefault(False)                      # (Enter in the search field searches, nothing else)
+            b.setDefault(False)
             bottom.addWidget(b)
         lay.addLayout(bottom)
         QShortcut(QKeySequence.Find, self, activated=lambda: (self.find.setFocus(), self.find.selectAll()))
@@ -172,11 +174,23 @@ class UserGuideDialog(QDialog):
                 return
         self.note.setText(f"“{word}” is not in the guide.")
 
-    def open_in_browser(self):
-        folder = QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation) or os.path.expanduser("~")
-        os.makedirs(folder, exist_ok=True)
-        path = os.path.join(folder, "user_guide.html")
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(full_html(self.t, self.shortcuts))
+    def save_web_page(self, path: str | None = None) -> str | None:
+        """The whole guide as one HTML file where the user chooses (Documents by default), then opened in the
+        browser. (A file in the program's own data folder could not be opened by the browser with Microsoft
+        Store Python: Windows keeps that folder private to it.)"""
+        if path is None:
+            from PySide6.QtWidgets import QFileDialog
+            start = QStandardPaths.writableLocation(QStandardPaths.DocumentsLocation) or os.path.expanduser("~")
+            path, _ = QFileDialog.getSaveFileName(self, "Save the user guide", os.path.join(
+                start, "Potential Flow Lab - User guide.html"), "Web page (*.html)")
+            if not path:
+                return None
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(full_html(self.t, self.shortcuts))
+        except OSError as exc:
+            self.note.setText(f"Could not save it: {exc.strerror or exc}")
+            return None
         QDesktopServices.openUrl(QUrl.fromLocalFile(path))
         self.note.setText(f"Saved as {path}")
+        return path

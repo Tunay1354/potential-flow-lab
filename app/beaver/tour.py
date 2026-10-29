@@ -103,7 +103,6 @@ DIALOG_TEXT = {
     "edit": "Make the doublet stronger: type a bigger mu, for example 2, then press APPLY.",
 }
 DRAG_TEXT = "Now let go over the plot, where you want it."
-NO_CHANGE_TEXT = "Nothing changed! Double-click the DOUBLET row again and type a bigger mu."
 DONE_TEXT = "Done already: Next goes on, or do it again."
 # a doublet dialog showing the alignment warning (validation.doublet_misalignment): the first time …
 ALIGN_TEXT = ("See the warning? The doublet must point the same way as the flow. Your uniform flow goes at "
@@ -114,6 +113,7 @@ ALIGN_TEXT_OTHER = ("See the warning? The other elements turn the flow at the do
                     "to {want}°, and the warning goes away.")
 # … and again later (short: any angle is fine)
 ALIGN_AGAIN_TEXT = "That warning again: pick any angle you like and go on. With δ = {want}° it goes away."
+GONE_TEXT = "That's it: the warning is gone."
 HINT_EVERY_S = 0.25                  # how often an open doublet dialog is checked for the warning
 
 
@@ -357,19 +357,26 @@ class Tour:
         return text.format(alpha=_deg(angle), want=_deg(want))
 
     def _update_hint(self):
-        """The doublet dialog's warning came or went (numbers typed): the hint follows; the text before it
-        stays as typed (only a new hint is typed on)."""
+        """The doublet dialog's warning came or went (numbers typed). What he said stays (his wish, 30 Oct: the
+        explanation must not vanish when the angle is fixed); the warning gone: a short "that's it" is added;
+        back again: the line without it. Only new text is typed on."""
         hint = self._alignment_hint()
+        if not hint and self.hint:                       # fixed: keep the explanation, add the good news
+            base_hint = self.hint[:-len(GONE_TEXT) - 1] if self.hint.endswith(GONE_TEXT) else self.hint
+            hint = f"{base_hint} {GONE_TEXT}"
         if hint == self.hint:
             return
-        old_shown = self.beaver.bubble.shown
-        self.hint = hint
-        if hint and self.long_hint:
-            self.warned = True
         bub = self.beaver.bubble
-        base = len(self._dialog_text()) - len(hint)
-        bub.say(self._dialog_text(), sticky=True, title=self.beaver.name.upper(), tag=self.tag())
-        bub.shown = min(old_shown, float(base)) if hint else float(len(bub._typed()))
+        old_text, old_shown = self._dialog_text(), bub.shown
+        self.hint = hint
+        if hint and self.long_hint and not hint.endswith(GONE_TEXT):
+            self.warned = True
+        new_text = self._dialog_text()
+        same = 0                                         # (typed on from where the texts differ)
+        while same < min(len(old_text), len(new_text)) and old_text[same] == new_text[same]:
+            same += 1
+        bub.say(new_text, sticky=True, title=self.beaver.name.upper(), tag=self.tag())
+        bub.shown = min(old_shown, float(same))
         self.beaver._place_bubble()
 
     def tag(self) -> str:
@@ -409,7 +416,8 @@ class Tour:
             if self.sub == "dialog":
                 self.sub, self.dialog, self.hint = None, None, ""
                 if accepted and not changed and s.wait and s.wait[0] == "edited":
-                    self.note = NO_CHANGE_TEXT
+                    self._completed()                    # Apply without a change: he got the idea, go on
+                    return
                 self.show()
             return
         if s.wait is None:

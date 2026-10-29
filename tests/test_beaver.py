@@ -774,12 +774,16 @@ def test_tour_explains_the_doublet_warning_in_the_dialog(win, qapp):
     dlg = dialog({p.key: p.default for p in spec.params}, None)        # δ = 0: the warning
     b.notify("dialog_open", ("add", "doublet", dlg))
     assert "30\u00b0" in b.bubble.text and "Orientation \u03b4 to 30\u00b0" in b.bubble.text
-    dlg.widgets["delta"].setValue(30.0)                                # fixed: the hint goes
+    b.bubble.finish_typing()
+    said = b.bubble.text
+    dlg.widgets["delta"].setValue(30.0)                                # fixed: the explanation stays (his wish) …
     run(qapp, win, 0.5)
-    assert "warning" not in b.bubble.text
-    dlg.widgets["delta"].setValue(10.0)                                # back: it comes again
+    from app.beaver.tour import GONE_TEXT
+    assert b.bubble.text.startswith(said) and b.bubble.text.endswith(GONE_TEXT)    # … with the good news
+    assert not b.bubble.typing or b.bubble.shown >= len(said) - 2      # (only the new words are typed)
+    dlg.widgets["delta"].setValue(10.0)                                # wrong again: the line without it
     run(qapp, win, 0.5)
-    assert "to 30\u00b0" in b.bubble.text
+    assert "to 30\u00b0" in b.bubble.text and not b.bubble.text.endswith(GONE_TEXT)
     b.notify("dialog_closed", (False, False))
     dlg.deleteLater()
     win.model.add(Doublet(mu=1.0, delta=30.0))
@@ -859,9 +863,8 @@ def test_tour_sub_steps_drag_and_dialog(win, qapp):
     dlg.deleteLater()
     _tour_at(b, win, qapp, 7)                                          # edit the doublet
     b.notify("dialog_open", ("edit", "doublet", None))
-    b.notify("dialog_closed", (True, False))                           # Apply without a change
-    assert b.tour.i == 7 and b.tour.note is not None and "Nothing changed" in b.bubble.text
-    b.notify("edited", "doublet")
+    b.notify("dialog_closed", (True, False))                           # Apply without a change: on all the same
+    assert b.tour.done_wait is not None                                # (his wish, 30 Oct: he got the idea)
     run(qapp, win, 1.5)
     assert b.tour.i == 8
     b.tour.end(completed=False)
@@ -966,3 +969,24 @@ def test_first_start_offers_the_tour_and_later_starts_do_not(qapp):
         w2.close()
     finally:
         s.setValue("beaver/tour_offered", True)
+
+
+
+def test_safety_net_brings_him_home_after_15_s_on_the_plot(win, qapp):
+    """His wish (30 Oct): whatever keeps him out on the plot, after 15 s he says something and hops home."""
+    from app.beaver.beaver import ON_PLOT_MAX_S
+    from app.beaver.lines import LINES
+    b = win.beaver
+    win.canvas.set_view_mode("particles")
+    run(qapp, win, 0.3)
+    b.z = 0.0 + 1.5j                                                   # (a quiet spot in the flow)
+    b._go("flow")
+    b._s_flow = lambda dt: None                                        # stuck there: as if a bug kept him
+    run(qapp, win, ON_PLOT_MAX_S - 1.0)
+    assert b.state == "flow"
+    run(qapp, win, 1.5)
+    assert b.state in ("hop", "walk", "perch") and b.bubble.text in LINES["rescue"]
+    del b._s_flow
+    run(qapp, win, 5)
+    assert b.state == "perch"
+    win.canvas.set_view_mode("static")

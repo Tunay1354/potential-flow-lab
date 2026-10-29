@@ -18,6 +18,8 @@ LINES = {
                  "Hello! I'm Psi. Looks like you're new here. Shall I show you around? Two minutes, promise."],
     "tour_declined": ["Okay! Click me or press P whenever you need help.",
                       "No problem. Click me any time, I'll show you around later."],
+    "rescue": ["Okay, that's enough flow for me. Home!", "Phew, I've been out long enough. Back to my shelf!",
+               "Time's up! Hop, hop, home.", "That's my lot for today. Shelf time!"],
     "menu_bye": ["Okay! I'm here if you need me.", "Alright. Click me or press P if you need me.",
                  "Sure. I'll be on my shelf if you need me.", "No problem. I'm right here if you need me."],
     "tour_clear_unsaved": ["The tour starts on an empty sheet, and your scene has unsaved changes. Save it first?",
@@ -116,7 +118,7 @@ PRIORITY.update({k: 2 for k in ("glass_drop", "glass_tap", "glass_back", "glass_
                                 "flow_gone", "pulse_bonk", "pulse_run", "pulse_leave", "no_pulses", "paused_leave",
                                 "error", "verify_ok", "verify_fail", "hello", "flow_slow", "pulse_slow", "paused",
                                 "flow_too_fast", "saved", "tour_declined",
-                                "tour_skipped", "menu_bye", "tour_later")})
+                                "tour_skipped", "menu_bye", "tour_later", "rescue")})
 PRIORITY.update({k: 0 for k in ("flow_fast", "pulse_wait", "sleep", "welcome_back")})
 
 

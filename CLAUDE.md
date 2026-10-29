@@ -305,7 +305,12 @@ GUI / Qt
   (rounded); GPU box restarts WITHOUT a question (`_ask_restart` removed); `LimitSlider` mark = device-snapped
   3×14 px rect in theme `logo_dot`, clipped out of the handle; `GpuPanel` paints its own card (notch at
   `notch_x`, ink frame, hard shadow), placed by `_place_gpu_panel` under the arrow.
-- **Next**: his Windows check of 20.7D, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
+- **30 Oct, 20.7E**: tour hint never removed once shown (`GONE_TEXT` appended; typing resumes where texts differ);
+  edit step: Apply without a change = done; guide buttons not autoDefault, "Save as web page…" via file dialog
+  (Store Python's AppData is private to it — the browser cannot open files there; check the verification
+  report's "Open full report" for the same in 24); `beaver._safety_net`: ON_PLOT_STATES longer than 15 s →
+  say("rescue") + hop home.
+- **Next**: his Windows check of 20.7D / 20.7E, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
   remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
 - Then, in this order (all planned, "as if time were unlimited"):
   21 code cleanup without behaviour change (dead / duplicate code, names, docstrings, pyflakes, long files) →

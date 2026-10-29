@@ -10,7 +10,7 @@ komut satırı + `--verify` 102 / 102, hata yakalama, otomatik kayıt, kunduz). 
 
 Program **boş bir plotla** açılır (hazır sahneler: **Presets**). Varsayılan düzen: solda Add palette, ortada plot,
 sağda üstte **Elements** (~260 px), altında **Plot settings**. **View → Panels → Reset layout** bu düzene döner (sahneye
-dokunmaz). Ayrıntılı kullanım: **Help → User guide (F1)** — bölümler, arama, "Open in browser" (tek sayfa, yazdırmak
+dokunmaz). Ayrıntılı kullanım: **Help → User guide (F1)** — bölümler, arama (Enter: sonraki eşleşme), "Save as web page…" (tek sayfa, yazdırmak
 için). İşaretler / açılar: **Help → Sign conventions** (her element için küçük çizimli bir kart).
 
 | Ne | Nasıl |
@@ -115,7 +115,8 @@ Plotta element varken tur başlatılırsa kunduz önce sorar: kaydedilmemiş de�
 - Uniform flow'a açı verildiyse doublet penceresi uyarı gösterir: kunduz kısaca hangi δ'nın uyarıyı kaldırdığını
   söyler ("The doublet must point the same way as the flow… set Orientation δ to 30°"; açılar yuvarlanmış: 1e-07
   yerine 0); düzenleme penceresinde uyarı yeniden çıkarsa kısa: "That warning again: pick any angle you like and go
-  on. With δ = 0° it goes away."
+  on. With δ = 0° it goes away." Açıklama bir kez çıktıysa silinmez; açı düzeltilince sonuna "That's it: the warning is
+  gone." eklenir. Düzenleme adımında hiçbir şey değiştirmeden Apply demek de turu ilerletir.
 - Palette'ten sürüklerken plot aydınlanır; element penceresi açılınca kunduz yanına geçip ne yapılacağını söyler
   (Apply → devam, Cancel → adıma geri). Konuşma balonu gösterdiği yerin üstüne binmez. Plot settings adımlarında
   panel açılır ve slider görünür yere kaydırılır (slider'ın bölümü gizliyse o adım atlanır).
@@ -128,7 +129,8 @@ Help → Beaver → Next start as a first-time user (bir sonraki açılış ilk 
 Konuşmalar İngilizce, harf harf yazılır. Konuşma balonu "çizim kartı" görünümünde: kalın mürekkep çerçeve, basamaklı
 köşeler, gölge; üstte adı (PSI, isim geçici) ve sağda etiket (TOUR 3/19, MENU, QUESTIONS …); yazı IBM Plex Mono;
 sağ altta düğmeler (asıl düğme başlıktaki ahşap renginde: Next ›, Yes, show me around ›, More questions ›). Kunduz
-export edilen figür ve animasyonlarda görünmez; tekerlek üstündeyken de plotu zoom'lar. **View → Beaver** ile kapatılır.
+export edilen figür ve animasyonlarda görünmez; tekerlek üstündeyken de plotu zoom'lar. Güvenlik ağı: ne olursa olsun
+plotta 15 s'den uzun kalırsa bir şey söyleyip rafına zıplar. **View → Beaver** ile kapatılır.
 
 ### Açılış ve "Your computer"
 
@@ -267,7 +269,7 @@ ve `--gpu`'lu iki çalıştırma karşılaştırılır (paint / interact / anim 
 | `app/beaver/` | Kunduz: `art.py` (koddan çizilen piksel art, her poz / açı keskin), `bubble.py` (piksel konuşma balonu, seçenekli diyaloglar), `lines.py` (İngilizce metinler), `faq.py` (soru–cevap), `tour.py` (tanıtım turu adımları), `spotlight.py` (turdaki vurgu), `beaver.py` (davranış: raf, tıklama menüsü, sürükleme, cam, akış, pulse, eve dönüş, tuşlar) |
 | `app/recovery.py` | Otomatik kopya ve çökme sonrası sahneyi geri getirme |
 | `app/verification_dialog.py` | Help → Run verification…: raporu arka planda üretir, check ağacı ve "nasıl hesaplandı" paneli |
-| `app/user_guide.py`, `app/user_guide_text.py` | Help → User guide (F1): bölüm listesi, arama, canlı kısayol tablosu, "Open in browser"; metinler ayrı dosyada (özellik değişince bölümü de güncelle) |
+| `app/user_guide.py`, `app/user_guide_text.py` | Help → User guide (F1): bölüm listesi, arama, canlı kısayol tablosu, "Save as web page…"; metinler ayrı dosyada (özellik değişince bölümü de güncelle) |
 | `app/conventions_dialog.py` | Help → Sign conventions: her element için çizimli kart, temel tanımlar, Cp ve kuvvetler |
 | `app/theme.py` | Renkler (açık / koyu), fontlar, boyutlar, marker'lar |
 | `app/geometry.py` | Duvarların çizim geometrisi (köşelerde sadece akışkana bakan kısım çizilir) |
