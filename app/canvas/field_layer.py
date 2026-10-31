@@ -33,6 +33,7 @@ from physics.streamlines import view_spacing
 from .contours import CROWD_SPEED, contour_xy, cp_bands, cut_mask, filled_paths, speed_bands
 from .layer import PlotLayer
 from .legend import ColorLegend
+from .scaled_curve import ScaledCurve
 
 KEYS = ("equipotential", "speed", "cp")     # the layer switches (canvas.layers) of this layer
 MARGIN = 0.25                    # grid covers the view + 25 % on every side
@@ -99,8 +100,8 @@ class FieldLayer(PlotLayer):
 
     def __init__(self, plot, vb):
         super().__init__(plot, vb)
-        self.phi = self.add_item(pg.PlotCurveItem(connect="finite"), 0.6)
-        self.map_lines = self.add_item(pg.PlotCurveItem(connect="finite"), -4)
+        self.phi = self.add_item(ScaledCurve(connect="finite"), 0.6)
+        self.map_lines = self.add_item(ScaledCurve(connect="finite"), -4)
         self.phi.setVisible(False)
         self.map_lines.setVisible(False)
         self.bands = []                       # one filled path item per color band

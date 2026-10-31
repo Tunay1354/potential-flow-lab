@@ -53,7 +53,7 @@ BACK_BUTTON = "\u2039 Back"         # Left arrow does the same
 TAIL_ROOM = 16                       # px: the bubble's tail and margin (bubble.TAIL + 6)
 
 STEPS = [
-    Step("Welcome to Potential Flow Lab! I'll show you around in two minutes. "
+    Step("Welcome to Flowy! I'll show you around in two minutes. "
          "Let's start with an empty sheet.", None, enter="clear", where="inside"),
     Step("This is the plot. Everything you build shows up here: streamlines, stagnation points, colours "
          "and animations. Try it: scroll to zoom, drag to pan.", "plot", where="inside", allow="plot"),

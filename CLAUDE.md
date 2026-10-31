@@ -8,7 +8,7 @@ Claude Code loads this file automatically; in claude.ai, the owner will point yo
 ---------------------------------------------------------------------------------------------------------------
 ## 1. The project in one paragraph
 
-**Potential Flow Lab** — an interactive 2D potential-flow simulator in Python (PySide6 + pyqtgraph, NumPy,
+**Flowy** (formerly Potential Flow Lab) — an interactive 2D potential-flow simulator in Python (PySide6 + pyqtgraph, NumPy,
 Numba, contourpy). It is Semester Project 1 of the **Aerodynamics** course (İzmir Institute of Technology, ME,
 Fall 2026). Due **≈ 26 Nov 2026**: the program + a 4–6 page report + a user guide + a live demo. The assignment
 asks for superposition of elementary flows with a GUI, streamlines, and verification cases; the owner wants
@@ -149,6 +149,7 @@ Physics / numerics
   body regions (`surface._surface_parts`), regions never joined directly.
 - **φ lines across a vortex branch cut** had a gap → Δφ chosen so 2Γ is a multiple, lines drawn as zeros of
   sin(πφ/Δφ), each point Newton-snapped (`vortex_step`, `fields`).
+- **ZeroDivisionError in Newton** when a seed lands exactly on a singular point (free vortex centre, view symmetric about it) → `kernel._at_singularity` makes that seed NaN.
 - **ZeroDivisionError at a corner of two walls** (velocity exactly 0) → `kernel._direction` returns NaN.
 - **Stagnation point in a 90° walled corner** is a *triple* zero of w (w ∝ z³) → position only defined to
   (1e-16)^(1/3) ≈ 5e-6; verification tolerance 1e-5 for that reason. ψ constancy along drawn lines: 0.2–0.3 % of
@@ -169,6 +170,8 @@ GUI / Qt
 - **GPU animation picture 1.25× too large / shifted at 125 %**: QPainter.combinedTransform() on the GL viewport
   already contains the screen scale → map the corners with `plot.viewportTransform()` (logical px) instead.
   Test GL things also with QT_SCALE_FACTOR=1.25 on Xvfb.
+- **Thick lines far zoomed in with the GPU**: Qt's GL paint engine limits the inverse scale of cosmetic pens (> ~1e4 px per item unit) → items keep view-sized local coordinates (`ScaledCurve`, `PaperGridItem`). Any new line item on the plot: use ScaledCurve, not pg.PlotCurveItem.
+- **Lines cut off far zoomed out**: one stagnation-speed threshold for all cache levels → per level.
 - Particle trails stayed on an empty page (last steps redrawn every frame) → no step without flow + clear.
 - **Exceptions in Qt slots / paint events** go to `sys.excepthook` → `app/errors.py` logs them and shows one
   window per distinct error (no floods). Background threads (QThreadPool) never touch widgets; results and
@@ -314,6 +317,15 @@ GUI / Qt
   through `Beaver.remark(key)` (chance `REMARK_CHANCE`, gap `REMARK_GAP_S`, only on his shelf, silent while
   talking / tour / dialog); the window sends element_added / deleted / cleared / undo / redo / preset / exported /
   theme / gpu / scene via `_tell_beaver` → `notify` → `_react` (the tour gets them instead while it runs).
+- **31 Oct, 20.7G**: renamed **Flowy** (`app_info.APP_NAME`, header subtitle `APP_SUBTITLE`; settings / data folder
+  keep `APP_ID = "Potential Flow Lab"` via setApplicationName — do not change it, his settings live there). Zoom:
+  (1) `streamlines/cache.py`: each level finds its own `v_min` (the first view's made far-out lines end at once);
+  (2) Qt's GL paint engine thickens cosmetic pens beyond ~1e4 px per item unit → curves are `canvas/scaled_curve.
+  ScaledCurve` (local coords ≈ px, own transform + boundingRect; **pyqtgraph paints from getData(), so getData is
+  local — use `.xy()` for data**), grid = `grid_item.PaperGridItem` (device pixels); (3) user zoom limits
+  `canvas.ZOOM_RANGE` = 1e4 × Fit size (`update_zoom_limits`, `setLimits`; program-set views widen them),
+  `zoom_limit` signal once per arrival → `_zoom_limit` flash + beaver `zoom_limit_in/out` (REMARK_CHANCE 0.5);
+  (4) `panels.ViewSpinBox` (±1e12, decimals from the view width, 1.5e-05 form). Tests: `tests/test_zoom.py`.
 - **Next**: his Windows check of 20.7D–F, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
   remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
 - Then, in this order (all planned, "as if time were unlimited"):

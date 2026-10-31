@@ -146,7 +146,7 @@ FONT = {
     "menu_size_pt": 11.5,            # File / Edit ... on the ruler (shown in capitals)
     "heading_size_pt": 9.5,          # panel headings (capitals, wide letter spacing)
     "button_size_pt": 10,            # tool buttons above the plot (capitals)
-    "title_size_pt": 14,             # "POTENTIAL FLOW LAB" on the plank
+    "title_size_pt": 14,             # "FLOWY" on the plank
     "plot_label_size_pt": 10,
 }
 
@@ -154,7 +154,7 @@ FONT = {
 # Layout / sizes
 # ---------------------------------------------------------------------------
 LAYOUT = {
-    "window_title": "Potential Flow Lab",
+    "window_title": "Flowy",
     "window_size": (1400, 860),     # size when the window is not maximized
     "start_maximized": True,
     "plank_height": 58,             # wooden header with logo and name

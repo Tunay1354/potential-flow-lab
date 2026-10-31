@@ -46,7 +46,7 @@ def _spin(qapp, seconds=0.3):
 
 def test_log_file_starts_with_the_versions(logdir):
     text = _log_text(logdir)
-    assert "start: Potential Flow Lab" in text and "Python" in text
+    assert "start: Flowy" in text and "Python" in text
 
 
 def test_an_error_in_a_slot_is_logged_and_shown_once(qapp, reporter, logdir):

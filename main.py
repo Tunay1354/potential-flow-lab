@@ -1,5 +1,5 @@
 """
-Potential Flow Lab
+Flowy (Potential Flow Lab)
 Run:  python main.py                 (starts with an empty plot; Presets has ready-made scenes)
       python main.py scene.pflow     (opens a saved scene; also used when a file is double-clicked)
       python main.py --first-run     (starts as for a first-time user: the beaver offers the tour)

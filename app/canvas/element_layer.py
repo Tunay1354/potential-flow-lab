@@ -17,6 +17,7 @@ from ..geometry import (fluid_polygon, point_segment_distance, rect_polygon, sec
                         sector_sides, visible_wall_segment)
 from ..theme import LAYOUT, MARKERS
 from .layer import PlotLayer, glow_dots
+from .scaled_curve import ScaledCurve
 
 
 class ElementLayer(PlotLayer):
@@ -188,9 +189,9 @@ class ElementLayer(PlotLayer):
             for extra, alpha in LAYOUT["selection_glow"]:
                 gc = QColor(color)
                 gc.setAlpha(alpha)
-                g = pg.PlotCurveItem(xs, ys, pen=pg.mkPen(gc, width=LAYOUT["wall_width"] + 0.6 * extra))
+                g = ScaledCurve(xs, ys, pen=pg.mkPen(gc, width=LAYOUT["wall_width"] + 0.6 * extra))
                 self.walls.append(self.add_item(g, 3.9))
-        line = pg.PlotCurveItem(xs, ys, pen=pg.mkPen(QColor(color), width=LAYOUT["wall_width"]))
+        line = ScaledCurve(xs, ys, pen=pg.mkPen(QColor(color), width=LAYOUT["wall_width"]))
         self.walls.append(self.add_item(line, 4))
         length = abs(b - a)
         n = int(length / self._hatch_spacing)
@@ -202,7 +203,7 @@ class ElementLayer(PlotLayer):
         base = a + (np.arange(n) + 0.5) * self._hatch_spacing * d
         mx = np.column_stack([base.real, (base + tick).real, np.full(n, np.nan)]).ravel()
         my = np.column_stack([base.imag, (base + tick).imag, np.full(n, np.nan)]).ravel()
-        marks = pg.PlotCurveItem(mx, my, connect="finite", pen=pg.mkPen(color, width=1.2))
+        marks = ScaledCurve(mx, my, connect="finite", pen=pg.mkPen(color, width=1.2))
         self.walls.append(self.add_item(marks, 4))
 
     # ------------------------------------------------------------------ picking

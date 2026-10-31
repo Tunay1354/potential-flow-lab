@@ -733,6 +733,34 @@ LINES = {
         "Night owl? Night beaver.",
         "Late night potential flow. Respect.",
     ],
+    "zoom_limit_in": [
+        "That's as close as it goes. Any closer and we'd see the water molecules!",
+        "Ten thousand times! Down here, every streamline is a straight line. Trust me.",
+        "Stop! Potential flow has no atoms. Nothing new down here.",
+        "Zoomed all the way in. I can count the decimals now.",
+        "Any closer and the numbers start to wobble. Floating point has feelings too.",
+        "This close, a uniform flow is all there is. Smooth, isn't it?",
+        "Looking for the continuum hypothesis? You just found its edge.",
+        "Microscope mode: maxed out. Still no molecules. Told you.",
+        "Deeper than this, even my whiskers can't help.",
+        "You found the bottom of the flow. It looks... exactly like the top.",
+        "Zoom in more? The flow says: nope, I'm locally uniform.",
+        "Easy! My bandana is not rated for this magnification.",
+    ],
+    "zoom_limit_out": [
+        "That's far enough! From here your whole scene is one tiny dot.",
+        "Ten thousand times out. Far away, every flow looks like one source and one vortex.",
+        "Any further and we'd need a rocket. And a bigger river.",
+        "I can't even see my dam from up here.",
+        "Zoomed all the way out. The free stream says hi. It's the only one left.",
+        "Out here, your elements merge into a single point. Superposition, from orbit.",
+        "Beyond this, it's just uniform flow forever. Pretty, but boring.",
+        "Hello from the far field! It's very quiet out here.",
+        "Whoa, I'm getting altitude sickness.",
+        "The scene is smaller than a grain of sand now. Shall we go back?",
+        "This is the far field. Nothing ever happens in the far field.",
+        "Press Fit and I'll bring you home.",
+    ],
     "long_session": [
         "You've been at it for an hour. Stretch!",
         "An hour already! Drink some water.",
@@ -751,6 +779,7 @@ REMARK_CHANCE = {
     "lifting": 0.8, "crowded": 0.5, "preset": 0.45, "exported": 0.6,
     "exported_animation": 0.6, "exported_data": 0.6, "theme_dark": 0.7, "theme_light": 0.7,
     "gpu_on": 1.0, "gpu_off": 1.0, "long_session": 1.0,
+    "zoom_limit_in": 0.5, "zoom_limit_out": 0.5,
 }
 REMARK_GAP_S = 20.0
 

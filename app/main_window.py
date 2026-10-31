@@ -18,7 +18,7 @@ from PySide6.QtCore import QEvent, QSettings, Qt, QTimer
 from PySide6.QtGui import QColor, QKeySequence, QPalette, QShortcut
 from PySide6.QtWidgets import QAbstractButton, QApplication, QHBoxLayout, QMainWindow, QMenuBar, QMessageBox, QWidget
 
-from app_info import APP_VERSION
+from app_info import APP_SUBTITLE, APP_VERSION
 from model import SceneModel, preview_change
 from physics import ELEMENT_TYPES
 from physics.warmup import warm_up_in_background
@@ -75,6 +75,7 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         self.header = HeaderBar(self)
         self.setMenuWidget(self.header)
         self._menu_bar = self.header.menu_bar
+        self.header.plank.subtitle.setText(APP_SUBTITLE.upper())
         self.header.plank.version.setText(f"REV {APP_VERSION}")
 
         # central plot card on the paper, the element palette beside it
@@ -164,6 +165,7 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         cv.view_changed.connect(self._update_title_block_view)
         cv.view_changed.connect(sp.set_view)
         cv.view_changed.connect(self.recovery.changed)
+        cv.zoom_limit.connect(self._zoom_limit)
         # element list -> model
         ep.edit_requested.connect(self.edit_element)
         ep.enabled_changed.connect(lambda row, on: self.model.set_enabled(row, on))
@@ -204,6 +206,14 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         QApplication.instance().installEventFilter(self)
         esc = QShortcut(QKeySequence(Qt.Key_Escape), self)
         esc.activated.connect(lambda: self.canvas.cancel_drag() or self.select_element(-1))
+
+    def _zoom_limit(self, side: str):
+        """The user zoomed to a limit (canvas.ZOOM_RANGE times the Fit size): say so, the beaver maybe too."""
+        if side == "in":
+            self.flash("Zoom limit: 10 000× closer than Fit. Closer in, the flow only looks straighter.")
+        else:
+            self.flash("Zoom limit: 10 000× wider than Fit. Further out, the scene is only a dot.")
+        self._tell_beaver("zoom_limit", side)
 
     # ------------------------------------------------------------------ model -> view
     def _tell_beaver(self, event: str, value=None):
@@ -550,8 +560,8 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
             dispose(dlg)
 
     def _show_about(self):
-        QMessageBox.about(self, "About Potential Flow Lab",
-                          "<b>Potential Flow Lab</b><br>"
+        QMessageBox.about(self, "About Flowy",
+                          f"<b>Flowy</b> {APP_VERSION} — Potential Flow Lab<br>"
                           "Interactive 2D incompressible, irrotational flow builder.<br><br>"
                           "Aerodynamics semester project, IZTECH Mechanical Engineering.")
 

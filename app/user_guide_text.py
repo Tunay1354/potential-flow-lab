@@ -9,7 +9,7 @@ Keep it true to the program: when a feature changes, change its chapter here too
 CHAPTERS = [
     ("start", "Getting started", """
 <h2>Getting started</h2>
-<p>Potential Flow Lab builds two-dimensional, incompressible, irrotational (potential) flows by
+<p><b>Flowy</b> (Potential Flow Lab) builds two-dimensional, incompressible, irrotational (potential) flows by
 <b>superposition</b> of elementary flows: uniform flow, source / sink, vortex, doublet, sector (wedge) flow and
 straight walls. Everything you add is drawn at once: streamlines, stagnation points, and on request
 equipotential lines, speed or pressure colours, solid bodies and the pressure on their surfaces.</p>

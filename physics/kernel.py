@@ -207,6 +207,20 @@ def _direction(z, F):
 
 
 @njit(**JIT)
+def _at_singularity(z, F) -> bool:
+    """z exactly on a source / vortex / doublet (or an image row's, or a sector corner with n < 1): w is
+    infinite there, and dividing by zero would raise (a Newton seed placed on a free vortex's centre, 31 Oct)."""
+    for k in range(F.shape[0]):
+        kind = int(F[k, 0].real)
+        if kind == POLE1 or kind == POLE2 or kind == ROW1 or kind == ROW2:
+            if z == F[k, 1]:
+                return True
+        elif kind != CONST and F[k, 4].real < 1.0 and z == F[k, 1]:
+            return True
+    return False
+
+
+@njit(**JIT)
 def newton_zeros(z, F, L, x0, x1, y0, y1, iterations):
     """Newton's method for w(z) = 0 from every starting point (see stagnation._newton): w' from a
     central difference, steps limited to L/10; NaN when a point leaves the box or w' = 0."""
@@ -215,6 +229,9 @@ def newton_zeros(z, F, L, x0, x1, y0, y1, iterations):
     for i in range(z.size):
         zi = out[i]
         for _ in range(iterations):
+            if _at_singularity(zi, F) or _at_singularity(zi + hc, F) or _at_singularity(zi - hc, F):
+                zi = complex(np.nan, np.nan)                     # (no stagnation point on a singularity)
+                break
             w = _w(zi, F)
             dw = (_w(zi + hc, F) - _w(zi - hc, F)) / (2.0 * hc)
             if dw.real == 0.0 and dw.imag == 0.0:

@@ -160,7 +160,7 @@ def test_solid_bodies_switch(win, qapp):
     assert cv.layers["bodies"] and cv.bodies.mask is not None
     assert not cv.bodies.fill.path().isEmpty() and cv.bodies.fill.isVisible()
     assert cv.bodies.contains(np.array([0.3 + 0.2j, 2.5 + 1.5j])).tolist() == [True, False]
-    edge = cv.bodies.edge.getData()
+    edge = cv.bodies.edge.xy()
     r = np.hypot(edge[0], edge[1])
     r = r[np.isfinite(r)]
     assert r.size > 50 and np.allclose(r, 1.0, atol=0.02)                    # the surface only

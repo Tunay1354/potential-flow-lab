@@ -1,7 +1,7 @@
-# PyInstaller spec of Potential Flow Lab (Faz 5).   Build (from the project folder):
+# PyInstaller spec of Flowy (Potential Flow Lab) (Faz 5).   Build (from the project folder):
 #     pip install pyinstaller
 #     pyinstaller packaging/potential_flow_lab.spec
-# Result: dist/Potential Flow Lab/ (the exe + an _internal folder with the bundled files and presets);
+# Result: dist/Flowy/ (the exe + an _internal folder with the bundled files and presets);
 # zip that folder to share it.
 #
 # Numba: the exe compiles its kernels at the first start (~10 s, the window says so) and keeps them in
@@ -10,7 +10,7 @@
 import os
 
 ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
-NAME = "Potential Flow Lab"
+NAME = "Flowy"
 
 a = Analysis(
     [os.path.join(ROOT, "main.py")],

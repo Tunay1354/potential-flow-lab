@@ -180,3 +180,16 @@ def test_every_dividing_streamline_starts_or_ends_at_its_own_point():
     for ln, k in zip(f.dividing, f.owners):
         ends = [complex(*ln[0]), complex(*ln[-1])]
         assert min(abs(e - f.points[k].z) for e in ends) < 1e-12
+
+
+def test_newton_seed_exactly_on_a_free_vortex_is_no_crash():
+    """A Newton seed placed exactly on a singularity (a free vortex's centre in a view symmetric about it)
+    divided by zero in the compiled kernel (31 Oct). Such a seed simply finds nothing."""
+    from physics.stagnation import _newton, resolve
+    for els in ([Vortex(Gamma=6.0)], [Uniform(), Doublet(mu=1.0)], [Uniform(), Source(m=1.0, x0=0.5)]):
+        flows = resolve(els)
+        seeds = np.array([0j, 0.5 + 0j, 1e-7 + 0j, 2.0 + 1.0j])          # (0 and 0.5: on the singular points)
+        z = _newton(els, flows, seeds, 4.0, (-8.0, 8.0, -8.0, 8.0))
+        on = 1 if els[-1].TYPE == "source" else 0
+        assert z.shape == seeds.shape and np.isnan(z[on])
+    assert find_stagnation_points([Vortex(Gamma=6.0)], (-3.4558823529411766, 3.4558823529411766, -2.0, 2.0)) == []

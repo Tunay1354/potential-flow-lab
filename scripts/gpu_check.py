@@ -69,7 +69,7 @@ def main():
     ap.add_argument("--write-registry", action="store_true")
     a = ap.parse_args()
 
-    print("Potential Flow Lab — graphics card check\n")
+    print("Flowy — graphics card check\n")
     print("Program files Windows may know this program by:")
     for p in gpu.program_paths():
         print(f"  {p}\n      Windows setting: GpuPreference = {gpu.read_preference(p)}")

@@ -697,6 +697,29 @@ bırakıldı (kullanıcı kararı).
       deleted, cleared, undo, redo, preset, exported (figure / animation / data), theme, gpu (yeniden başlatmadan
       sonra), scene (`scene_shape`: cylinder / lifting, 8+ element crowded); saat başı long_session; açılışta bazen
       günün saatine göre selam. Testler: sayılar, tekrar önleme, olasılık + 20 s aralık, sessiz undo, şekiller.
+    - ✅ **20.7G Adı Flowy + zoom sorunları + zoom sınırları** (31 Ekim, kullanıcının iki ekran görüntüsü ve isteğiyle):
+      - **İsim**: pencere başlığı, header (FLOWY + altında "POTENTIAL FLOW LAB", REV sağda), açılış ekranı, About,
+        export başlıkları, rapor, user guide, tur, scene dosyası hata metni, exe adı → **Flowy**
+        (`app_info.APP_NAME`). Ayarlar / veri klasörü eski adla kalır (`APP_ID = "Potential Flow Lab"`): ayarlar,
+        son dosyalar, otomatik kayıtlar kaybolmaz.
+      - **Çok uzak zoom'da çizgilerin kesilmesi**: streamline önbelleği "bu kadar yavaşsa stagnation point" eşiğini
+        (`v_min`) ilk görünümden alıp her zoom seviyesinde kullanıyordu; uzakta akış daha yavaş → her çizgi hemen
+        bitiyordu. Artık her seviye kendi eşiğini ilk bölgesinden bulur (`streamlines/cache.py`). Vortex + source,
+        4 → 4·10⁵ → 4·10⁻⁴ yarı genişlik: çizgiler her seferinde görünümün tamamını kaplıyor.
+      - **GPU'da çok yakın zoom'da kalın çizgiler**: Qt'nin OpenGL çizicisi bir öğenin kendi koordinatlarını
+        ~10⁴ px / birimden fazla büyütünce kalemi kalınlaştırıyor (işlemcide yok). Çizgiler artık görünüm
+        boyutunda yerel koordinatlarda (`app/canvas/scaled_curve.py`, `ScaledCurve`: x' = (x − cx) / s, 1 birim ≈
+        1 px; zoom 16× değişince yeniden), ızgara ekran pikselinde (`grid_item.PaperGridItem`). Xvfb + Mesa: yarı
+        genişlik 10⁻³'te GPU ile normal çizim farkı %82.6 → %0 (test: `test_opengl_lines_stay_thin_far_zoomed_in`).
+      - **Zoom sınırları**: kullanıcının tekerlek / sürüklemesi Fit genişliğinin 10⁴ katı yakın / uzak ile sınırlı
+        (`canvas.ZOOM_RANGE`, pyqtgraph `setLimits`, aspect lock korunur); sınırlar sahneyle değişir. Program /
+        dosya / View range ile verilen görünüm kesilmez (sınırlar onu kapsayacak kadar genişler). Sınıra her
+        varışta bir kez `zoom_limit` → status bar + kunduz (`zoom_limit_in` / `zoom_limit_out`, 12'şer espri, %50,
+        20 s kuralı geçerli).
+      - **View range kutuları**: ±10 000 ve 2 ondalık yerine ±10¹²; ondalık sayısı görünüm genişliğine göre
+        (binde biri görünür, 2–8), çok büyük / küçükte `1.5e-05` biçimi, yazarken de (virgül de olur)
+        (`panels.ViewSpinBox`). Testler: `tests/test_zoom.py` (10 test).
+      - Full test sırasında bulunan eski bir hata: Newton'un bir başlangıç noktası tam bir vortex'in merkezine düşünce (merkeze simetrik görünüm) derlenmiş kernel sıfıra bölüyordu → tekil noktadaki başlangıç noktası atlanır (`kernel._at_singularity`; test: `test_stagnation`).
 21. ☐ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,
     dosya yapısı, uyarılar (pyflakes), çok uzun dosyaların bölünmesi, testlerin süresi, README klasör tablosu.
     Ölçüt: tüm testler + verification aynı sonuç

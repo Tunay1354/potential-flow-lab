@@ -428,7 +428,7 @@ def test_scene_change_computes_streamlines_in_the_background(shown, qapp):
     cv.computed.connect(lambda n, ms: done.append(n))
     shown.load_scene([Uniform(), Doublet(mu=1.0)], title="cylinder")
     assert _wait_for(qapp, cv, lambda: bool(done))
-    assert done[-1] > 10 and cv.streamlines.line_items[0].getData()[0].size > 0
+    assert done[-1] > 10 and cv.streamlines.line_items[0].xy()[0].size > 0
 
 
 def test_only_the_newest_request_is_drawn(shown, qapp):
@@ -456,13 +456,13 @@ def test_panning_inside_the_margin_needs_no_new_computation(shown, qapp):
     done = []
     cv.computed.connect(lambda n, ms: done.append(n))
     (x0, x1), (y0, y1) = cv.view()
-    lines_before = cv.streamlines.line_items[0].getData()[0].copy()
+    lines_before = cv.streamlines.line_items[0].xy()[0].copy()
     cv.set_view((x0 + 0.5, x1 + 0.5), (y0 + 0.3, y1 + 0.3))
     for _ in range(10):
         cv.wait_idle(50)
         qapp.processEvents()
     assert done == [] and cv.streamlines.covers_view()                          # lines were already there
-    np.testing.assert_array_equal(cv.streamlines.line_items[0].getData()[0], lines_before)
+    np.testing.assert_array_equal(cv.streamlines.line_items[0].xy()[0], lines_before)
     cv.set_view((x0 + 12, x1 + 12), (y0, y1))                         # far: new area is computed
     assert _wait_for(qapp, cv, lambda: bool(done) and cv.streamlines.covers_view())
 
@@ -516,12 +516,12 @@ def test_stagnation_points_are_drawn_and_their_lines_appear_only_when_selected(s
     np.testing.assert_allclose(xs, [-np.cos(th), np.cos(th)], atol=1e-8)
     x, y = cv.stagnation.symbol_item.getData()
     assert len(x) == 2                                               # ⊗ symbols always shown
-    assert cv.stagnation.dividing_item.getData()[0].size == 0                  # no black lines by default
+    assert cv.stagnation.dividing_item.xy()[0].size == 0                  # no black lines by default
     assert not cv.stagnation.label.isVisible()
 
 
 def _dividing_points(cv):
-    x, y = cv.stagnation.dividing_item.getData()
+    x, y = cv.stagnation.dividing_item.xy()
     ok = np.isfinite(x)
     return x[ok] + 1j * y[ok]
 

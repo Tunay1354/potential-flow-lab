@@ -59,7 +59,8 @@ def logo_pixmap(theme: dict, size: int, dpr: float = 1.0) -> QPixmap:
 
 # ---------------------------------------------------------------------------------------- header
 class Plank(QWidget):
-    """Wooden band: logo, program name, version, current file, the GPU box (draw with the graphics card)."""
+    """Wooden band: logo, program name + what it is, version, current file, the GPU box (draw with the graphics
+    card)."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -69,16 +70,20 @@ class Plank(QWidget):
         lay.setContentsMargins(20, 0, 20, 0)
         lay.setSpacing(14)
         self.logo = QLabel()
-        self.title = QLabel("Potential Flow Lab")
+        self.title = QLabel("Flowy")
         self.title.setObjectName("PlankTitle")
         self.title.setFont(font("mono", FONT["title_size_pt"], QFont.DemiBold, caps=True, spacing_pct=114))
-        self.version = QLabel("")
+        self.subtitle = QLabel("")              # "POTENTIAL FLOW LAB" (what Flowy is)
+        self.subtitle.setObjectName("PlankMuted")
+        self.version = QLabel("")               # "REV 0.5.0", on the right (the beaver sits above Help)
         self.version.setObjectName("PlankMuted")
         self.file = QLabel("")
         self.file.setObjectName("PlankMuted")
-        for w in (self.logo, self.title, self.version):
+        for w in (self.logo, self.title, self.subtitle):
             lay.addWidget(w)
         lay.addStretch(1)
+        lay.addWidget(self.version)
+        lay.addSpacing(18)
         lay.addWidget(self.file)
         lay.addSpacing(18)
         self.gpu = QCheckBox("GPU")             # app/window/graphics.py

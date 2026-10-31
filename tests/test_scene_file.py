@@ -76,7 +76,7 @@ def test_file_is_readable_json_with_format_and_version(tmp_path):
     text = path.read_text(encoding="utf-8")
     data = json.loads(text)
     assert data["format"] == "potential-flow-lab-scene" and data["version"] == sf.VERSION
-    assert data["saved_with"].startswith("Potential Flow Lab")
+    assert data["saved_with"].startswith("Flowy")
     assert data["elements"][1] == {"type": "source", "enabled": True, "m": -3.25, "x0": 1.5, "y0": -0.75}
     assert "Kanat önü" in text                       # UTF-8, not \\u escapes
 
@@ -97,8 +97,8 @@ def _data(**changes):
 
 @pytest.mark.parametrize("text, words", [
     ("not json at all", "damaged"),
-    ("[1, 2, 3]", "not a Potential Flow Lab scene"),
-    ('{"format": "something-else", "version": 1, "elements": []}', "not a Potential Flow Lab scene"),
+    ("[1, 2, 3]", "not a Flowy scene"),
+    ('{"format": "something-else", "version": 1, "elements": []}', "not a Flowy scene"),
     ('{"format": "potential-flow-lab-scene", "version": 99, "elements": []}', "newer version"),
     ('{"format": "potential-flow-lab-scene", "version": "1", "elements": []}', "invalid format version"),
     ('{"format": "potential-flow-lab-scene", "version": 1}', "no element list"),

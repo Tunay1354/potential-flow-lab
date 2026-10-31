@@ -12,6 +12,7 @@ from PySide6.QtGui import QPainterPath
 
 from ..theme import LAYOUT, MARKERS
 from .layer import PlotLayer, glow_dots, set_box_text
+from .scaled_curve import ScaledCurve
 
 WHERE = {"flow": "in the flow", "wall": "on the wall", "vertex": "corner vertex", "body": "on the body surface"}
 
@@ -32,7 +33,7 @@ class StagnationLayer(PlotLayer):
 
     def __init__(self, plot, vb):
         super().__init__(plot, vb)
-        self.dividing_item = pg.PlotCurveItem(connect="finite")
+        self.dividing_item = ScaledCurve(connect="finite")
         self.dividing_item.setSegmentedLineMode("on")
         self.add_item(self.dividing_item, 1.6)
         self.symbol_item = self.add_item(

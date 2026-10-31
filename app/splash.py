@@ -19,7 +19,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QGuiApplication, QPainter, QPen
 from PySide6.QtWidgets import QApplication, QWidget
 
-from app_info import APP_VERSION
+from app_info import APP_NAME, APP_SUBTITLE, APP_VERSION
 
 from .chrome.header import draw_logo
 from .chrome.style import color, font
@@ -124,9 +124,10 @@ class LoadingScreen(QWidget):
         draw_logo(p, QRectF(22, 15, 40, 40), t)
         p.setPen(color(t["plank_text"]))
         p.setFont(self._title)
-        p.drawText(QPointF(78, 42), "Potential Flow Lab")
+        p.drawText(QPointF(78, 42), APP_NAME)
         p.setFont(self._ver)
         p.setPen(color(t["plank_text_muted"]))
+        p.drawText(QPointF(78 + p.fontMetrics().horizontalAdvance(" ") + 92, 41), APP_SUBTITLE.upper())
         p.drawText(QRectF(0, 26, W - 22, 20), Qt.AlignRight | Qt.AlignVCenter, f"REV {APP_VERSION}")
         # what is being done
         dots = "." * (1 + int((time.perf_counter() - self.t0) * 2.5) % 3)

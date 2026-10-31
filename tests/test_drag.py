@@ -261,7 +261,7 @@ def test_dividing_lines_come_back_after_a_drag(win, qapp):
     cv.set_mode("select")
     win.select_stagnation(0)
     qapp.processEvents()
-    x, _ = cv.stagnation.dividing_item.getData()
+    x, _ = cv.stagnation.dividing_item.xy()
     assert cv.stagnation.dividing_item.isVisible() and x is not None and len(x) > 0
     _drag(qapp, win, (0.4, 0.3), (0.4, 0.3), before_release=cv.cancel_drag)     # an Esc'd drag too
     assert cv.stagnation.dividing_item.isVisible()
@@ -290,7 +290,7 @@ def test_live_drag_lines_follow_the_element(win, qapp):
     cv = win.canvas
     assert cv.live_drag and win.settings_panel.c_live.isChecked()           # the default
     cv.set_mode("move")
-    before = cv.streamlines.line_items[0].getData()[0].copy()
+    before = cv.streamlines.line_items[0].xy()[0].copy()
     seen = {}
 
     def during():
@@ -299,7 +299,7 @@ def test_live_drag_lines_follow_the_element(win, qapp):
         seen["previews"] = len(cv.streamlines.preview_ms)
         seen["opacity"] = cv.streamlines.line_items[0].opacity()
         seen["fields"] = all(i.opacity() < 1 for i in cv.fields.items())
-        seen["lines"] = cv.streamlines.line_items[0].getData()[0].copy()
+        seen["lines"] = cv.streamlines.line_items[0].xy()[0].copy()
     _drag(qapp, win, (0.0, 0.0), (1.0, 0.8), before_release=during)
     assert seen["previews"] >= 1 and seen["opacity"] == 1.0 and seen["fields"]
     assert seen["lines"].shape != before.shape or not np.allclose(seen["lines"], before, equal_nan=True)
@@ -325,7 +325,7 @@ def test_live_drag_cancelled_brings_the_old_lines_back(win, qapp):
     cv = win.canvas
     cv.set_mode("move")
     QTest.qWait(300)
-    before = cv.streamlines.line_items[0].getData()[0].copy()
+    before = cv.streamlines.line_items[0].xy()[0].copy()
 
     def cancel():
         QTest.qWait(300)
@@ -337,7 +337,7 @@ def test_live_drag_cancelled_brings_the_old_lines_back(win, qapp):
         cv.wait_idle(50)
         qapp.processEvents()
     assert win.elements == elements
-    np.testing.assert_allclose(cv.streamlines.line_items[0].getData()[0], before)
+    np.testing.assert_allclose(cv.streamlines.line_items[0].xy()[0], before)
 
 
 def test_live_drag_setting_is_remembered(win, qapp):

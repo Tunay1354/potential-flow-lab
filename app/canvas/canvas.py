@@ -7,6 +7,8 @@ streamlines, the field layers (φ, |V|, Cp) and the elements themselves. The can
 state (elements, plot settings, layer switches, selection) and passes every event on to all layers;
 what the mouse does is in interaction.py.
 """
+import math
+
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import Signal
@@ -25,6 +27,7 @@ from .element_layer import ElementLayer
 from .field_layer import KEYS as FIELD_KEYS
 from .field_layer import FieldLayer
 from .gl_viewport import PlotGLViewport, PlotView
+from .grid_item import PaperGridItem
 from .interaction import DRAG_OPACITY, MOUSE_MODES, PlotInteraction, PlotViewBox
 from .particle_layer import ParticleLayer
 from .surface_layer import SurfaceLayer
@@ -34,6 +37,12 @@ from .stagnation_layer import StagnationLayer
 from .streamline_layer import StreamlineLayer
 
 LIVE_DRAG_DEFAULT = True          # "Live update while dragging" until the user changes it
+# zoom limits, relative to the scene's size (the width "Fit" shows): this many times smaller / larger. Potential
+# flow looks the same at every scale (close to a point: parallel lines; far away: one source / vortex), so
+# nothing new appears beyond; a view set by the program (a file, Fit, typed) is never cut by the limits.
+ZOOM_RANGE = 1e4
+ZOOM_LIMIT_TOL = 1.03                # within 3 % of a limit after a wheel / drag: "at the limit"
+INCLUDE_ROOM = 4.0                   # a view set by the program: limits widened this much round it (aspect lock)
 VIEW_MODES = ("static", "particles", "pulses")      # the buttons at the left of the bar
 
 # layer switches: key, label (Plot settings → Layers, View → Layers), shown at the start.
@@ -95,6 +104,7 @@ class PlotCanvas(QWidget):
     view_mode_changed = Signal(str)     # "static", "particles", "pulses" (VIEW_MODES)
     paused_changed = Signal(bool)
     message = Signal(str)               # a short note for the status bar
+    zoom_limit = Signal(str)            # the user zoomed to a limit: "in" / "out" (status bar, the beaver)
 
     def __init__(self, theme: dict, elements: list, parent=None):
         super().__init__(parent)
@@ -140,7 +150,7 @@ class PlotCanvas(QWidget):
         for name in ("left", "bottom"):
             self.plot.getPlotItem().getAxis(name).setStyle(autoReduceTextSpace=False)
         # background grid: one GridItem (the axis-based grid of pyqtgraph is ~15× slower to draw)
-        self._grid = pg.GridItem(textPen=None)
+        self._grid = PaperGridItem(textPen=None)     # (drawn in screen pixels: thin at any zoom, also on the GPU)
         self._grid.setTickSpacing(x=[None, None], y=[None, None])
         self._grid.setZValue(-10)
         self.plot.addItem(self._grid)
@@ -168,6 +178,10 @@ class PlotCanvas(QWidget):
         rng = LAYOUT["plot_initial_range"]
         self.plot.setRange(xRange=rng["x"], yRange=rng["y"], padding=0)
         self.vb.sigRangeChanged.connect(self._range_changed)
+        self.vb.sigRangeChangedManually.connect(self._zoomed_by_user)
+        self._limits = (0.0, float("inf"))
+        self._at_limit = None                           # "in" / "out" while the user's zoom stands at a limit
+        self.update_zoom_limits()
         self.apply_theme(theme)
 
     def add_layer(self, layer):
@@ -192,6 +206,7 @@ class PlotCanvas(QWidget):
 
     def set_elements(self, elements: list):
         self.elements = elements
+        self.update_zoom_limits()
         for layer in self._layers:
             layer.scene_changed()
 
@@ -421,19 +436,59 @@ class PlotCanvas(QWidget):
 
     # ------------------------------------------------------------------ view
     def set_view(self, xr, yr):
+        self.update_zoom_limits(include=(xr, yr))        # (a view the program sets is never cut)
         self.plot.setRange(xRange=xr, yRange=yr, padding=0)
 
-    def fit_view(self):
-        """Show all elements with some margin (default view if there is nothing to fit)."""
+    def fit_range(self):
+        """The view "Fit" shows: all elements with some margin (the default view if there is nothing)."""
         pts = [p for e in self.elements if e.enabled for p in e.marker_points()]
+        pts = [p for p in pts if math.isfinite(p.real) and math.isfinite(p.imag)]
         if not pts:
             rng = LAYOUT["plot_initial_range"]
-            self.set_view(rng["x"], rng["y"])
-            return
+            return tuple(rng["x"]), tuple(rng["y"])
         xs, ys = [p.real for p in pts], [p.imag for p in pts]
         span = max(max(xs) - min(xs), max(ys) - min(ys))
         pad = max(2.5, 0.6 * span)
-        self.set_view((min(xs) - pad, max(xs) + pad), (min(ys) - pad, max(ys) + pad))
+        return (min(xs) - pad, max(xs) + pad), (min(ys) - pad, max(ys) + pad)
+
+    def fit_view(self):
+        """Show all elements with some margin (default view if there is nothing to fit)."""
+        self.set_view(*self.fit_range())
+
+    # ------------------------------------------------------------------ zoom limits
+    def zoom_limits(self, include=None) -> tuple[float, float]:
+        """(smallest, largest) view width allowed: ZOOM_RANGE times smaller / larger than the scene's Fit
+        view, widened so that the current view (and `include`, a view about to be set) always fit."""
+        (fx0, fx1), (fy0, fy1) = self.fit_range()
+        size = max(fx1 - fx0, fy1 - fy0)
+        lo, hi = size / ZOOM_RANGE, size * ZOOM_RANGE
+        views = [(self.view(), 1.0)] if getattr(self, "vb", None) is not None else []
+        if include is not None:
+            views.append((include, INCLUDE_ROOM))
+        for ((x0, x1), (y0, y1)), room in views:
+            for w in (abs(x1 - x0), abs(y1 - y0)):
+                if math.isfinite(w) and w > 0:
+                    lo, hi = min(lo, w / room), max(hi, w * room)
+        return lo, hi
+
+    def update_zoom_limits(self, include=None):
+        lo, hi = self.zoom_limits(include)
+        self._limits = (lo, hi)
+        self.vb.setLimits(minXRange=lo, maxXRange=hi, minYRange=lo, maxYRange=hi)
+
+    def _zoomed_by_user(self, *_):
+        """After a wheel / drag zoom: at a limit -> zoom_limit (the window says so). The limits are then set
+        again from the scene (a view widened by a file stays reachable only while it is shown)."""
+        (x0, x1), (y0, y1) = self.view()
+        w_small, w_big = min(x1 - x0, y1 - y0), max(x1 - x0, y1 - y0)
+        (fx0, fx1), (fy0, fy1) = self.fit_range()
+        size = max(fx1 - fx0, fy1 - fy0)
+        lo, hi = size / ZOOM_RANGE, size * ZOOM_RANGE
+        side = "in" if w_small <= lo * ZOOM_LIMIT_TOL else "out" if w_big >= hi / ZOOM_LIMIT_TOL else None
+        if side is not None and side != self._at_limit:      # (once per arrival, not at every wheel notch)
+            self.zoom_limit.emit(side)
+        self._at_limit = side
+        self.update_zoom_limits()
 
     def _range_changed(self, *_):
         self.view_changed.emit(*self.view())

@@ -190,7 +190,7 @@ def _render(canvas, path, fmt, scale, background):
             writer.setResolution(96)                    # 1 screen pixel = 1/96 inch: lines as on screen
             writer.setPageSize(QPageSize(QSizeF(w * 72.0 / 96.0, h * 72.0 / 96.0), QPageSize.Point))
             writer.setPageMargins(QMarginsF(0, 0, 0, 0))
-            writer.setTitle("Potential Flow Lab figure")
+            writer.setTitle("Flowy figure")
             p = QPainter(writer)
             if bg is not None:
                 p.fillRect(QRectF(0, 0, w, h), bg)
@@ -256,7 +256,7 @@ def _write_svg(canvas, path, source, bg):
     svg = (f'<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n'
            f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
            f'version="1.2" width="{w:g}px" height="{h:g}px" viewBox="0 0 {w:g} {h:g}">\n'
-           f'<title>Potential Flow Lab figure</title>\n'
+           f'<title>Flowy figure</title>\n'
            f'<defs><clipPath id="plot-area"><rect x="{clip.x():g}" y="{clip.y():g}" '
            f'width="{clip.width():g}" height="{clip.height():g}"/></clipPath></defs>\n'
            f'{back}{axes_body}\n<g clip-path="url(#plot-area)">\n{plot_body}\n</g>\n</svg>\n')

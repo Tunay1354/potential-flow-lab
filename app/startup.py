@@ -5,7 +5,7 @@ main_window.setup_application is this function (kept there for scripts and tests
 """
 from PySide6.QtGui import QFont
 
-from app_info import APP_NAME, APP_VERSION, ORGANIZATION
+from app_info import APP_ID, APP_NAME, APP_VERSION, ORGANIZATION
 
 from .chrome.style import load_fonts
 from .theme import FONT
@@ -22,7 +22,8 @@ def setup_application(app):
     # 0.5 ms instead of every 5 ms, so drawing never waits long for the background computation
     sys.setswitchinterval(0.0005)
     app.setOrganizationName(ORGANIZATION)        # where QSettings keeps recent files etc.
-    app.setApplicationName(APP_NAME)
+    app.setApplicationName(APP_ID)              # (settings + data folder: the first name, kept)
+    app.setApplicationDisplayName(APP_NAME)
     app.setApplicationVersion(APP_VERSION)
     app.setStyle("Fusion")          # same look on Windows and macOS
     load_fonts()                    # bundled fonts (assets/fonts), the same on every computer

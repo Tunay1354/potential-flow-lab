@@ -664,7 +664,7 @@ def test_the_gpu_box_restarts_with_everything_kept(window, qapp, tmp_path):
     before = set(os.listdir(restart.folder())) if os.path.isdir(restart.folder()) else set()
     w.header.plank.gpu.setChecked(True)
     assert not gpu.enabled() and not w.header.plank.gpu.isChecked()
-    assert w.messages[-1][1] == "Cannot restart" and set(os.listdir(restart.folder())) == before
+    assert w.messages[-1][1] == "Cannot restart" and set(os.listdir(restart.folder())) <= before   # (nothing new; a day-old leftover may be cleared)
     w._ask_save_changes = lambda: pytest.fail("a restart must not ask to save")
     w._start_again = lambda p: started.append(p) or True
     w.header.plank.gpu.setChecked(True)

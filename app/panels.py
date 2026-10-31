@@ -1,8 +1,10 @@
 """
 panels.py — right-side panels: Elements list and Plot settings.
 """
+import math
+
 from PySide6.QtCore import QEvent, QModelIndex, QObject, QRect, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFontMetrics, QKeySequence, QPainter, QShortcut
+from PySide6.QtGui import QColor, QFontMetrics, QKeySequence, QPainter, QShortcut, QValidator
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout,
                                QGroupBox, QHBoxLayout, QHeaderView, QLabel, QPushButton, QScrollArea, QSlider,
                                QStyle, QStyledItemDelegate, QStyleOptionViewItem, QTreeWidget, QTreeWidgetItem,
@@ -328,6 +330,84 @@ class LimitSlider(QSlider):
 MARK_W, MARK_H = 3.0, 14.0                  # px: the processor's-limit mark on a LimitSlider
 
 
+def view_number(v: float, width: float, parts: float = 1000.0) -> str:
+    """A view limit as text: decimals so that width / parts shows (2 … 8), beyond that (or for numbers of
+    10 million and more) the 1.5e-05 form with as many significant digits as that needs."""
+    places = math.ceil(-math.log10(width / parts)) if width > 0 and math.isfinite(width) else 2
+    a = abs(v)
+    if a >= 1e7 or places > 8:
+        if a == 0:
+            return "0"
+        sig = places + math.floor(math.log10(a)) + 1
+        return f"{v:.{int(min(15, max(4, sig)))}g}"
+    return f"{v:.{int(min(8, max(2, places)))}f}"
+
+
+class ViewSpinBox(QDoubleSpinBox):
+    """A view limit (Plot settings → View range): any size, shown with as many decimals as the view's width
+    needs (zoomed in 10 000× the two limits differ only in the 5th decimal), very large / small numbers as
+    1.5e-05; typed values may use that form too. (The old box had ±10 000 and 2 decimals: a zoomed-in view
+    showed the same number at both ends.)"""
+    LIMIT = 1e12
+
+    def __init__(self, val: float):
+        super().__init__()
+        self.width_shown = 10.0                          # the view's width (set_resolution): decides the decimals
+        self.setDecimals(15)                             # (Qt rounds values to this; the text is formatted below)
+        self.setRange(-self.LIMIT, self.LIMIT)
+        self.setSingleStep(0.5)
+        self.setKeyboardTracking(False)
+        self.setValue(val)
+
+    def set_resolution(self, width: float):
+        if width > 0 and math.isfinite(width):
+            self.width_shown = width
+            self.setSingleStep(float(f"{width / 10:.1g}"))
+            self.lineEdit().setText(self.textFromValue(self.value()))
+
+    def textFromValue(self, v: float) -> str:
+        return view_number(v, self.width_shown)
+
+    def valueFromText(self, text: str) -> float:
+        try:
+            return float(text.strip().replace(",", "."))
+        except ValueError:
+            return self.value()
+
+    def validate(self, text: str, pos: int):
+        t = text.strip().replace(",", ".")
+        try:
+            v = float(t)
+            ok = abs(v) <= self.LIMIT
+            return (QValidator.Acceptable if ok else QValidator.Invalid), text, pos
+        except ValueError:
+            pass
+        partial = t in ("", "-", "+", ".", "-.", "+.") or (t[-1:] in ("e", "E", "-", "+") and self._number(t.rstrip("eE+-")))
+        return (QValidator.Intermediate if partial else QValidator.Invalid), text, pos
+
+    @staticmethod
+    def _number(t: str) -> bool:
+        try:
+            float(t)
+            return True
+        except ValueError:
+            return False
+
+    def fixup(self, text: str) -> str:
+        return self.textFromValue(self.value())
+
+    def _short_hint(self, hint: QSize) -> QSize:
+        fm = self.fontMetrics()
+        return QSize(fm.horizontalAdvance("-10000.00") + (hint.width() - fm.horizontalAdvance(
+            self.textFromValue(self.maximum()))), hint.height())
+
+    def sizeHint(self) -> QSize:
+        return self._short_hint(super().sizeHint())
+
+    def minimumSizeHint(self) -> QSize:
+        return self._short_hint(super().minimumSizeHint())
+
+
 class SettingsPanel(QScrollArea):
     """Plot limits, streamline density, layers, animation, computation quality."""
     message = Signal(str)
@@ -494,10 +574,13 @@ class SettingsPanel(QScrollArea):
 
     def set_view(self, xr, yr):
         """Show the current plot limits without triggering view_edited."""
+        width = max(xr[1] - xr[0], yr[1] - yr[0])
         for sp, val in ((self.xmin, xr[0]), (self.xmax, xr[1]), (self.ymin, yr[0]), (self.ymax, yr[1])):
             if not sp.hasFocus():
                 sp.blockSignals(True)
+                sp.width_shown = width if width > 0 and math.isfinite(width) else sp.width_shown
                 sp.setValue(val)
+                sp.set_resolution(sp.width_shown)
                 sp.blockSignals(False)
 
     def _view_typed(self):
@@ -509,12 +592,7 @@ class SettingsPanel(QScrollArea):
 
     @staticmethod
     def _spin(val):
-        s = QDoubleSpinBox()
-        s.setRange(-1e4, 1e4)
-        s.setDecimals(2)
-        s.setSingleStep(0.5)
-        s.setValue(val)
-        return s
+        return ViewSpinBox(val)
 
     def show_settings(self, settings):
         """Show the plot settings of an opened scene without emitting signals (File → Open sets the

@@ -60,10 +60,10 @@ def full_html(theme: dict, shortcuts=None) -> str:
     """The whole guide as one web page (Save as web page…)."""
     body = "\n<hr>\n".join(chapter_html(k, shortcuts) for k, _t, _x in CHAPTERS)
     toc = "".join(f"<li>{html.escape(t)}</li>" for _k, t, _x in CHAPTERS)
-    return (f"<!doctype html><html><head><meta charset='utf-8'><title>Potential Flow Lab — User guide</title>"
+    return (f"<!doctype html><html><head><meta charset='utf-8'><title>Flowy — User guide</title>"
             f"<style>body {{ font-family: sans-serif; max-width: 860px; margin: 32px auto; padding: 0 16px; "
             f"background: {theme['panel_bg']}; }} {style_sheet(theme)}</style></head><body>"
-            f"<h1>Potential Flow Lab — User guide</h1><ol>{toc}</ol><hr>{body}</body></html>")
+            f"<h1>Flowy — User guide</h1><ol>{toc}</ol><hr>{body}</body></html>")
 
 
 class UserGuideDialog(QDialog):
@@ -182,7 +182,7 @@ class UserGuideDialog(QDialog):
             from PySide6.QtWidgets import QFileDialog
             start = QStandardPaths.writableLocation(QStandardPaths.DocumentsLocation) or os.path.expanduser("~")
             path, _ = QFileDialog.getSaveFileName(self, "Save the user guide", os.path.join(
-                start, "Potential Flow Lab - User guide.html"), "Web page (*.html)")
+                start, "Flowy - User guide.html"), "Web page (*.html)")
             if not path:
                 return None
         try:

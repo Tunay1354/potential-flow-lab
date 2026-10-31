@@ -169,13 +169,15 @@ class StreamlineCache:
             self._extend(L - 1, region, depth + 1, cancelled)
         f = self.fields.get(L)
         if f is None:
-            f = self.fields[L] = StreamlineField(self.elements, d, self.v_min, self.use_kernel)
+            # each level finds its own "too slow = stagnation point" speed from its first region: a speed
+            # threshold kept from another zoom stopped the lines of a vortex / source far out after zooming
+            # out (speed ∝ 1/r fell below the threshold of the first, small view; his report of 31 Oct)
+            f = self.fields[L] = StreamlineField(self.elements, d, None, self.use_kernel)
             f.special_seeds = getattr(self, "_seeds", np.zeros(0, complex)).copy()
         if use_coarse and (L - 1) in self.fields:
             f.set_base(self.fields[L - 1].all_lines)
         f.extend(region, cancelled=cancelled)
-        if self.v_min is None:
-            self.v_min = f.v_min
+        self.v_min = f.v_min                        # (of the level in use: for readers of the cache)
 
 
 def _merge_seeds(pending: np.ndarray, new: np.ndarray, tol: float) -> np.ndarray:

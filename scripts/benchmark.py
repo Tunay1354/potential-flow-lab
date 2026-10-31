@@ -704,7 +704,7 @@ def _print_anim(rows):
 def print_report(res: dict):
     print("\n" + "=" * 110)
     m = res["machine"]
-    print(f"Potential Flow Lab benchmark  {m['date']}  |  {m['platform']}  |  {m['cpus']} CPUs  |  Qt: "
+    print(f"Flowy benchmark  {m['date']}  |  {m['platform']}  |  {m['cpus']} CPUs  |  Qt: "
           f"{m['qt_platform']}  |  viewport: {m.get('opengl_viewport', '?')}")
     for line in m.get("computer", []):
         print("  " + line)

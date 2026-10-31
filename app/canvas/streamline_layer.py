@@ -30,6 +30,7 @@ from physics.streamlines import FADE_LEVELS, Cancelled, StreamlineCache, fade_pi
 from ..theme import LAYOUT
 from .arrows_item import ArrowsItem
 from .layer import PlotLayer
+from .scaled_curve import ScaledCurve
 
 
 class _ResultSignal(QObject):
@@ -62,7 +63,7 @@ class StreamlineLayer(PlotLayer):
         # lines are separated by NaN inside each item, drawn as separate segments (~7× faster)
         self.line_items = []
         for _ in range(FADE_LEVELS + 1):
-            item = pg.PlotCurveItem(connect="finite")
+            item = ScaledCurve(connect="finite")
             item.setSegmentedLineMode("on")
             self.line_items.append(self.add_item(item, 1))
         self.arrow_item = self.add_item(ArrowsItem(LAYOUT["arrow_size_px"]), 2)

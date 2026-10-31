@@ -135,7 +135,7 @@ def load_scene(path: str) -> SceneDocument:
     except OSError as exc:
         raise SceneFileError(f"Could not open “{name}”: {exc.strerror or exc}") from None
     except UnicodeDecodeError:
-        raise SceneFileError(f"“{name}” is not a Potential Flow Lab scene file (not a text file).") from None
+        raise SceneFileError(f"“{name}” is not a Flowy scene file (not a text file).") from None
     return loads(text, name)
 
 
@@ -156,7 +156,7 @@ def _no_constants(token):
 
 def from_data(data, name: str = "the file") -> SceneDocument:
     if not isinstance(data, dict) or data.get("format") != FORMAT:
-        raise SceneFileError(f"“{name}” is not a Potential Flow Lab scene file.")
+        raise SceneFileError(f"“{name}” is not a Flowy scene file.")
     version = data.get("version")
     if not isinstance(version, int) or isinstance(version, bool) or version < 1:
         raise SceneFileError(f"“{name}” has an invalid format version ({version!r}).")

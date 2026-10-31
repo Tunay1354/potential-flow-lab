@@ -22,7 +22,7 @@ VIEW = ((-4.0, 4.0), (-3.0, 3.0))
 
 
 def _lines(item):
-    x, y = item.getData()
+    x, y = item.xy() if hasattr(item, "xy") else item.getData()
     xy = np.column_stack([x, y])
     cuts = np.where(~np.isfinite(xy[:, 0]))[0]
     out, start = [], 0
@@ -329,7 +329,7 @@ def test_phi_lines_keep_a_clean_circle_round_a_singular_point(fl):
     fl.update(els, view, {"equipotential": True}, 3)
     pen = fl.phi.opts["pen"]
     assert pen.widthF() == 1.0 and pen.isCosmetic() and list(pen.dashPattern()) == [3.0, 3.0]
-    x, y = fl.phi.getData()
+    x, y = fl.phi.xy()
     r = np.hypot(x, y)[np.isfinite(x)]
     (s, radius), = crowd_circles(els, 5.0, 0.01, 1.0)        # max |V| on the circle 1 + 1/r² = 5 -> r = 0.5
     assert abs(s) < 1e-12 and 0.5 <= radius < 0.6
@@ -354,7 +354,7 @@ def test_no_phi_lines_inside_solid_bodies(qapp):
     from PySide6.QtTest import QTest
     QTest.qWait(300)
     qapp.processEvents()
-    x, y = cv.fields.phi.getData()
+    x, y = cv.fields.phi.xy()
     r = np.hypot(x, y)[np.isfinite(x)]
     assert r.size > 100 and r.min() > 0.97                         # nothing inside the cylinder r = 1
     w.close()
@@ -370,7 +370,7 @@ def test_phi_lines_of_a_vortex_close_round_it_across_the_branch_cut(fl):
     assert vortex_step([Vortex(Gamma=-1.0)], 0.3) == pytest.approx(1.0 / 4)
     assert vortex_step([Vortex(Gamma=0.1)], 0.3) == 0.3                     # weak: unchanged
     fl.update([Vortex(Gamma=1.0)], ((-4.0, 2.0), (-2.0, 2.0)), {"equipotential": True}, 3)
-    x, y = fl.phi.getData()
+    x, y = fl.phi.xy()
     ok = np.isfinite(x) & (np.hypot(x, y) > 1.0)
     ang = np.degrees(np.angle(x[ok] + 1j * y[ok]))
     rays = np.unique(np.round(ang / 0.5) * 0.5)

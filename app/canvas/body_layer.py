@@ -21,6 +21,7 @@ from physics.bodies import body_map, scene_map, surface_pieces
 
 from .contours import filled_paths, mix
 from .layer import PlotLayer
+from .scaled_curve import ScaledCurve
 
 DELAY_MS = 90                   # after a zoom / pan
 HATCH_ALPHA = 0.18
@@ -36,7 +37,7 @@ class BodyLayer(PlotLayer):
         self.hatch = self.add_item(QGraphicsPathItem(), 2.51)        # animation; under the symbols
         for item in (self.fill, self.hatch):
             item.setPen(QPen(Qt.NoPen))
-        self.edge = self.add_item(pg.PlotCurveItem(connect="finite"), 2.52)
+        self.edge = self.add_item(ScaledCurve(connect="finite"), 2.52)
         self.raster = None                     # without contourpy: a pixel image instead of the shapes
         self.map = None                        # physics.bodies.BodyMap of the view; None = no bodies
         self.lines = None                      # dividing streamlines of the drawn scene (None: none yet)

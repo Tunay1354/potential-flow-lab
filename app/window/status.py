@@ -128,5 +128,7 @@ class StatusMixin:
         self.canvas.title_block.set("elements", f"{len(self.elements)}  ·  ⊗ {len(self.canvas.stagnation_points)}")
 
     def _update_title_block_view(self, xr, yr):
-        self.canvas.title_block.set("view", f"x[{xr[0]:.2f}, {xr[1]:.2f}]  y[{yr[0]:.2f}, {yr[1]:.2f}]"
-                                    .replace("-", "−"))
+        from ..panels import view_number
+        w = max(xr[1] - xr[0], yr[1] - yr[0])                   # (zoomed in: enough decimals to tell the ends apart)
+        x0, x1, y0, y1 = (view_number(v, w, 100.0) for v in (*xr, *yr))
+        self.canvas.title_block.set("view", f"x[{x0}, {x1}]  y[{y0}, {y1}]".replace("-", "−").replace("e−", "e-"))

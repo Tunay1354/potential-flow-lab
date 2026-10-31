@@ -169,8 +169,8 @@ def wants_strong_card() -> bool:
     """Before any QApplication exists: the GPU box is ticked (the program draws with the graphics card)."""
     try:
         from PySide6.QtCore import QSettings
-        from app_info import APP_NAME, ORGANIZATION
-        return QSettings(ORGANIZATION, APP_NAME).value(KEY_ENABLED, False, bool)
+        from app_info import APP_ID, ORGANIZATION
+        return QSettings(ORGANIZATION, APP_ID).value(KEY_ENABLED, False, bool)
     except Exception:                                 # noqa: BLE001
         return False
 

@@ -20,6 +20,7 @@ from physics.surface import body_surfaces, wall_surfaces
 from .contours import nice_step, ramp
 from .layer import PlotLayer
 from .legend import ColorLegend
+from .scaled_curve import ScaledCurve
 
 BINS = 48                        # colors along the lines
 LINE_PX = 4.5
@@ -64,8 +65,8 @@ class SurfaceLayer(PlotLayer):
     def __init__(self, plot, vb):
         super().__init__(plot, vb)
         # bodies under the element symbols; walls over the wall line (the element layer draws it at z 4)
-        self.curves = [self.add_item(pg.PlotCurveItem(connect="finite"), 2.55) for _ in range(BINS)]
-        self.wall_curves = [self.add_item(pg.PlotCurveItem(connect="finite"), 4.05) for _ in range(BINS)]
+        self.curves = [self.add_item(ScaledCurve(connect="finite"), 2.55) for _ in range(BINS)]
+        self.wall_curves = [self.add_item(ScaledCurve(connect="finite"), 4.05) for _ in range(BINS)]
         self.marker = self.add_item(pg.ScatterPlotItem(size=11, symbol="o"), 2.6)     # panel hover
         self.marker.setVisible(False)
         self.legend = ColorLegend()

@@ -298,6 +298,8 @@ class Beaver(QObject):
             self.remark("theme_dark" if value == "dark" else "theme_light")
         elif event == "gpu":
             self.remark("gpu_on" if value else "gpu_off")
+        elif event == "zoom_limit":
+            self.remark("zoom_limit_in" if value == "in" else "zoom_limit_out")
         elif event == "scene":
             self._scene_remark(value)
 
