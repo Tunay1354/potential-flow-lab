@@ -33,6 +33,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from app_info import APP_NAME
 from app.paths import PRESETS_DIR
 from physics.field import active
 from physics.program_checks import ACCURACY, SCENES, accuracy_checks, scene_checks
@@ -226,7 +227,7 @@ def how_html(c: Check) -> str:
 
 
 def _versions() -> str:
-    from app_info import APP_NAME, APP_VERSION
+    from app_info import APP_VERSION
     v = [f"Python {platform.python_version()}", f"NumPy {np.__version__}"]
     try:
         import numba
@@ -269,7 +270,7 @@ def _md_table(checks, with_case: bool) -> list[str]:
 
 
 def markdown(rep: Report, out_dir: str) -> str:
-    lines = [f"# Flowy (Potential Flow Lab) — verification report", "", _versions(), "",
+    lines = [f"# {APP_NAME} — verification report", "", _versions(), "",
              f"**Result: {summary(rep)}.**", "",
              "Error = |program − analytic|; a row is OK when the error is below its tolerance. How each check is "
              "computed (theory, program, tolerance) is in verification.html and in the last column of "
@@ -326,7 +327,7 @@ def html_report(rep: Report, out_dir: str) -> str:
     lines = ["<!doctype html><html lang='en'><head><meta charset='utf-8'>",
              "<meta name='viewport' content='width=device-width, initial-scale=1'>",
              "<title>Verification report</title>", f"<style>{_CSS}</style></head><body>",
-             "<h1>Flowy (Potential Flow Lab) — verification report</h1>",
+             f"<h1>{APP_NAME} — verification report</h1>",
              f"<p class='meta'>{html.escape(_versions())}</p>",
              f"<p class='result {'pass' if rep.ok else 'fail'}'>{html.escape(summary(rep))}</p>",
              "<p class='muted'>Error = |program − analytic|; a row is OK when the error is below its tolerance. "

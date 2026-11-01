@@ -1,7 +1,7 @@
 {
-  "format": "potential-flow-lab-scene",
+  "format": "pflow-scene",
   "version": 1,
-  "saved_with": "Potential Flow Lab 0.4.0",
+  "saved_with": "Flowy 0.5.0",
   "title": "Sector flow, β = 30° (n = 6)",
   "view": {"x": [-0.3, 2.7], "y": [-0.4, 1.8]},
   "elements": [

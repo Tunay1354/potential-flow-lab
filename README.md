@@ -1,4 +1,4 @@
-# Flowy (Potential Flow Lab)
+# Flowy
 
 Interactive 2D potential-flow simulator (Aerodynamics semester project, IZTECH Mechanical Engineering).
 
@@ -201,7 +201,7 @@ hiç etkilenmez.
 
 Yakalanmamış bir hata programı kapatmaz: "Unexpected error" penceresi çıkar (ayrıntılar, Copy details, Open log
 folder), program açık kalır, sahne kaybolmaz. Her hata traceback'iyle log dosyasına yazılır:
-**Help → Open log folder** → `potential-flow-lab.log` (en çok 3 × 1 MB). Program tamamen çökerse (derlenmiş
+**Help → Open log folder** → `flowy.log` (en çok 3 × 1 MB). Program tamamen çökerse (derlenmiş
 kodda) yığın `crash.txt`'e yazılır ve bir sonraki açılışta log'a aktarılır. Sorun bildirirken log dosyasını gönder.
 
 Kaydedilmemiş değişiklik varken sahnenin bir kopyası son değişiklikten ~3 s sonra programın veri klasörüne
@@ -234,7 +234,7 @@ python main.py --help           # tüm seçenekler
   elements,stagnation,streamlines,field,surface`, `--grid N`, `--separator , ; tab`. Hata (dosya yok, bilinmeyen
   katman…) → çıkış kodu 2.
 
-Exe (Faz 5): `pyinstaller packaging/potential_flow_lab.spec` → `dist/Potential Flow Lab/`.
+Exe (ROADMAP 24): `pyinstaller packaging/build_exe.spec` → `dist/Flowy/` (adı `app_info.py`'den).
 
 Ölçüm scriptleri: `python scripts/streamline_quality.py` (çizgi kalitesi),
 `python scripts/smoothness.py` (pan / zoom sırasında kare aralıkları, arayüz akıcılığı),
@@ -254,9 +254,9 @@ ve `--gpu`'lu iki çalıştırma karşılaştırılır (paint / interact / anim 
 | `CLAUDE.md` | Projeyi devralacak bir AI asistan için özet: proje, çalışma tercihleri, mimari, dersler, şu anki durum |
 | `main.py` | Programı başlatır (`python main.py sahne.pflow` dosyayı da açar): yükleme ekranı → donanım → çekirdekler → pencere; `--verify`, `--figure`, `--data` ile komut satırı; `--probe-gpu` (içeride: OpenGL sorusu ayrı işlemde) |
 | `app/cli/` | Komut satırı: `__init__.py` (seçenekler), `headless.py` (ekranda görünmeyen plot, görünüme göre boyut), `report.py` (doğrulama raporu: HTML, Markdown, CSV, figürler; komut satırı ve Help menüsü ortak) |
-| `app_info.py` | Program adı ve sürümü |
+| `app_info.py` | Programın adı, alt başlığı, sürümü — adı değiştirmek için tek yer (pencere, dosyalar, raporlar, exe, ayar klasörü `…/IZTECH/Flowy`) |
 | `app/paths.py` | Programın dosyalarının yeri (kaynak klasör veya exe) |
-| `packaging/` | Exe yapımı (PyInstaller spec) |
+| `packaging/` | Exe yapımı (`build_exe.spec`, PyInstaller) |
 | `presets/` | Hazır sahneler (`.pflow` dosyaları, klasör = menüdeki grup) |
 | `app/main_window.py` | Ana pencere: parçaları birleştirir, sinyalleri bağlar, element komutları (ekle / düzenle / taşı / sil, undo / redo) |
 | `app/window/` | Ana pencerenin parçaları: `layout.py` (yan paneller, palette sağ/sol, düzeni hatırlama), `menus.py` (palette, menüler, kısayollar), `files.py` (New / Open / Save, preset'ler), `exporting.py` (figür ve CSV export), `status.py` (durum çubuğu, probe, sahne kontrolü, başlıklar), `graphics.py` (GPU kutusu = yeniden başlatma, Graphics card paneli, genişleyen slider sınırları, OpenGL başlamazsa geri dönüş, laptop'ta güçlü kart) |
@@ -306,7 +306,7 @@ ve `--gpu`'lu iki çalıştırma karşılaştırılır (paint / interact / anim 
 | `scripts/verify_physics.py` | Doğrulama tablosunu yazdırır (`physics/verification.py`) |
 | `scripts/gpu_check.py` | Laptop'ta OpenGL hangi kartta: bugünkü hâl, SHIM_MCCOMPAT ile, (isteğe bağlı) Windows ayarından sonra |
 | `scripts/benchmark.py` | Her şeyin hızı tek çalıştırmada (açılış cold / warm, hesaplar, çizim, pan / zoom / sürükleme, tepki süresi, animasyon, sınırlar, export, verify); `--out` ile JSON, `--gpu` ile ekran kartıyla, `--full` ikisi birden |
-| `benchmarks/` | Kaydedilmiş benchmark sonuçları (JSON): OpenGL vb. değişikliklerden önce / sonra karşılaştırmak için |
+| `benchmarks/` | Son tam ölçüm (`windows_full_nvidia.json`, RTX 3050): sonraki optimizasyonlar bununla karşılaştırılır; eski ölçümlerin sayıları ROADMAP 20'de |
 | `scripts/streamline_quality.py` | Streamline resminin kalite ölçümü (aralık düzgünlüğü, kesik uçlar, süre) |
 
 **Yeni bir plot katmanı eklemek** (ör. animasyon): `app/canvas/layer.py`'deki `PlotLayer`'dan bir sınıf

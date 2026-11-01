@@ -9,6 +9,8 @@ from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (QCheckBox, QHBoxLayout, QLabel, QMenuBar, QSizePolicy, QToolButton, QVBoxLayout,
                                QWidget)
 
+from app_info import APP_NAME, APP_SUBTITLE
+
 from ..theme import FONT, LAYOUT
 from .style import color, font
 
@@ -70,10 +72,10 @@ class Plank(QWidget):
         lay.setContentsMargins(20, 0, 20, 0)
         lay.setSpacing(14)
         self.logo = QLabel()
-        self.title = QLabel("Flowy")
+        self.title = QLabel(APP_NAME)
         self.title.setObjectName("PlankTitle")
         self.title.setFont(font("mono", FONT["title_size_pt"], QFont.DemiBold, caps=True, spacing_pct=114))
-        self.subtitle = QLabel("")              # "POTENTIAL FLOW LAB" (what Flowy is)
+        self.subtitle = QLabel(APP_SUBTITLE.upper())
         self.subtitle.setObjectName("PlankMuted")
         self.version = QLabel("")               # "REV 0.5.0", on the right (the beaver sits above Help)
         self.version.setObjectName("PlankMuted")

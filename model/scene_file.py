@@ -4,9 +4,9 @@ scene_file.py — saving and opening scenes (File → Save / Open, and the prese
 A scene file is UTF-8 JSON with the extension .pflow:
 
     {
-      "format": "potential-flow-lab-scene",
+      "format": "pflow-scene",
       "version": 1,
-      "saved_with": "Potential Flow Lab 0.4.0",
+      "saved_with": "Flowy 0.5.0",
       "title": "Lifting cylinder",
       "view": {"x": [-4.0, 4.0], "y": [-3.0, 3.0]},                 (optional)
       "settings": {"density": 1.0, "line_width": 1.4,               (optional)
@@ -21,6 +21,8 @@ A scene file is UTF-8 JSON with the extension .pflow:
   (the assignment's verification case 5).
 * Element parameters are the same names as in the physics classes (registry.py), so a new element
   type is saved / opened without changing this file.
+* "format" names the file type, not the program (a renamed program still reads its files); files of the first
+  name ("potential-flow-lab-scene") open too.
 * "version" is the file format version. When the format changes, VERSION is increased and a
   function that converts the old layout is added to MIGRATIONS, so old files keep opening.
 * Problems that make the file unusable raise SceneFileError with a message for the user;
@@ -42,7 +44,8 @@ from physics import ELEMENT_TYPES, FlowElement
 
 from .plot_settings import SETTING_TYPES, ZERO_ALLOWED
 
-FORMAT = "potential-flow-lab-scene"
+FORMAT = "pflow-scene"
+OLD_FORMATS = ("potential-flow-lab-scene",)      # still opened
 VERSION = 1
 EXTENSION = ".pflow"
 
@@ -135,7 +138,7 @@ def load_scene(path: str) -> SceneDocument:
     except OSError as exc:
         raise SceneFileError(f"Could not open “{name}”: {exc.strerror or exc}") from None
     except UnicodeDecodeError:
-        raise SceneFileError(f"“{name}” is not a Flowy scene file (not a text file).") from None
+        raise SceneFileError(f"“{name}” is not a {APP_NAME} scene file (not a text file).") from None
     return loads(text, name)
 
 
@@ -155,8 +158,8 @@ def _no_constants(token):
 
 
 def from_data(data, name: str = "the file") -> SceneDocument:
-    if not isinstance(data, dict) or data.get("format") != FORMAT:
-        raise SceneFileError(f"“{name}” is not a Flowy scene file.")
+    if not isinstance(data, dict) or data.get("format") not in (FORMAT, *OLD_FORMATS):
+        raise SceneFileError(f"“{name}” is not a {APP_NAME} scene file.")
     version = data.get("version")
     if not isinstance(version, int) or isinstance(version, bool) or version < 1:
         raise SceneFileError(f"“{name}” has an invalid format version ({version!r}).")

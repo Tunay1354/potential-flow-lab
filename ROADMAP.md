@@ -756,9 +756,23 @@ bırakıldı (kullanıcı kararı).
         izleme (bilinen her noktada), bariyer örneklemesi = eskisi, seviye değişince iş bırakma.
         Ayrıca: `test_he_reacts_to_saving_and_verification` bazen düşüyordu (source eklemek %35 ihtimalle kunduzun
         "A source!" yorumunu çıkarıyor, "Saved!" onun arkasında bekliyordu) → balon eklemeden sonra temizleniyor.
-21. ☐ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,
+21. ▶ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,
     dosya yapısı, uyarılar (pyflakes), çok uzun dosyaların bölünmesi, testlerin süresi, README klasör tablosu.
-    Ölçüt: tüm testler + verification aynı sonuç
+    Ölçüt: tüm testler + verification aynı sonuç. Her dosya tek tek, 13 pakette (her biri ayrı commit, arada
+    kullanıcı dener); her şey exe'li son hal düşünülerek:
+    1 kök ve yapı · 2 fizik çekirdeği (kitap / defter / proje dosyasıyla karşılaştırma) · 3 hesap motoru · 4 fizik
+    analiz · 5 doğrulama ve model · 6 plot 1 · 7 plot 2 · 8 ana pencere · 9 paneller ve görünüm · 10 export ve
+    araçlar · 11 sistem · 12 kunduz · 13 son tur (scripts, conftest, README / CLAUDE.md inceltme, pyflakes).
+    Not edilen hatalar (sırası gelince): GPU + Pulses + uç zoom → Fit = çökme (7); GPU'da plotun sağ kenarında
+    çift çizgi (9); Store Python'da Help → Open log folder açılmıyor, GPU çökmesi log'a not düşmüyor (11).
+    - ✅ **21.1 Kök ve yapı** (1 Kasım): programın adı artık sadece `app_info.py`'de (pencere, header, yükleme
+      ekranı, About, kayıtlı dosya, raporlar, user guide, tur, exe, ayar klasörü — kodda elle yazılmış ~15 "Flowy"
+      `APP_NAME`'e bağlandı); "Potential Flow Lab" her yerden kalktı: ayar / veri klasörü `IZTECH/Flowy` (eski
+      ayarlar bir kez sıfırdan: düzen, donanım profili, tur sorusu), alt başlık "2D POTENTIAL FLOW", log
+      `flowy.log`. Dosya etiketi program adından bağımsız `"pflow-scene"` (eski etiketli dosyalar açılıyor; test),
+      21 preset yeni etiketle yeniden yazıldı (içerik birebir aynı). Exe spec'i `packaging/build_exe.spec` (exe adı
+      `APP_NAME`'den). Kullanılmayan Pixelify Sans fontu ve yerini son tam ölçümün aldığı 6 benchmark dosyası
+      silindi (sayıları bu dosyada). `main.py` sadeleşti (`run_window`, `detect_hardware`), davranış aynı.
 22. ☐ **Görsel ve metin son kontrolü** (kullanıcı ile): programdaki tüm yazılar (menüler, paneller, dialog'lar,
     tooltip'ler, uyarı mesajları, lejantlar, durum çubuğu) tek bir listede + ekran görüntüsü galerisi; kullanıcı
     beğenmediklerini işaretler / yenisini yazar, ben değiştiririm. Açık kararlar burada: dividing streamline

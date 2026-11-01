@@ -1,7 +1,7 @@
 """
 user_guide_text.py — the text of Help → User guide (app/user_guide.py): one chapter per part of the
-program, plain HTML (what QTextBrowser shows). {keys} in a chapter is replaced by the table of the
-keyboard shortcuts as they are set now (Edit → Keyboard shortcuts…).
+program, plain HTML (what QTextBrowser shows). In a chapter {keys} is replaced by the table of the keyboard
+shortcuts as they are set now (Edit → Keyboard shortcuts…), {app} by the program's name.
 
 Keep it true to the program: when a feature changes, change its chapter here too.
 """
@@ -9,7 +9,7 @@ Keep it true to the program: when a feature changes, change its chapter here too
 CHAPTERS = [
     ("start", "Getting started", """
 <h2>Getting started</h2>
-<p><b>Flowy</b> (Potential Flow Lab) builds two-dimensional, incompressible, irrotational (potential) flows by
+<p><b>{app}</b> builds two-dimensional, incompressible, irrotational (potential) flows by
 <b>superposition</b> of elementary flows: uniform flow, source / sink, vortex, doublet, sector (wedge) flow and
 straight walls. Everything you add is drawn at once: streamlines, stagnation points, and on request
 equipotential lines, speed or pressure colours, solid bodies and the pressure on their surfaces.</p>
@@ -262,7 +262,7 @@ cylinder flow yourself. Enter, Space or → go on, ← goes back, Esc ends it.</
 <h2>If something goes wrong</h2>
 <ul>
 <li><b>An error window</b>: the program stays open and the scene is kept. Copy details, or send the log file
-(Help → Open log folder → potential-flow-lab.log).</li>
+(Help → Open log folder → the .log file).</li>
 <li><b>The first start is slow</b> (15–30 s): the fast engine is prepared for your processor once; later starts
 take a few seconds.</li>
 <li><b>Panels moved or closed</b>: View → Panels → Reset layout.</li>

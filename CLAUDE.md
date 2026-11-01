@@ -86,9 +86,10 @@ python scripts/streamline_quality.py   /   python scripts/smoothness.py    # mea
   computed" per check), `errors.py` (log file, error window, crash file), `recovery.py` (autosave + restore after
   a crash), `beaver/` (the mascot, §5), `chrome/` (header, cards, palette, fonts), `theme.py` (all colours and
   sizes).
-- `presets/` scenes (folder = menu group), `assets/` (fonts, icons; Pixelify Sans is no
-  longer used since the bubble restyle of 29 Oct),
-  `packaging/` PyInstaller spec (exe: later), `scripts/` measurements, `tests/` (~32 files).
+- `app_info.py` (root) — the program's name / subtitle / version: the ONLY place to rename it (window, files,
+  reports, exe, settings folder …/IZTECH/<APP_NAME>). Never write the name as text elsewhere: use APP_NAME.
+- `presets/` scenes (folder = menu group), `assets/` (fonts, icons), `packaging/build_exe.spec` (exe),
+  `scripts/` measurements, `benchmarks/` (his last full measurement), `tests/`.
 
 ---------------------------------------------------------------------------------------------------------------
 ## 5. What has been built (short history; details in ROADMAP)
@@ -322,8 +323,8 @@ GUI / Qt
   through `Beaver.remark(key)` (chance `REMARK_CHANCE`, gap `REMARK_GAP_S`, only on his shelf, silent while
   talking / tour / dialog); the window sends element_added / deleted / cleared / undo / redo / preset / exported /
   theme / gpu / scene via `_tell_beaver` → `notify` → `_react` (the tour gets them instead while it runs).
-- **31 Oct, 20.7G**: renamed **Flowy** (`app_info.APP_NAME`, header subtitle `APP_SUBTITLE`; settings / data folder
-  keep `APP_ID = "Potential Flow Lab"` via setApplicationName — do not change it, his settings live there). Zoom:
+- **31 Oct, 20.7G**: renamed **Flowy** (`app_info.APP_NAME`, header subtitle `APP_SUBTITLE`; since 1 Nov the settings / data folder
+  follow APP_NAME too — the old name is gone everywhere). Zoom:
   (1) `streamlines/cache.py`: each level finds its own `v_min` (the first view's made far-out lines end at once);
   (2) Qt's GL paint engine thickens cosmetic pens beyond ~1e4 px per item unit → curves are `canvas/scaled_curve.
   ScaledCurve` (local coords ≈ px, own transform + boundingRect; **pyqtgraph paints from getData(), so getData is
@@ -338,6 +339,22 @@ GUI / Qt
   (3) the streamline job is cancelled when the newest view needs another spacing level; (4) `draw_barriers` samples
   only inside the grid. Measure with a fast-wheel script (offscreen MainWindow, `vb.wheelEvent` with a fake event,
   `--all` layers) — not only the physics functions: the Solid bodies / field layers run in the GUI thread.
+- **1 Nov, item 21 started — cleanup package 1/13 (root and structure)**. The 13-package plan (one commit each, he tests
+  between them; after each package show him the table with ✅): 1 root · 2 physics core (ask for his textbook /
+  notes / project file) · 3 kernel + streamlines (Numba cache for the exe) · 4 stagnation / bodies / surface /
+  particles · 5 verification + model (assignment cases) · 6 plot 1 · 7 plot 2 (bug: GPU + Pulses + extreme zoom →
+  Fit = hard crash, no Python traceback in his log) · 8 main window (restarts in the exe) · 9 panels / theme / chrome
+  (bug: GPU on → a thicker inner line at the plot's right edge) · 10 export / cli / verification dialog · 11 system
+  (bug: Help → Open log folder fails with Store Python — its AppData is redirected to %LOCALAPPDATA%\Packages\
+  PythonSoftwareFoundation.Python.3.*\LocalCache\Local; also no crash note was logged for the GPU crash) ·
+  12 beaver (his name as a {name} placeholder in the lines) · 13 scripts, conftest, docs (README / CLAUDE.md are
+  too long: slim them), pyflakes everywhere. Rules: behaviour unchanged unless a bug; everything with the final
+  exe in mind; short, clear comments.
+  Package 1 done: name only in app_info (APP_ID gone → settings folder IZTECH/Flowy: his old settings, hardware
+  profile, tour flag start fresh once), subtitle "2D Potential Flow", log file flowy.log, file format tag
+  "pflow-scene" (old "potential-flow-lab-scene" still opens), presets rewritten, spec → packaging/build_exe.spec
+  (exe named APP_NAME), Pixelify font and 6 superseded benchmark files removed, main.py split into run_window /
+  detect_hardware.
 - **Next**: his Windows check of 20.7H (fast zoom in / out to the limits with GPU on, wheel at the limit, Fit), of 20.7D–F, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
   remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
 - Then, in this order (all planned, "as if time were unlimited"):

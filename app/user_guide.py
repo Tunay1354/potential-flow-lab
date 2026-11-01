@@ -13,6 +13,8 @@ from PySide6.QtGui import QDesktopServices, QKeySequence, QShortcut, QTextDocume
 from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QLineEdit, QListWidget, QPushButton, QTextBrowser,
                                QVBoxLayout)
 
+from app_info import APP_NAME
+
 from .user_guide_text import CHAPTERS
 
 
@@ -52,7 +54,7 @@ def style_sheet(t: dict) -> str:
 def chapter_html(key: str, shortcuts=None) -> str:
     for k, _title, text in CHAPTERS:
         if k == key:
-            return text.replace("{keys}", shortcut_table(shortcuts))
+            return text.replace("{keys}", shortcut_table(shortcuts)).replace("{app}", APP_NAME)
     return ""
 
 
@@ -60,10 +62,10 @@ def full_html(theme: dict, shortcuts=None) -> str:
     """The whole guide as one web page (Save as web page…)."""
     body = "\n<hr>\n".join(chapter_html(k, shortcuts) for k, _t, _x in CHAPTERS)
     toc = "".join(f"<li>{html.escape(t)}</li>" for _k, t, _x in CHAPTERS)
-    return (f"<!doctype html><html><head><meta charset='utf-8'><title>Flowy — User guide</title>"
+    return (f"<!doctype html><html><head><meta charset='utf-8'><title>{APP_NAME} — User guide</title>"
             f"<style>body {{ font-family: sans-serif; max-width: 860px; margin: 32px auto; padding: 0 16px; "
             f"background: {theme['panel_bg']}; }} {style_sheet(theme)}</style></head><body>"
-            f"<h1>Flowy — User guide</h1><ol>{toc}</ol><hr>{body}</body></html>")
+            f"<h1>{APP_NAME} — User guide</h1><ol>{toc}</ol><hr>{body}</body></html>")
 
 
 class UserGuideDialog(QDialog):
@@ -182,7 +184,7 @@ class UserGuideDialog(QDialog):
             from PySide6.QtWidgets import QFileDialog
             start = QStandardPaths.writableLocation(QStandardPaths.DocumentsLocation) or os.path.expanduser("~")
             path, _ = QFileDialog.getSaveFileName(self, "Save the user guide", os.path.join(
-                start, "Flowy - User guide.html"), "Web page (*.html)")
+                start, f"{APP_NAME} - User guide.html"), "Web page (*.html)")
             if not path:
                 return None
         try:

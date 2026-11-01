@@ -15,6 +15,8 @@ import argparse
 import os
 import sys
 
+from app_info import APP_NAME
+
 CLI_OPTIONS = ("--verify", "--figure", "--data", "--help", "-h")
 DEFAULT_OUT = "verification"
 
@@ -35,7 +37,7 @@ def parser() -> argparse.ArgumentParser:
     from app.export.figure import BACKGROUNDS
     p = argparse.ArgumentParser(
         prog="main.py",
-        description="Flowy (Potential Flow Lab) without the window: verification report, figure and data export.",
+        description=f"{APP_NAME} without the window: verification report, figure and data export.",
         epilog="Layers (default on: " + ", ".join(k for k, _l, on in LAYERS if on) + "): "
                + ", ".join(k for k, _l, _on in LAYERS) + ".   Tables: " + ", ".join(k for k, _l in DATASETS) + ".",
         formatter_class=argparse.RawDescriptionHelpFormatter)

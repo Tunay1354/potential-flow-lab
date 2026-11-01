@@ -25,6 +25,8 @@ from dataclasses import dataclass
 
 from PySide6.QtCore import QEvent, QPoint, QPointF, QRectF, Qt
 
+from app_info import APP_NAME
+
 from .spotlight import PAD
 
 
@@ -53,7 +55,7 @@ BACK_BUTTON = "\u2039 Back"         # Left arrow does the same
 TAIL_ROOM = 16                       # px: the bubble's tail and margin (bubble.TAIL + 6)
 
 STEPS = [
-    Step("Welcome to Flowy! I'll show you around in two minutes. "
+    Step(f"Welcome to {APP_NAME}! I'll show you around in two minutes. "
          "Let's start with an empty sheet.", None, enter="clear", where="inside"),
     Step("This is the plot. Everything you build shows up here: streamlines, stagnation points, colours "
          "and animations. Try it: scroll to zoom, drag to pan.", "plot", where="inside", allow="plot"),

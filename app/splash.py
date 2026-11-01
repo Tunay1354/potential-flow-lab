@@ -125,9 +125,10 @@ class LoadingScreen(QWidget):
         p.setPen(color(t["plank_text"]))
         p.setFont(self._title)
         p.drawText(QPointF(78, 42), APP_NAME)
+        name_w = p.fontMetrics().horizontalAdvance(APP_NAME)
         p.setFont(self._ver)
         p.setPen(color(t["plank_text_muted"]))
-        p.drawText(QPointF(78 + p.fontMetrics().horizontalAdvance(" ") + 92, 41), APP_SUBTITLE.upper())
+        p.drawText(QPointF(78 + name_w + 32, 41), APP_SUBTITLE.upper())
         p.drawText(QRectF(0, 26, W - 22, 20), Qt.AlignRight | Qt.AlignVCenter, f"REV {APP_VERSION}")
         # what is being done
         dots = "." * (1 + int((time.perf_counter() - self.t0) * 2.5) % 3)

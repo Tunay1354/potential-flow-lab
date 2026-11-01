@@ -18,7 +18,7 @@ from PySide6.QtCore import QEvent, QSettings, Qt, QTimer
 from PySide6.QtGui import QColor, QKeySequence, QPalette, QShortcut
 from PySide6.QtWidgets import QAbstractButton, QApplication, QHBoxLayout, QMainWindow, QMenuBar, QMessageBox, QWidget
 
-from app_info import APP_SUBTITLE, APP_VERSION
+from app_info import APP_NAME, APP_SUBTITLE, APP_VERSION
 from model import SceneModel, preview_change
 from physics import ELEMENT_TYPES
 from physics.warmup import warm_up_in_background
@@ -75,7 +75,6 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         self.header = HeaderBar(self)
         self.setMenuWidget(self.header)
         self._menu_bar = self.header.menu_bar
-        self.header.plank.subtitle.setText(APP_SUBTITLE.upper())
         self.header.plank.version.setText(f"REV {APP_VERSION}")
 
         # central plot card on the paper, the element palette beside it
@@ -560,8 +559,8 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
             dispose(dlg)
 
     def _show_about(self):
-        QMessageBox.about(self, "About Flowy",
-                          f"<b>Flowy</b> {APP_VERSION} — Potential Flow Lab<br>"
+        QMessageBox.about(self, f"About {APP_NAME}",
+                          f"<b>{APP_NAME}</b> {APP_VERSION} — {APP_SUBTITLE}<br>"
                           "Interactive 2D incompressible, irrotational flow builder.<br><br>"
                           "Aerodynamics semester project, IZTECH Mechanical Engineering.")
 

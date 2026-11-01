@@ -9,6 +9,8 @@ Nothing else in the code contains hard-coded colors or sizes.
 """
 import os
 
+from app_info import APP_NAME
+
 from .paths import ASSETS_DIR
 
 # ---------------------------------------------------------------------------
@@ -154,7 +156,7 @@ FONT = {
 # Layout / sizes
 # ---------------------------------------------------------------------------
 LAYOUT = {
-    "window_title": "Flowy",
+    "window_title": APP_NAME,
     "window_size": (1400, 860),     # size when the window is not maximized
     "start_maximized": True,
     "plank_height": 58,             # wooden header with logo and name

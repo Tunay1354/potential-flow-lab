@@ -32,9 +32,10 @@ def reporter(qapp, logdir):
 
 
 def _log_text(logdir):
+    from app import errors
     for h in logging.getLogger("pflab").handlers:
         h.flush()
-    return (logdir / "potential-flow-lab.log").read_text(encoding="utf-8")
+    return (logdir / errors.LOG_NAME).read_text(encoding="utf-8")
 
 
 def _spin(qapp, seconds=0.3):
@@ -125,6 +126,7 @@ def test_without_a_console_print_goes_to_the_log(qapp, logdir, monkeypatch):
 
 
 def test_a_hard_crash_is_found_at_the_next_start(tmp_path):
+    from app import errors
     folder = tmp_path / "logs"
     code = ("import os, sys; os.environ['QT_QPA_PLATFORM'] = 'offscreen'; sys.path.insert(0, %r)\n"
             "from app import errors\nerrors.setup_logging(%r)\nimport faulthandler\nfaulthandler._sigsegv()\n"
@@ -137,7 +139,7 @@ def test_a_hard_crash_is_found_at_the_next_start(tmp_path):
              "errors.shutdown_logging()\n" % (ROOT, str(folder)))
     res = subprocess.run([sys.executable, "-c", code2], capture_output=True, text=True, timeout=120)
     assert res.stdout.strip() == "CRASH"
-    assert "previous session ended in a crash" in (folder / "potential-flow-lab.log").read_text(encoding="utf-8")
+    assert "previous session ended in a crash" in (folder / errors.LOG_NAME).read_text(encoding="utf-8")
     assert not (folder / "crash.txt").exists()            # a normal end removes it
 
 

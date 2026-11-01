@@ -339,11 +339,11 @@ def test_beaver_jokes_at_the_zoom_limits(win, qapp, monkeypatch):  # noqa: F811
 
 
 def test_the_program_is_called_flowy(win):  # noqa: F811
-    from app_info import APP_ID, APP_NAME
-    assert APP_NAME == "Flowy" and APP_ID == "Potential Flow Lab"         # (settings kept under the old name)
-    assert win.windowTitle().startswith("Flowy")
-    assert win.header.plank.title.text() == "Flowy"
-    assert win.header.plank.subtitle.text() == "POTENTIAL FLOW LAB"
+    from app_info import APP_NAME, APP_SUBTITLE
+    assert APP_NAME == "Flowy"
+    assert win.windowTitle().startswith(APP_NAME)
+    assert win.header.plank.title.text() == APP_NAME
+    assert win.header.plank.subtitle.text() == APP_SUBTITLE.upper()
 
 
 GL_ZOOM_SCRIPT = r'''

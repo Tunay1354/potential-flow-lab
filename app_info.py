@@ -1,8 +1,6 @@
-"""Name and version of the program (shown in the window, About, written into saved files, used for the exe)."""
+"""The program's identity in one place. Renaming the program = changing APP_NAME: the window, header, loading
+screen, saved files, reports, the exe and the settings / data folder (…/ORGANIZATION/APP_NAME) follow it."""
 APP_NAME = "Flowy"
-APP_SUBTITLE = "Potential Flow Lab"          # what it is (under / beside the name)
+APP_SUBTITLE = "2D Potential Flow"       # the line under the name (header, loading screen, About)
 APP_VERSION = "0.5.0"
-ORGANIZATION = "IZTECH"          # used for the settings location (recent files, ...)
-# the settings / data folder keep the program's first name, so nothing is lost by the renaming (QSettings
-# "IZTECH/Potential Flow Lab", data folder …/IZTECH/Potential Flow Lab: layout, hardware, recovery copies, logs)
-APP_ID = "Potential Flow Lab"
+ORGANIZATION = "IZTECH"

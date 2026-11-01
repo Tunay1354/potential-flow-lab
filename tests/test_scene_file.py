@@ -75,10 +75,19 @@ def test_file_is_readable_json_with_format_and_version(tmp_path):
     save_scene(str(path), doc())
     text = path.read_text(encoding="utf-8")
     data = json.loads(text)
-    assert data["format"] == "potential-flow-lab-scene" and data["version"] == sf.VERSION
+    assert data["format"] == sf.FORMAT and data["version"] == sf.VERSION
     assert data["saved_with"].startswith("Flowy")
     assert data["elements"][1] == {"type": "source", "enabled": True, "m": -3.25, "x0": 1.5, "y0": -0.75}
     assert "Kanat önü" in text                       # UTF-8, not \\u escapes
+
+
+def test_files_of_the_first_program_name_still_open():
+    """The format tag names the file type ("pflow-scene"); files saved before the renaming carry the old tag."""
+    doc = sf.loads('{"format": "potential-flow-lab-scene", "version": 1, "saved_with": "Potential Flow Lab 0.4.0", '
+                   '"elements": [{"type": "source", "enabled": true, "m": 1.0, "x0": 0.0, "y0": 0.0}]}')
+    assert len(doc.elements) == 1 and not doc.warnings
+    with pytest.raises(sf.SceneFileError):
+        sf.loads('{"format": "some-other-program", "version": 1, "elements": []}')
 
 
 def test_scene_without_view_or_settings(tmp_path):

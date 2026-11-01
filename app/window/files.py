@@ -235,7 +235,7 @@ class FilesMixin:
         from ..errors import previous_crash
         where = os.path.basename(found.original) if found.original else "never saved"
         box = QMessageBox(QMessageBox.Question, "Restore unsaved scene",
-                          "Flowy did not close normally last time.", parent=self)
+                          f"{APP_NAME} did not close normally last time.", parent=self)
         box.setInformativeText(
             f"A scene with unsaved changes was kept:\n\n    {found.title}   ({where})\n    last change: "
             f"{found.when}\n\nRestore it? It opens as an unsaved scene — save it to keep it."

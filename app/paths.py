@@ -9,7 +9,7 @@ paths.py — where the program's files are, the same way in the source folder an
 The compiled Numba kernels need no path here: run from the source folder they are cached in
 __pycache__; in the exe Numba keeps them in the user's cache folder by itself (Windows:
 %LOCALAPPDATA%\\numba), so only the first start after installing / updating compiles (checked with
-packaging/potential_flow_lab.spec).
+packaging/build_exe.spec).
 """
 import os
 import sys

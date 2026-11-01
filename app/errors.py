@@ -1,7 +1,7 @@
 """
 errors.py — what happens when something goes wrong.
 
-  setup_logging()     a log file in the program's data folder (logs/potential-flow-lab.log, at most 3 × 1 MB):
+  setup_logging()     a log file in the program's data folder (logs/<name>.log, at most 3 × 1 MB):
                       start-up information, every unexpected error with its traceback, Qt's warnings.
                       The exe has no console: print / sys.stderr go to the log there. Hard crashes (the whole
                       process dies, e.g. in compiled code) are written by faulthandler to logs/crash.txt; the
@@ -27,7 +27,9 @@ from PySide6.QtCore import QObject, QStandardPaths, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QGuiApplication
 from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton, QStyle, QVBoxLayout)
 
-LOG_NAME = "potential-flow-lab.log"
+from app_info import APP_NAME
+
+LOG_NAME = f"{APP_NAME.lower()}.log"
 CRASH_NAME = "crash.txt"
 log = logging.getLogger("pflab")
 
@@ -97,7 +99,7 @@ def setup_logging(folder: str | None = None) -> str:
 
 
 def _versions() -> str:
-    from app_info import APP_NAME, APP_VERSION
+    from app_info import APP_VERSION
     parts = [f"{APP_NAME} {APP_VERSION}", f"Python {platform.python_version()}", platform.platform()]
     try:
         import PySide6
