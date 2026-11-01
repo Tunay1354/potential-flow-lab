@@ -19,6 +19,8 @@ import os
 import sys
 import time
 
+from .paths import data_folder
+
 log = logging.getLogger("pflab")
 
 RESUME_ARG = "--resume"
@@ -26,9 +28,7 @@ STATE_VERSION = 1
 
 
 def folder() -> str:
-    from PySide6.QtCore import QStandardPaths
-    base = QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation) or os.path.expanduser("~")
-    return os.path.join(base, "restart")
+    return data_folder("restart")
 
 
 def write_state(doc, state: dict) -> str:

@@ -188,6 +188,8 @@ GUI / Qt
   window per distinct error (no floods). Background threads (QThreadPool) never touch widgets; results and
   errors come back through signals.
 - **The exe has no console**: `sys.stderr` is None there → never rely on `print`; use the `pflab` logger.
+- **Microsoft Store Python** redirects files under %LOCALAPPDATA% into its package folder: anything opened in
+  the browser / Explorer goes through `paths.outside_path`.
 - Recovery after a crash: each session holds a `QLockFile`; a copy whose owner is gone = a crashed session.
 - **Space / Esc are window shortcuts** → in the beaver's tour / dialogs they are taken via `ShortcutOverride`
   (not while a text field or a modal dialog has the keys).
@@ -388,6 +390,9 @@ GUI / Qt
   Package 9 done (panels / theme / chrome): GPU right-edge line → `PlotView.drawBackground` fills the whole GL frame
   first (not reproducible on Xvfb: ask him to check on Windows); in-function imports moved up except chrome →
   canvas (chrome is loaded by the loading screen: keep it free of pyqtgraph / physics); `plot_grid` colour removed.
+  Package 10 done (export / cli / verification dialog): Store Python "Open full report / folder / log folder" →
+  `paths.outside_path` (its writes under %LOCALAPPDATA% really go to Packages\…\LocalCache\Local); data folder only
+  via `paths.data_folder`. For the exe (24): bundle imageio-ffmpeg's ffmpeg binary; the CLI prints nothing (no console).
 - **Next**: his Windows check of 20.7H (fast zoom in / out to the limits with GPU on, wheel at the limit, Fit), of 20.7D–F, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
   remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
 - Then, in this order (all planned, "as if time were unlimited"):

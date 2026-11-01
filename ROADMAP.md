@@ -856,6 +856,17 @@ bırakıldı (kullanıcı kararı).
       yüklenir, açılış ekranı hâlâ pyqtgraph / physics / numba yüklemeden açılıyor — kontrol edildi), sınıfın
       altındaki sabit, boş satırlar. Kontrol: pencerenin tamamı açık / koyu temada önce / sonra aynı (sadece durum
       çubuğundaki ms sayısı farklı), 126 plot görüntüsü piksel piksel aynı.
+    - ✅ **21.10 Export / cli / verification dialog** (1 Kasım; `app/export/*`, `app/cli/*`, `verification_dialog.py`;
+      `paths.py`'ye iki yardımcı): **Hata (onun bildirdiği): Microsoft Store Python'da "Open full report" / "Open
+      folder" (ve Help → Open log folder) açılmıyordu.** Store Python paketli bir uygulama gibi çalışır: %LOCALAPPDATA%
+      altına yazdığı her şey aslında %LOCALAPPDATA%\Packages\PythonSoftwareFoundation.Python.3.x_…\LocalCache\Local\…
+      altına gider; o yolu sadece program görür, tarayıcı / Gezgin göremez. Düzeltme: `paths.outside_path` dosyayı
+      açmadan önce gerçek yolu bulur (Store paketinin adı `sys.base_prefix`'ten; başka Python / exe / başka sistem:
+      yol aynen kalır; yeni test `test_paths.py`). Log klasörü de bunu kullanıyor (paket 11'de tekrar bakılacak). Veri
+      klasörü 5 dosyada ayrı ayrı yazılmıştı → `paths.data_folder` (logs, recovery, restart, gpu, verification).
+      Temizlik: "Paket V" kalıntısı, fonksiyon içi import'lar (CLI'dakiler bilerek içeride: `--verify --no-figures`
+      Qt'siz çalışır). Exe notu (24): MP4 için imageio-ffmpeg'in ffmpeg'i exe tarifine eklenmeli; exe konsolsuz
+      olduğundan komut satırı çıktısı görünmez (exit code çalışır).
 22. ☐ **Görsel ve metin son kontrolü** (kullanıcı ile): programdaki tüm yazılar (menüler, paneller, dialog'lar,
     tooltip'ler, uyarı mesajları, lejantlar, durum çubuğu) tek bir listede + ekran görüntüsü galerisi; kullanıcı
     beğenmediklerini işaretler / yenisini yazar, ben değiştiririm. Açık kararlar burada: dividing streamline

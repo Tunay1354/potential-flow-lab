@@ -9,6 +9,7 @@ import os
 import numpy as np
 
 from physics.field import complex_potential, fluid_mask, reference_speed, singularity_mask, velocity
+from physics.surface import body_surfaces, free_stream_angle, rotate_to_theta0, wall_surfaces
 
 
 DATASETS = (("elements", "Elements (parameters)"),
@@ -87,7 +88,6 @@ def surface_rows(elements, surfaces, v_ref=None):
     """One row per surface point: the surface (Body 1, Wall 1 …), x, y, arc length s, θ round the center
     (closed bodies), distance along the free stream, u, v, |V|, Cp. `surfaces` = physics.surface.Surface
     list (as on the plot); v_ref = Cp reference speed (None = V∞ of the uniform flow)."""
-    from physics.surface import free_stream_angle, rotate_to_theta0
     v_ref = v_ref or reference_speed(elements)
     alpha = free_stream_angle(elements)
     header = ["surface", "kind", "closed", "point", "x [m]", "y [m]", "s [m]", "theta [deg]", "x along flow [m]",
@@ -119,7 +119,6 @@ def write_csv(path: str, header, rows, separator: str = ","):
 
 
 def _surfaces(elements, view):
-    from physics.surface import body_surfaces, wall_surfaces
     return body_surfaces(elements) + wall_surfaces(elements, view)
 
 

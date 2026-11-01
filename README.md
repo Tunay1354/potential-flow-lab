@@ -255,7 +255,7 @@ ve `--gpu`'lu iki çalıştırma karşılaştırılır (paint / interact / anim 
 | `main.py` | Programı başlatır (`python main.py sahne.pflow` dosyayı da açar): yükleme ekranı → donanım → çekirdekler → pencere; `--verify`, `--figure`, `--data` ile komut satırı; `--probe-gpu` (içeride: OpenGL sorusu ayrı işlemde) |
 | `app/cli/` | Komut satırı: `__init__.py` (seçenekler), `headless.py` (ekranda görünmeyen plot, görünüme göre boyut), `report.py` (doğrulama raporu: HTML, Markdown, CSV, figürler; komut satırı ve Help menüsü ortak) |
 | `app_info.py` | Programın adı, alt başlığı, sürümü — adı değiştirmek için tek yer (pencere, dosyalar, raporlar, exe, ayar klasörü `…/IZTECH/Flowy`) |
-| `app/paths.py` | Programın dosyalarının yeri (kaynak klasör veya exe) |
+| `app/paths.py` | Programın dosyalarının yeri (kaynak klasör veya exe), veri klasörü (`data_folder`), Store Python'da tarayıcı / Gezgin'in gördüğü yol (`outside_path`) |
 | `packaging/` | Exe yapımı (`build_exe.spec`, PyInstaller) |
 | `presets/` | Hazır sahneler (`.pflow` dosyaları, klasör = menüdeki grup) |
 | `app/main_window.py` | Ana pencere: parçaları birleştirir, sinyalleri bağlar, element komutları (ekle / düzenle / taşı / sil, undo / redo) |

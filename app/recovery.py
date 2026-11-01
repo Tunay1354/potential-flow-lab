@@ -22,16 +22,17 @@ import logging
 import os
 from dataclasses import dataclass
 
-from PySide6.QtCore import QLockFile, QObject, QStandardPaths, QTimer
+from PySide6.QtCore import QLockFile, QObject, QTimer
 
 from model.scene_file import SceneFileError, dumps, loads
+
+from .paths import data_folder
 
 AUTOSAVE_DELAY_MS = 3000
 
 
 def recovery_folder() -> str:
-    base = QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation) or os.path.expanduser("~")
-    return os.path.join(base, "recovery")
+    return data_folder("recovery")
 
 
 @dataclass

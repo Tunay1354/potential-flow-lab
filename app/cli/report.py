@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from app_info import APP_NAME
+from app_info import APP_NAME, APP_VERSION
 from app.paths import PRESETS_DIR
 from physics.field import active
 from physics.program_checks import ACCURACY, SCENES, accuracy_checks, scene_checks
@@ -227,7 +227,6 @@ def how_html(c: Check) -> str:
 
 
 def _versions() -> str:
-    from app_info import APP_VERSION
     v = [f"Python {platform.python_version()}", f"NumPy {np.__version__}"]
     try:
         import numba

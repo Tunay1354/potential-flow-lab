@@ -35,6 +35,8 @@ import logging
 import os
 import sys
 
+from .paths import data_folder
+
 log = logging.getLogger("pflab")
 
 KEY_ENABLED = "gpu/enabled"
@@ -269,9 +271,7 @@ def _winreg(module):
 
 # ------------------------------------------------------------------------------------- crash guard
 def guard_folder() -> str:
-    from PySide6.QtCore import QStandardPaths
-    base = QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation) or os.path.expanduser("~")
-    return os.path.join(base, "gpu")
+    return data_folder("gpu")
 
 
 class SessionGuard:

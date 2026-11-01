@@ -1,5 +1,5 @@
 """
-app/cli — the program from the command line, without a window (Paket V):
+app/cli — the program from the command line, without a window:
 
   python main.py --verify [--out DIR] [--no-figures]
         every check (analytic formulas, the assignment's verification scenes, accuracy of the numerical

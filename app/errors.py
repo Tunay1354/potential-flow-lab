@@ -23,11 +23,13 @@ import sys
 import threading
 import traceback
 
-from PySide6.QtCore import QObject, QStandardPaths, Qt, QTimer, QUrl, Signal
+from PySide6.QtCore import QObject, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QGuiApplication
 from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton, QStyle, QVBoxLayout)
 
 from app_info import APP_NAME
+
+from .paths import data_folder, outside_path
 
 LOG_NAME = f"{APP_NAME.lower()}.log"
 CRASH_NAME = "crash.txt"
@@ -40,8 +42,7 @@ _state = {"folder": None, "crash_file": None, "previous_crash": "", "handler": N
 def log_folder() -> str:
     if _state["folder"]:
         return _state["folder"]
-    base = QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation) or os.path.expanduser("~")
-    return os.path.join(base, "logs")
+    return data_folder("logs")
 
 
 def log_path() -> str:
@@ -303,9 +304,10 @@ class ErrorDialog(QDialog):
 
 
 def open_log_folder():
+    """Help → Open log folder: in Explorer, at the path it sees (outside_path: Microsoft Store Python)."""
     folder = log_folder()
     os.makedirs(folder, exist_ok=True)
-    QDesktopServices.openUrl(QUrl.fromLocalFile(folder))
+    QDesktopServices.openUrl(QUrl.fromLocalFile(outside_path(folder)))
 
 
 def qt_message_handler(mode, context, message):

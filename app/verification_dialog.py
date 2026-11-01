@@ -17,15 +17,17 @@ The report is written to the program's data folder (verification/), replaced at 
 from __future__ import annotations
 
 import html
+import logging
 import os
 import shutil
 
-from PySide6.QtCore import QObject, QRunnable, QStandardPaths, Qt, QThreadPool, QTimer, QUrl, Signal
+from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTimer, QUrl, Signal
 from PySide6.QtGui import QColor, QDesktopServices, QImage, QTextDocument
 from PySide6.QtWidgets import (QDialog, QFileDialog, QHBoxLayout, QHeaderView, QLabel, QMessageBox, QProgressBar,
                                QPushButton, QSplitter, QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout)
 
 from app.cli import report as rp
+from app.paths import data_folder, outside_path
 
 ROLE = Qt.UserRole + 1                   # what a tree row is: ("section", name) / ("case", …) / ("check", Check)
 HINT = ("<p>Select a row on the left.</p><p><b>Section</b>: what it checks. <b>Scene</b>: its figure. "
@@ -34,8 +36,7 @@ HINT = ("<p>Select a row on the left.</p><p><b>Section</b>: what it checks. <b>S
 
 
 def report_folder() -> str:
-    base = QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation) or os.path.expanduser("~")
-    return os.path.join(base, "verification")
+    return data_folder("verification")
 
 
 class _Signals(QObject):
@@ -61,7 +62,6 @@ class _Checks(QRunnable):
                 self.signals.step.emit(k, label)
                 out += job()
         except Exception as exc:                                     # noqa: BLE001 - shown in the dialog
-            import logging
             logging.getLogger("pflab").exception("verification failed")
             self.signals.failed.emit(f"{type(exc).__name__}: {exc}")
             return
@@ -394,8 +394,9 @@ class VerificationDialog(QDialog):
 
     # ------------------------------------------------------------------ files
     def _open(self, path):
+        """In the browser / Explorer (at the path they see: outside_path, Microsoft Store Python)."""
         if path and os.path.exists(path):
-            QDesktopServices.openUrl(QUrl.fromLocalFile(path))
+            QDesktopServices.openUrl(QUrl.fromLocalFile(outside_path(path)))
 
     def _save_copy(self):
         target = QFileDialog.getExistingDirectory(self, "Save the verification report to")
