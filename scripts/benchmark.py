@@ -17,7 +17,7 @@ Compare a run without and with --gpu on the same computer: the sections paint, i
 the graphics card changes (compute and export do not use it). --fps-cap: the frame rate limit of the
 animations with --gpu (default 60, the same as without the graphics card, so the numbers compare).
 
-The program itself is not changed: the script opens the normal window (1536 × 830, the owner's screen at
+The program itself is not changed: the script opens the normal window (1536 × 830, a 1920 × 1080 screen at
 125 %), loads scenes and drives it like a user. It never touches your settings or files (Qt test folders,
 the exports go to a temporary folder).
 
@@ -471,7 +471,7 @@ w.model.mark_clean(); w.close()
             cases.insert(2, ("particles", {"particles": top, "trail": 10}))
         for mode, settings in cases:
             for name in ("lifting cylinder", "busy (8 elements)", "lifting cylinder + φ, |V|, dense"):
-                if name.endswith("dense"):                    # the owner's view: many layers under the animation
+                if name.endswith("dense"):                    # a busy view: many layers under the animation
                     self.show("lifting cylinder", ("equipotential", "speed"))
                     sp["density"].setValue(8)
                     self.settle()

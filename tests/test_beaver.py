@@ -632,7 +632,7 @@ def test_tour_bubble_has_buttons_and_a_click_only_goes_on_in_a_reading_step(win,
 
 def test_tour_arrow_keys_go_on_and_back(win, qapp):
     """Right = next (like Space), Left = the step before. Going back takes back what was done in that step
-    (his report, 30 Oct: the uniform he added stayed and the step asked for another one): the element, Move
+    (otherwise the uniform added there stayed and the step asked for another one): the element, Move
     mode, Particles, the slider. Going back to the first step does not clear the plot again; Left in a "Nice!"
     does nothing."""
     from PySide6.QtCore import Qt

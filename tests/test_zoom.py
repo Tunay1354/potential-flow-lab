@@ -1,11 +1,26 @@
-"""Zoom (his report of 31 Oct): limits 10 000× in / out of the Fit size for the user's wheel / drag, views set by
+"""Zoom: limits 10 000× in / out of the Fit size for the user's wheel / drag, views set by
 the program never cut; lines kept when zoomed far out (each level its own stagnation-speed threshold); lines in
 a local coordinate system (the graphics card's painter thickened them far in); the View range boxes for any
 size; the beaver's zoom jokes; the name Flowy."""
 import numpy as np
 import pytest
 
-from tests.test_beaver import win  # noqa: F401  (the window fixture with the beaver stepped by hand)
+
+@pytest.fixture
+def win(qapp):
+    """The window, its beaver stepped by hand (as in test_beaver)."""
+    from app.main_window import MainWindow
+    w = MainWindow()
+    w._ask_save_changes = lambda: "discard"
+    w.resize(1500, 830)
+    w.show()
+    qapp.processEvents()
+    w.canvas.set_view((-4.0, 4.0), (-3.0, 3.0))
+    w.canvas.recompute()
+    qapp.processEvents()
+    w.beaver.timer.stop()
+    yield w
+    w.close()
 
 
 def wheel(qapp, w, n, delta):
@@ -25,7 +40,7 @@ def widths(w):
     return x1 - x0, y1 - y0
 
 
-def test_wheel_stops_at_the_zoom_limits_and_says_so(win, qapp):  # noqa: F811
+def test_wheel_stops_at_the_zoom_limits_and_says_so(win, qapp):
     from app.canvas.canvas import ZOOM_RANGE
     from physics.elements import Doublet, Uniform
     w = win
@@ -54,7 +69,7 @@ def test_wheel_stops_at_the_zoom_limits_and_says_so(win, qapp):  # noqa: F811
     assert widths(w)[0] == pytest.approx(first[0], rel=0.02)
 
 
-def test_wheel_at_a_limit_does_not_move_the_view(win, qapp):  # noqa: F811
+def test_wheel_at_a_limit_does_not_move_the_view(win, qapp):
     """His report of 1 Nov: turning the wheel on at a limit slid the view sideways (pyqtgraph cut the range round
     the middle of the asked one, which lies towards the mouse) and every notch started a new computation."""
     from physics.elements import Doublet, Uniform
@@ -76,7 +91,7 @@ def test_wheel_at_a_limit_does_not_move_the_view(win, qapp):  # noqa: F811
         assert widths(w)[0] != pytest.approx(after[0][1] - after[0][0], rel=1e-3)
 
 
-def test_zoom_reaches_the_limit_exactly_about_the_mouse(win, qapp):  # noqa: F811
+def test_zoom_reaches_the_limit_exactly_about_the_mouse(win, qapp):
     """A notch that would pass the limit is cut so the view ends exactly at the limit, zoomed about the mouse."""
     from physics.elements import Uniform
     w = win
@@ -199,7 +214,7 @@ def test_body_barriers_sample_only_inside_the_grid():
     assert cells.sum() > 100
 
 
-def test_fast_zoom_gives_up_the_job_of_a_level_left_behind(win, qapp):  # noqa: F811
+def test_fast_zoom_gives_up_the_job_of_a_level_left_behind(win, qapp):
     """While a job computes the lines of one spacing level, a view that needs another level cancels it (the newest
     view is computed next instead of after the old one)."""
     w = win
@@ -213,7 +228,7 @@ def test_fast_zoom_gives_up_the_job_of_a_level_left_behind(win, qapp):  # noqa: 
         layer.busy, layer.pending, layer._job_level = False, False, None
 
 
-def test_views_set_by_the_program_are_never_cut(win, qapp):  # noqa: F811
+def test_views_set_by_the_program_are_never_cut(win, qapp):
     from physics.elements import Uniform
     w = win
     w.model.reset([Uniform()])
@@ -247,7 +262,7 @@ def test_far_zoom_out_keeps_every_streamline():
         assert span > 1.8 * half, half                                     # lines across the whole view
 
 
-def test_curves_keep_a_local_coordinate_system(win, qapp):  # noqa: F811
+def test_curves_keep_a_local_coordinate_system(win, qapp):
     from app.canvas.scaled_curve import ScaledCurve
     w = win
     w.canvas.set_view((1.0 - 1e-4, 1.0 + 1e-4), (-1e-4, 1e-4))
@@ -271,7 +286,7 @@ def test_curves_keep_a_local_coordinate_system(win, qapp):  # noqa: F811
     assert all(isinstance(it, SC) for it in w.canvas.streamlines.line_items)
 
 
-def test_paper_grid_paints(win, qapp):  # noqa: F811
+def test_paper_grid_paints(win, qapp):
     from app.canvas.grid_item import PaperGridItem
     assert isinstance(win.canvas._grid, PaperGridItem)
     for half in (4.0, 1e-4, 5e4):
@@ -304,7 +319,7 @@ def test_view_range_boxes_show_any_size(qapp):
     assert b.sizeHint().width() < 140                           # (the panel stays narrow)
 
 
-def test_typed_tiny_view_reaches_the_plot(win, qapp):  # noqa: F811
+def test_typed_tiny_view_reaches_the_plot(win, qapp):
     sp = win.settings_panel
     for box, val in ((sp.xmin, 1.0 - 1e-4), (sp.xmax, 1.0 + 1e-4), (sp.ymin, -1e-4), (sp.ymax, 1e-4)):
         box.setValue(val)
@@ -315,7 +330,7 @@ def test_typed_tiny_view_reaches_the_plot(win, qapp):  # noqa: F811
     assert sp.xmin.text() != sp.xmax.text()
 
 
-def test_beaver_jokes_at_the_zoom_limits(win, qapp, monkeypatch):  # noqa: F811
+def test_beaver_jokes_at_the_zoom_limits(win, qapp, monkeypatch):
     from app.beaver.lines import LINES, PRIORITY, REMARK_CHANCE
     for key in ("zoom_limit_in", "zoom_limit_out"):
         assert len(LINES[key]) >= 8 and 0 < REMARK_CHANCE[key] < 1 and PRIORITY[key] == 0
@@ -338,7 +353,7 @@ def test_beaver_jokes_at_the_zoom_limits(win, qapp, monkeypatch):  # noqa: F811
     assert not b.bubble.active
 
 
-def test_the_program_is_called_flowy(win):  # noqa: F811
+def test_the_program_is_called_flowy(win):
     from app_info import APP_NAME, APP_SUBTITLE
     assert APP_NAME == "Flowy"
     assert win.windowTitle().startswith(APP_NAME)

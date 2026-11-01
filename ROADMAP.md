@@ -1,4 +1,4 @@
-# Potential Flow Lab — Roadmap
+# Flowy (formerly Potential Flow Lab) — Roadmap
 
 Bu dosya projenin kalan işlerini ve sırasını tutar. Her adım bittikçe işaretlenir.
 (✅ bitti · ▶ sıradaki · ☐ planlı)
@@ -756,7 +756,7 @@ bırakıldı (kullanıcı kararı).
         izleme (bilinen her noktada), bariyer örneklemesi = eskisi, seviye değişince iş bırakma.
         Ayrıca: `test_he_reacts_to_saving_and_verification` bazen düşüyordu (source eklemek %35 ihtimalle kunduzun
         "A source!" yorumunu çıkarıyor, "Saved!" onun arkasında bekliyordu) → balon eklemeden sonra temizleniyor.
-21. ▶ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,
+21. ✅ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,
     dosya yapısı, uyarılar (pyflakes), çok uzun dosyaların bölünmesi, testlerin süresi, README klasör tablosu.
     Ölçüt: tüm testler + verification aynı sonuç. Her dosya tek tek, 13 pakette (her biri ayrı commit, arada
     kullanıcı dener); her şey exe'li son hal düşünülerek:
@@ -886,7 +886,18 @@ bırakıldı (kullanıcı kararı).
       Repliklerin hepsi önce / sonra aynı (80 anahtar). Temizlik: hiç çağrılmayan `greet`, "(Faz 6)" kalıntısı +
       eksik dosya listesi (`beaver/__init__`), sabitlerin yorumu kaymıştı (ON_PLOT_MAX_S / SESSION_REMINDER_S),
       ifade olarak yazılmış if/else, tarih notu, fonksiyon içi import'lar başa.
-22. ☐ **Görsel ve metin son kontrolü** (kullanıcı ile): programdaki tüm yazılar (menüler, paneller, dialog'lar,
+    - ✅ **21.13 Scripts, testler, dokümanlar** (2 Kasım): `pyflakes .` her yerde temiz (son uyarı: test_zoom'un
+      başka test dosyasından fixture import etmesi → kendi fixture'ı). `scripts/smoothness.py` ikinci sahnede
+      çöküyordu (Qt 6'da `app.quit()` pencereyi de kapatıyor) → yerel QEventLoop; `streamline_quality.py` ve
+      `benchmark.py --quick` (compute / verify / startup / paint / interact / anim / export) çalışıyor. Silinen iki
+      script: `verify_physics.py` (`python main.py --verify` aynısını ve fazlasını yapıyor) ve `gpu_check.py` (20.3b'deki
+      laptop kartı sorunu için tek seferlik teşhis; artık program kendisi yeniden başlıyor, Help → Your computer
+      kartı gösteriyor). Testlerde / scriptlerde kalan tarih notları. README 342 → ~125 satır (kurulum, komutlar,
+      kısa özellik listesi, klasör tablosu, notasyon; ayrıntılı kullanım User guide'da), CLAUDE.md 417 → ~255 satır
+      (§8 tarihçe yerine: yapılanların özeti, bulunan hatalar, snapshot yöntemi, alt sistemler kısaca, sıradaki işler;
+      tarihçenin tamamı burada, ROADMAP'te). `requirements.txt` / `requirements-dev.txt` ayrı kaldı (çalışmak için
+      gereken / geliştirme araçları; exe'yi kullananın ikisine de ihtiyacı yok).
+22. ▶ **Görsel ve metin son kontrolü** (kullanıcı ile): programdaki tüm yazılar (menüler, paneller, dialog'lar,
     tooltip'ler, uyarı mesajları, lejantlar, durum çubuğu) tek bir listede + ekran görüntüsü galerisi; kullanıcı
     beğenmediklerini işaretler / yenisini yazar, ben değiştiririm. Açık kararlar burada: dividing streamline
     rengi, element renkleri, ikonlar, kunduz görünümü
@@ -898,7 +909,7 @@ bırakıldı (kullanıcı kararı).
     kullanıcı işlemleri (ekle, sürükle, sil, undo / redo, katmanlar, tema, preset): çökme yok, undo'dan sonra
     sahne birebir aynı; otomatik kayıttan geri getirme de. Bulunan her hata düzeltilir ve o sahne kalıcı teste
     eklenir; test temiz çıkana kadar baştan
-24. ☐ **Faz 5 — Paketleme**: Python gerektirmeyen Windows 10/11 exe (zip içinde klasör), sürüm 1.0, GitHub
+24. ☐ **Faz 5 — Paketleme** (seçim: A zip + C Inno Setup kurulum dosyası, ikisi birden): Python gerektirmeyen Windows 10/11 exe (zip içinde klasör), sürüm 1.0, GitHub
     Releases, kurulum dosyası (Inno Setup), Numba önbelleği, .pflow'a çift tıklayınca açılma, (isteğe bağlı)
     komut satırı için konsol exe'si; exe'de Help → Run verification 102 / 102, Python kurulu olmayan temiz bir
     Windows'ta deneme. Yedek plan: kaynak kod + kurulum talimatı / demo kendi bilgisayarından

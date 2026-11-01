@@ -2,339 +2,121 @@
 
 Interactive 2D potential-flow simulator (Aerodynamics semester project, IZTECH Mechanical Engineering).
 
-**Durum:** ROADMAP 1–19 tamam (fizik çekirdeği, streamline'lar, duvarlar, sector flow, File / Elements menüleri,
-undo / redo, stagnation point'ler, alan katmanları, animasyon, export, Solid bodies, Surface pressure,
-komut satırı + `--verify` 102 / 102, hata yakalama, otomatik kayıt, kunduz). Sıradaki işler: `ROADMAP.md`.
-
-## Kullanım (kısa)
-
-Program **boş bir plotla** açılır (hazır sahneler: **Presets**). Varsayılan düzen: solda Add palette, ortada plot,
-sağda üstte **Elements** (~260 px), altında **Plot settings**. **View → Panels → Reset layout** bu düzene döner (sahneye
-dokunmaz). Ayrıntılı kullanım: **Help → User guide (F1)** — bölümler, arama (Enter: sonraki eşleşme), "Save as web page…" (tek sayfa, yazdırmak
-için). İşaretler / açılar: **Help → Sign conventions** (her element için küçük çizimli bir kart).
-
-| Ne | Nasıl |
-|---|---|
-| Element ekle | Soldaki toolbar ya da **Elements → Add** → değerleri gir → **Apply** |
-| Düzenle | Listede çift tıkla, Enter, **Edit…** butonu ya da **Elements → (element) → Edit…** |
-| Stagnation point | Plot'ta ⊗ sembolü. Tıkla → parlar, içinden geçen dividing streamline'lar (koyu kalın çizgiler) ve x, y kutusu görünür; boş yere tıkla / Esc → kaybolur. Hepsini birden görmek: **Plot settings → Layers → All dividing streamlines** |
-| Seç | Listede ya da plot'ta sembole / duvara tıkla (üst üste binenlerde tekrar tıkla); boş yere tıkla veya Esc → seçim kalkar; sembole çift tık → düzenle |
-| Geçici gizle | Listede elementin tik kutusu |
-| Parametreleri gör | Listede her elementin tüm parametreleri yazar; panele sığmayanlar alt satıra geçer (panel genişleyince yine tek satır) |
-| Çoğalt | **Duplicate** butonu / Ctrl+D (kopya (0.5, 0.5) kaydırılır) |
-| Sil | **Delete** butonu / listede veya plot'ta Delete tuşu |
-| Geri al / yinele | **Edit → Undo / Redo**, Ctrl+Z / Ctrl+Y |
-| Yüzey basıncı | **Layers → Surface pressure (Cp on surfaces)**: cisim yüzeyleri ve duvarlar Cp'ye göre renklenir, solda **Surface pressure** paneli açılır: Cp grafiği (θ / s / x boyunca; silindirde analitik eğri kesikli), kapalı cisimde basınç integraliyle lift / drag ve Kutta–Joukowski / d'Alembert karşılaştırması, ρ ile N/m, **Export CSV…**. Grafiğin üstünde gezinince plot'ta o nokta halkayla gösterilir. Panel: **View → Panels → Surface pressure**. Katmanın tiki kalkınca panel kapanır. Panel solda ~330 px açılır; başlığından tutup başka yere (sağa, plot ile Elements arasına …) taşınabilir, orada kalır; genişliğini değiştirirsen sonraki açılışlarda öyle açılır (tuhaf bir genişlik kayıtlıysa ya da Reset layout'tan sonra yine 330) |
-| Zoom | Tekerlek / sağ tuşla sürükleme. Sınır: sahnenin **Fit** genişliğinin 10 000 katı yakın ve 10 000 katı uzak (daha ötesinde yeni bir şey yok: yakında akış düz çizgi, uzakta sahne tek nokta). Sınıra gelince status bar söyler, kunduz bazen espri yapar (%50); sınırda tekerleği çevirmeye devam etmek hiçbir şey yapmaz (görünüm kaymaz, pan ile kaydırılır). Program / dosya / **View range** kutularıyla verilen görünüm sınıra takılmaz. **View range** kutuları her boyutu gösterir (yakınlaştıkça daha çok ondalık; çok büyük / küçükte `1.5e-05`), aynı şekilde yazılabilir |
-| Izgara | **Layers → Background grid** (ya da View → Layers): plotun arka plandaki ızgarası; seçim hatırlanır, export'lar da plot'ta görüneni çizer |
-| Hazır sahne | **Presets** menüsü (bu da geri alınabilir); ilk grup hocanın doğrulama durumları |
-| Kaydet / aç | **File → Save** (Ctrl+S), **Save as…** (Ctrl+Shift+S), **Open…** (Ctrl+O), **Open recent**; `.pflow` dosyasını pencereye sürükleyip bırakmak da açar |
-| Yeni sahne | **File → New** (Ctrl+N) |
-| Hepsini sil | **File → Clear all** veya **Elements → Delete all elements** (geri alınabilir) |
-
-Dialog, girdiğin değerin sahnede yaratacağı sorunları canlı gösterir (örn. "duvarın arkasında").
-Hata varsa buton **Apply anyway** olur; uygularsan plot'un üstünde kırmızı uyarı şeridi çıkar ve
-status bar'da ✖ görünür (ayrıntı için üzerine gel). Hatalar listedeki numarayla gösterilir: `[2] ...`.
-
-### Sahne dosyaları (.pflow)
-
-- İçinde elementler, başlık, view aralığı ve streamline ayarları (density, line width, oklar) var; sayılar tam
-  hassasiyetle saklanır, yani kaydedip açınca liste ve plot birebir aynı gelir (hocanın 5. doğrulama durumu).
-- Düz JSON'dur, her element bir satır; Not Defteri ile açılıp okunabilir.
-- Kaydedilmemiş değişiklik varsa başlıkta `*` görünür; New / Open / kapatma öncesi program sorar.
-- Bozuk ya da eksik dosyada program çökmez, sebebini söyler; küçük sorunlarda (eksik bir değer vb.) dosyayı
-  açar ve neyi düzelttiğini listeler.
-- Kendi preset'ini eklemek için: sahneyi `presets/` altındaki bir klasöre kaydet
-  (**Presets → Show presets folder**), programı yeniden aç.
-- Komut satırından: `python main.py dosya.pflow`
+**Durum:** ROADMAP 1–21 tamam (fizik, streamline'lar, duvarlar, sector flow, undo / redo, stagnation point'ler,
+alan katmanları, animasyon, export, Solid bodies, Surface pressure, GPU, `--verify` 102 / 102, kunduz, kod
+temizliği). Sıradaki işler ve her paketin ayrıntısı: `ROADMAP.md`. Programın kullanımı: **Help → User guide (F1)**.
 
 ## Kurulum (Windows, VS Code) — bir kez
 
-1. Repoyu GitHub Desktop ile clone'la, sonra **Repository → Open in Visual Studio Code**.
-2. **Terminal → New Terminal** ve sırayla:
+1. Repoyu GitHub Desktop ile clone'la → **Repository → Open in Visual Studio Code**.
+2. **Terminal → New Terminal**:
    ```
    python -m venv .venv
    .venv\Scripts\activate
    pip install -r requirements-dev.txt
    ```
-   (`requirements-dev.txt` = programın paketleri + `pytest` + exe için `pyinstaller`; sadece programı
-   çalıştırmak için `requirements.txt` yeter.)
-   - `python` bulunamazsa: python.org'dan Python 3.12 kur, ilk ekranda **"Add python.exe to PATH"** işaretle.
-   - PowerShell "running scripts is disabled" derse bir kez:
-     `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` (soruya `Y`).
+   `requirements.txt` = programın çalışması için gereken paketler; `requirements-dev.txt` = onlar + `pytest`
+   (testler) + `pyinstaller` (exe). Exe'yi kullanan kişinin bunlara ihtiyacı yok.
+   - `python` bulunamazsa: python.org'dan Python kur, ilk ekranda **"Add python.exe to PATH"** işaretle.
+   - PowerShell "running scripts is disabled" derse bir kez: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
 
 ## Her seferinde
 
 ```
-.venv\Scripts\activate          # satırın başında (.venv) görünmeli
-python main.py                  # arayüzü aç
-pytest                          # fizik testlerini çalıştır
-python scripts/verify_physics.py   # analitik vs. sayısal doğrulama tablosu
-python main.py --verify         # tüm doğrulama raporu → verification/ (Markdown + CSV + figürler)
+.venv\Scripts\activate             # satırın başında (.venv) görünmeli
+python main.py                     # programı aç   (python main.py sahne.pflow: sahneyle aç)
+python main.py --first-run         # ilk açılış gibi (kunduz turu önerir)
+pytest                             # tüm testler
+python main.py --verify            # doğrulama raporu → verification/ (102 / 102 olmalı)
 ```
-Güncelleme geldiğinde: GitHub Desktop'ta **Fetch origin → Pull origin**.
-`requirements.txt` / `requirements-dev.txt` değiştiyse `pip install -r requirements-dev.txt` komutunu tekrar
-çalıştır.
+Güncelleme: GitHub Desktop → **Fetch origin → Pull origin**. `requirements*.txt` değiştiyse
+`pip install -r requirements-dev.txt` komutunu tekrar çalıştır.
 
-İlk açılışta streamline motoru bir kez derlenir (birkaç saniye, durum çubuğunda yazar); animasyon ve
-Solid bodies çekirdekleri hemen ardından arka planda hazırlanır. Sonraki açılışlarda hepsi hazır gelir.
+Bu bilgisayarda ilk açılış ~15–30 s (hızlı hesap çekirdekleri bir kez derlenir, donanım bir kez bulunur;
+yükleme ekranı söyler); sonraki açılışlar birkaç saniye.
 
-### Kunduz (Psi — isim geçici)
+## Özellikler (kısa)
 
-Cetvelde Help'in sağında duran piksel kunduz. Mouse ile tutup plota bırakılır; ne yapacağı görünüm moduna bağlı:
-- **Static**: plotun önünde cam var — cama yapışır, tıklatır, espri yapar, rafına döner (ekrana sabit: zoom /
-  pan arkadaki plotu oynatır)
-- **Particles**: bırakıldığı yerden akışla gider (particle'larla aynı hız ayarı, Space ile durur); görünümden
-  çıkınca cetvelde sağdan yürüyerek döner. Sadece vortex: döner, başı döner, zıplar; vortex + sink: dönerek
-  küçülür, yutulur; stagnation point'te durur; solid body'ye / duvarın arkasına bırakılamaz
-- **Pulses**: en yakın streamline'a basar; her pulse çarpınca düşer ve line boyunca itilir; kenarda "BONK",
-  söylenir, döner
+- **Elementler:** uniform flow, source / sink, vortex, doublet, sector (wedge) flow, symmetry wall (method of
+  images; π/k köşeler ve kanal kapalı formda). Ekle: soldaki palette (tıkla ya da plota sürükle) veya
+  Elements → Add. Dialog, değerlerin sahnede yaratacağı sorunları canlı gösterir; durum çubuğundaki sahne
+  kontrolü (✓ / ⚠ / ✖) tıklanınca hepsini listeler.
+- **Plot:** eşit aralıklı streamline'lar ve oklar, stagnation point'ler (⊗, tıklayınca dividing streamline'lar),
+  katmanlar: φ çizgileri, |V| ve Cp renk bantları, Solid bodies, Surface pressure (yüzeylerde Cp + panel:
+  grafik, basınç integraliyle L′ / D′, Kutta–Joukowski / d'Alembert karşılaştırması). Fare modları Select /
+  Move / Pan, tekerlekle zoom (Fit genişliğinin 10 000 katı yakına / uzağa kadar).
+- **Animasyon:** Particles (iz bırakan tracer'lar) ve Pulses (streamline boyunca darbeler); Space duraklatır.
+- **Dosyalar:** `.pflow` (düz JSON, tam hassasiyet: kaydet → aç = aynı liste ve aynı plot), Presets menüsü
+  (ilk grup ödevin doğrulama durumları), undo / redo, kaydedilmemiş sahnenin otomatik kopyası ve çökmeden
+  sonra geri getirme.
+- **Export:** figür (PNG 1–4×, SVG, PDF), animasyon (GIF, MP4), veri (CSV).
+- **Doğrulama:** Help → Run verification (ya da `--verify`): analitik formüller, ödevin 9 sahnesi, sayısal
+  yöntemlerin doğruluğu; her check'in "nasıl hesaplandı" açıklaması.
+- **GPU:** başlıktaki GPU kutusu plotu ve animasyonları ekran kartıyla çizer (değiştirmek programı birkaç
+  saniyede yeniden başlatır, hiçbir şey kaybolmaz); yanındaki ok Graphics card panelini açar (FPS, frame rate
+  sınırı, genişleyen slider sınırları). Laptop'ta NVIDIA kartı kendiliğinden istenir.
+- **Kunduz** (isim geçici: `app_info.MASCOT_NAME`): cetvelde oturur; tıkla (ya da P) → soru–cevap, tanıtım turu,
+  ilginç bilgi; plota sürükle → moduna göre camda / akışta / pulse'larda gezer. View → Beaver kapatır.
+- **Bir hata olursa:** program kapanmaz, "Unexpected error" penceresi çıkar; her şey log'a yazılır
+  (Help → Open log folder → `flowy.log`). Sorun bildirirken log dosyasını gönder.
 
-Çok yavaş akışta sıkılıp eve gider, çok yavaş pulse'lardan koşarak kaçar; çok hızlı akışta da her satır okunacak
-kadar ekranda kalır. Particles / Pulses'ta plota (veriye) bağlıdır: zoom / pan ile birlikte hareket eder, görünümden çıkarsa eve döner.
-**Tıklama ve sürükleme ayrı:** kunduza tıklayınca (fare kıpırdamadan) menüsü açılır — Questions & answers,
-Show me around (tour), Tell me a fun fact, Nothing, thanks ("I'm here if you need me"); basılı tutup sürükleyince
-eline alırsın. **P** tuşu (ya da Help → Beaver → Call the beaver) her yerden bu menüyü açar / kapatır. Soru–cevap
-listesi: 1–9, 0, oklar + Enter ya da tıklama; Esc kapatır.
-
-**Tanıtım turu:** ilk açılışta kunduz "First time here? Want a quick tour?" diye sorar (bir kez). Evet → boş bir
-sayfadan başlayıp pencerenin parçalarını tek tek gösterir (kırmızı çerçeve, gerisi hafif karartılmış) ve asıl
-işleri yaptırır: uniform flow ekle, doublet ekle, elementi düzenle, Move'a bas ve doublet'i taşı, Density
-slider'ını oynat, Particles'ı aç; sonra Export, File, Presets, Help, GPU kutusu, kendisi ve P tuşu (19 adım).
-Plotta element varken tur başlatılırsa kunduz önce sorar: kaydedilmemiş değişiklik varsa **Save first** /
-**Clear and start** / **Cancel**, kayıtlıysa **Clear and start** / **Cancel** (Enter ana buton, Esc Cancel).
-- Tur sürerken pencere kilitli: tıklama / çift tıklama / tekerlek / sağ tık sadece o adımın istediği yere gider
-  (plot adımlarında zoom / pan; "Your turn!" adımlarında sadece gösterilen şey). Fare her yerde gezer (hover,
-  tooltip'ler çalışır).
-- Okuma adımları Enter / Space / **sağ ok** / balona veya kunduza tıklama / **Next ›** butonu ile geçer. "Your turn!"
-  adımları istenen yapılınca kendiliğinden geçer; Enter / Space / sağ ok / **Skip** atlar. **Sol ok** ya da **‹ Back**
-  bir önceki adıma döner ve o adımda yapılanı geri alır (eklenen element, düzenleme, taşıma, Move modu, slider,
-  Particles), yani adım yeniden ister; ilk adımın temizliği tekrarlanmaz.
-  Esc veya **End tour** turu bitirir. Diğer tuşlar tur boyunca çalışmaz (Move adımında M hariç).
-- Density adımı slider bırakılınca geçer (sürüklerken değil). Element pencereleri sadece kendi adımlarında açılır
-  (düzenleme adımında palette'e tıklamak bir şey açmaz).
-- Uniform flow'a açı verildiyse doublet penceresi uyarı gösterir: kunduz kısaca hangi δ'nın uyarıyı kaldırdığını
-  söyler ("The doublet must point the same way as the flow… set Orientation δ to 30°"; açılar yuvarlanmış: 1e-07
-  yerine 0); düzenleme penceresinde uyarı yeniden çıkarsa kısa: "That warning again: pick any angle you like and go
-  on. With δ = 0° it goes away." Açıklama bir kez çıktıysa silinmez; açı düzeltilince sonuna "That's it: the warning is
-  gone." eklenir. Düzenleme adımında hiçbir şey değiştirmeden Apply demek de turu ilerletir.
-- Palette'ten sürüklerken plot aydınlanır; element penceresi açılınca kunduz yanına geçip ne yapılacağını söyler
-  (Apply → devam, Cancel → adıma geri). Konuşma balonu gösterdiği yerin üstüne binmez. Plot settings adımlarında
-  panel açılır ve slider görünür yere kaydırılır (slider'ın bölümü gizliyse o adım atlanır).
-- Bitince boş bir plot bırakır (Select modu, Density eski değerinde). Tekrar: Help → Beaver → Show me
-around ya da kunduza tıkla → 2. Sonraki açılışlarda sormaz (arada "Welcome back!").
-
-**İlk açılışı tekrar denemek için:** `python main.py --first-run` (o seferlik ilk açılış gibi davranır) ya da
-Help → Beaver → Next start as a first-time user (bir sonraki açılış ilk açılış olur).
-
-Konuşmalar İngilizce, harf harf yazılır. Konuşma balonu "çizim kartı" görünümünde: kalın mürekkep çerçeve, basamaklı
-köşeler, gölge; üstte adı (PSI, isim geçici) ve sağda etiket (TOUR 3/19, MENU, QUESTIONS …); yazı IBM Plex Mono;
-sağ altta düğmeler (asıl düğme başlıktaki ahşap renginde: Next ›, Yes, show me around ›, More questions ›). Kunduz
-export edilen figür ve animasyonlarda görünmez; tekerlek üstündeyken de plotu zoom'lar. Güvenlik ağı: ne olursa olsun
-plotta 15 s'den uzun kalırsa bir şey söyleyip rafına zıplar.
-
-Konuşmalar (`app/beaver/lines.py`): 78 durum, ~570 cümle; her durumdan rastgele seçer, bir durumun son
-söylediklerinin yarısını (en az 3) tekrar seçmez. Yaptıklarına arada bir yorum yapar (rafındayken, konuşmuyorken,
-en çok 20 s'de bir, her durumun kendi olasılığıyla: `REMARK_CHANCE`): element eklenince (türüne göre), silince,
-hepsini silince, undo / redo (nadiren), silindir ya da dönen silindir oluşunca, kalabalık sahne (8+ element),
-preset, export (figür / animasyon / veri), tema, GPU açık / kapalı yeniden başlatmadan sonra, her saat başı
-"stretch!", açılışta bazen günün saatine göre selam. **View → Beaver** ile kapatılır.
-
-### Açılış ve "Your computer"
-
-Program açılırken bir **yükleme ekranı** çıkar: ahşap başlık, ne yapıldığı ve bulunan donanım satırları, ilerleme
-çubuğu.
-- **Bu bilgisayarda ilk açılış** (ya da güncellemeden sonra): ~15–20 s. Hızlı hesap çekirdekleri (Numba) bu
-  işlemci için hazırlanır; işlemci, çekirdek sayısı, ekran kartları, OpenGL ve monitörün Hz'i bir kez bulunur.
-  Sadece bu durumda ilerleme çubuğunun hemen üstünde vurgulu bir kutu çıkar: "FIRST START ON THIS COMPUTER —
-  about 15–30 s, only once" ve geçen saniye. (İlk açılış = son hazırlıktan beri program sürümü, Python ya da
-  `physics/` dosyaları değişti, ya da donanım profili yok; `app/startup.is_first_start`.)
-- **Sonraki açılışlar**: ~1–2 s; hepsi hatırlanır. Bilgisayar değişirse (başka monitör, yeni kart, program /
-  Numba güncellemesi) kendiliğinden yeniden bulunur.
-- Pencere açıldığında derlenecek bir şey kalmaz: ilk Particles / Pulses / Solid bodies tıklamasında da bekleme
-  yok.
-- Ekran kartı sorusu ayrı bir işlemde sorulur: bozuk bir ekran kartı sürücüsü programı çökertemez.
-- **Help → Your computer…**: bulunanlar (işlemci, ekran kartları, OpenGL, ekranlar); **Check again** yeniden
-  bulur. Laptop'ta OpenGL zayıf (Intel) kartta çalışıyorsa not düşer.
-
-### Çok çekirdek
-
-Program bilgisayarın işlemci çekirdeklerini kendisi kullanır (ayar yok): thread sayısının bir eksiği hesaplara,
-biri pencereye. Hızlanan: streamline izleme (kalabalık sahnelerde en çok) ve renk bantları / φ / CSV ızgaraları.
-Sonuçlar tek çekirdekle bit bit aynıdır. Kaç çekirdeğin kullanıldığı: yükleme ekranı ve **Help → Your computer…**
-("16 threads (15 for computing)"). Karşılaştırmak için: `PFL_THREADS=1 python main.py` (PowerShell:
-`$env:PFL_THREADS=1; python main.py`).
-
-### Ekran kartı (GPU)
-
-Başlıktaki **GPU** kutusu (sağ üst; aynısı View → Draw with the graphics card): işaretlenince plot **ekran kartıyla
-(OpenGL)** çizilir. İlk açılışta kapalıdır, seçim hatırlanır. Görünüş aynıdır (ekran kartında 4× MSAA); export'lar
-hiç etkilenmez.
-- **Kutuyu işaretlemek de kaldırmak da programı hemen yeniden başlatır** (birkaç saniye; soru sormaz, çünkü hiçbir şey kaybolmaz).
-  Neden: bir program ekran kartını sadece başlarken seçebiliyor (laptop'ta NVIDIA anahtarı), ve OpenGL bir kez
-  pencereye girince pencere öyle kalıyor (eskiden kutuyu kaldırınca "hiçbir şey değişmiyordu"). Hiçbir şey
-  kaybolmaz ve kaydetmen istenmez: sahne, dosya adı, kaydedilmemiş değişiklikler (yine kaydedilmemiş olarak), görünüm,
-  plot ayarları, katmanlar, animasyon modu, seçili element, açık Graphics card paneli aynen geri gelir
-  (`app/restart.py`: durum veri klasörüne yazılır, yeni program `--resume` ile açıp siler).
-- **Laptop'ta NVIDIA**: kutu işaretliyken program her açılışta kendini NVIDIA anahtarıyla bir kez daha başlatır
-  (artık "Use NVIDIA" sorusu yok). Windows yine de güç tasarruflu kartı verirse program bunu bir kez söyler ve Windows
-  ayarından elle nasıl seçileceğini gösterir (Open Windows settings). Başka hızlı kart (AMD) varsa geçmeyi önerir.
-- Kutu sadece gerçek bir ekran kartı OpenGL 2.0+ verdiğinde işaretlenebilir; yoksa gri kalır ve üstüne gelince
-  nedenini söyler (ör. sürücü yok, yazılım OpenGL).
-- **Graphics card paneli**: kutunun yanındaki küçük **ok** (ya da View → Panels → Graphics card) açar, aynı ok kapatır.
-  Yan panel değil: okun altından sarkan bir kart (çentiği oku gösterir; kunduzun balonu gibi mürekkep çerçeve ve
-  gölge), altındakilerin üstüne açılır, boyu içeriği kadar. GPU kapalıyken de çalışır: kimin çizdiği, saniyedeki kare (FPS, canlı), bir karenin
-  çizim süresi, animasyonların **Frame rate** sınırı (Match screen / 60 / 120 / 144; her mod kendi seçimini
-  hatırlar, işlemcide varsayılan 60). Alttaki **WITH THE GRAPHICS CARD** bölümü sadece GPU açıkken kullanılır (kapalıyken
-  gri): **Higher limits in Plot settings** (varsayılan açık) ve sınırların listesi.
-- **Genişleyen slider sınırları** (GPU + Higher limits): Density 2 → 3, Particles 5000 → bu bilgisayarın kaldırdığı
-  kadar (bir kez ölçülür, en çok 100 000), Particle speed 10 → 13, Trail length 10 → 14, Pulse speed 10 → 13, Pulse
-  length 10 → 14, Pulse spacing 10 → 14. Çubuğun boyu aynı kalır; üstünde kısa, ceviz renginde dikey bir **çizgi**
-  (hepsi aynı kalınlıkta, tutamacın altında kalır) işlemcinin sınırını gösterir. GPU kapanınca sınırlar geri döner, üstündeki değerler sınıra iner (o ayarlarla kaydedilmiş bir
-  sahne GPU'suz açılınca da).
-- GPU açıkken **Particles ve Pulses da ekran kartında çizilir** (işlemci sadece noktaların yerini hesaplar).
-- **Güvenlik**: açıldıktan sonra birkaç saniye içinde ekran kartından resim gelmezse ya da OpenGL başlamazsa
-  program kendiliğinden işlemciyle çizmeye döner ve bir mesajla söyler (hiçbir şey kaybolmaz). Ekran kartı
-  çizerken program anormal kapanırsa (ör. sürücü çökmesi), bir sonraki açılış GPU kapalı başlar ve nedenini söyler.
-
-### Bir hata olursa
-
-Yakalanmamış bir hata programı kapatmaz: "Unexpected error" penceresi çıkar (ayrıntılar, Copy details, Open log
-folder), program açık kalır, sahne kaybolmaz. Her hata traceback'iyle log dosyasına yazılır:
-**Help → Open log folder** → `flowy.log` (en çok 3 × 1 MB). Program tamamen çökerse (derlenmiş
-kodda) yığın `crash.txt`'e yazılır ve bir sonraki açılışta log'a aktarılır. Sorun bildirirken log dosyasını gönder.
-
-Kaydedilmemiş değişiklik varken sahnenin bir kopyası son değişiklikten ~3 s sonra programın veri klasörüne
-(`recovery/`) yazılır; kaydedince, değişiklikler geri alınınca ya da program normal kapanınca silinir. Program
-normal kapanmazsa (çökme, elektrik, görev yöneticisi) bir sonraki açılışta "Restore unsaved scene" sorulur:
-Restore (kaydedilmemiş sahne olarak açılır, Undo önceki sahneye döner) / Discard / Not now.
-
-### Komut satırı (pencere açmadan)
+## Komut satırı (pencere açmadan)
 
 ```
 python main.py --verify [--out KLASÖR] [--no-figures]
-python main.py sahne.pflow --figure sekil.png [--data veri.csv] [seçenekler]
-python main.py --help           # tüm seçenekler
+python main.py sahne.pflow --figure sekil.png [--data veri.csv] [--view X0 X1 Y0 Y1] [--layers +bodies,-markers]
+python main.py --help              # tüm seçenekler
 ```
-- `--verify`: üç bölümlük rapor — (1) analitik formüller (hız, flux, circulation, kuvvet, duvarlar, sector
-  flow; round-off'a kadar), (2) ödevin 9 verification sahnesi: programın çizdiği / bulduğu şeyler teoriyle
-  (streamline açıları, stagnation point konumu, yüzey r = a, Cp, basınç integralinden L′ ve D′ — Kutta–Joukowski
-  ve d'Alembert), kaydet → tekrar aç (aynı elementler, aynı streamline'lar) ve sahnenin figürü, (3) sayısal
-  yöntemlerin doğruluğu (çizgiler boyunca ψ, Newton ile durma noktası, izlenen yüzeylerin şekli, birkaç Γ için
-  kaldırma). Her satırın kendi toleransı ve "nasıl hesaplandı" açıklaması var (Theory / Program / Tolerance);
-  hepsi tutarsa çıkış kodu 0, tutmayan satırlar konsola da yazılır. Çıktı: `verification.html` (tarayıcıda:
-  figürler, her check'in açıklaması tıklayınca açılır), `verification.md`, `verification.csv` (section, case,
-  quantity, analytic, numerical, error, tolerance, ok, how), `figures/*.png`. Süre ≈ 15 s.
-- Aynısı programın içinden: **Help → Run verification…** (arka planda çalışır; sonuç katlanmış bir ağaç —
-  bölüm → durum → check; bir satır seçilince sağda formüller, programın yaptığı hesap, tolerans ve sayılar,
-  sahne seçilince figürü; Open full report / Open folder / Save report to… / Run again)
-- `--figure` (.png / .svg / .pdf) ve `--data` (CSV, File → Export data ile aynı tablolar): `--view X0 X1 Y0 Y1`,
-  `--layers +bodies,+surface,-markers` (ya da işaretsiz liste: sadece bunlar; arka plan ızgarası da bir katman: `grid`), `--width / --height` (plot alanı,
-  piksel), `--scale 1–4`, `--background white|paper|transparent`, `--dark`, `--vref V`, `--tables
-  elements,stagnation,streamlines,field,surface`, `--grid N`, `--separator , ; tab`. Hata (dosya yok, bilinmeyen
-  katman…) → çıkış kodu 2.
+Hata (dosya yok, bilinmeyen katman…) → çıkış kodu 2; `--verify`'da tutmayan bir check → 1.
 
-Exe (ROADMAP 24): `pyinstaller packaging/build_exe.spec` → `dist/Flowy/` (adı `app_info.py`'den).
+## Ölçüm ve exe
 
-Ölçüm scriptleri: `python scripts/streamline_quality.py` (çizgi kalitesi),
-`python scripts/smoothness.py` (pan / zoom sırasında kare aralıkları, arayüz akıcılığı),
-`python scripts/benchmark.py [--out sonuc.json] [--quick]` (programın her şeyinin hızı: açılış, hesaplar, çizim, pan /
-zoom / sürükleme, tepki süreleri, animasyon, export, verification — ~6 dk; ayarlarına / dosyalarına dokunmaz).
-**Tek komutla tam ölçüm (önerilen):** `python scripts/benchmark.py --full --out benchmarks/<isim>.json` — her şey
-(açılış, hesaplar, çizim, pan / zoom / sürükleme, animasyon, **sınırlar**: 16 elementli sahne, en yoğun streamline'lar,
-tüm katmanlar, en çok particle, en uzun pulses, büyük export'lar), sonra çizim / etkileşim / animasyon / sınırlar bir de
-ekran kartıyla; tek dosya, ~8–10 dk. `python scripts/gpu_check.py [--write-registry]` (laptop'ta program hangi ekran kartını alıyor, hangi yolla NVIDIA'ya
-geçiyor; çıktıyı gönder). `--gpu` ile plot ekran kartıyla çizilir (`--fps-cap screen|60|120|144`, varsayılan 60): aynı bilgisayarda `--gpu`'suz
-ve `--gpu`'lu iki çalıştırma karşılaştırılır (paint / interact / anim bölümleri).
+- `python scripts/benchmark.py --full --out benchmarks/<isim>.json`: programın her şeyinin hızı (açılış, hesaplar,
+  çizim, pan / zoom, animasyon, sınırlar, export), sonra bir de ekran kartıyla; ~8–10 dk, ayarlarına dokunmaz.
+- `python scripts/streamline_quality.py` (çizgi kalitesi), `python scripts/smoothness.py` (pan / zoom akıcılığı).
+- Exe (ROADMAP 24): `pyinstaller packaging/build_exe.spec` → `dist/Flowy/` (adı `app_info.py`'den).
 
 ## Klasör yapısı
 
 | Klasör / dosya | İçerik |
 |---|---|
-| `CLAUDE.md` | Projeyi devralacak bir AI asistan için özet: proje, çalışma tercihleri, mimari, dersler, şu anki durum |
-| `main.py` | Programı başlatır (`python main.py sahne.pflow` dosyayı da açar): yükleme ekranı → donanım → çekirdekler → pencere; `--verify`, `--figure`, `--data` ile komut satırı; `--probe-gpu` (içeride: OpenGL sorusu ayrı işlemde) |
-| `app/cli/` | Komut satırı: `__init__.py` (seçenekler), `headless.py` (ekranda görünmeyen plot, görünüme göre boyut), `report.py` (doğrulama raporu: HTML, Markdown, CSV, figürler; komut satırı ve Help menüsü ortak) |
-| `app_info.py` | Programın adı, alt başlığı, sürümü — adı değiştirmek için tek yer (pencere, dosyalar, raporlar, exe, ayar klasörü `…/IZTECH/Flowy`) |
-| `app/paths.py` | Programın dosyalarının yeri (kaynak klasör veya exe), veri klasörü (`data_folder`), Store Python'da tarayıcı / Gezgin'in gördüğü yol (`outside_path`) |
-| `packaging/` | Exe yapımı (`build_exe.spec`, PyInstaller) |
-| `presets/` | Hazır sahneler (`.pflow` dosyaları, klasör = menüdeki grup) |
-| `app/main_window.py` | Ana pencere: parçaları birleştirir, sinyalleri bağlar, element komutları (ekle / düzenle / taşı / sil, undo / redo) |
-| `app/window/` | Ana pencerenin parçaları: `layout.py` (yan paneller, palette sağ/sol, düzeni hatırlama), `menus.py` (palette, menüler, kısayollar), `files.py` (New / Open / Save, preset'ler), `exporting.py` (figür ve CSV export), `status.py` (durum çubuğu, probe, sahne kontrolü, başlıklar), `graphics.py` (GPU kutusu = yeniden başlatma, Graphics card paneli, genişleyen slider sınırları, OpenGL başlamazsa geri dönüş, laptop'ta güçlü kart) |
-| `app/canvas/` | Plot kartı. `canvas.py` ortak durumu tutar (elementler, ayarlar, katman anahtarları, seçim) ve her olayı katmanlara iletir. Katmanlar: `streamline_layer.py` (arka planda hesap), `stagnation_layer.py`, `field_layer.py` (φ, \|V\|, Cp; `contours.py`, `legend.py`), `element_layer.py` (semboller, duvarlar, seçme), `animation_layer.py` + `particle_layer.py` + `pulse_layer.py` (animasyonlar: particle'lar, streamline üstünde darbeler), `body_layer.py` (cisimlerin içi dolu: Solid bodies), `surface_layer.py` (yüzeyler Cp renginde: Surface pressure). `interaction.py`: fare modları, sürükleme, palette'ten bırakma. `settings.py`: Plot settings slider'larının tablosu. `gl_viewport.py`: ekran kartıyla çizim yüzeyi (OpenGL viewport) ve kare sayacı (FPS). `gl_animation.py`: Particles / Pulses'ın ekran kartında çizimi (shader'lar, frame buffer). `scaled_curve.py`: çizgiler görünüm boyutunda yerel koordinatlarda (ekran kartı çok yakında kalınlaştırıyordu), `grid_item.py`: ızgara ekran pikselinde çizilir |
-| `app/export/` | `figure.py` (PNG / SVG / PDF), `data.py` (CSV, Qt'siz), `dialogs.py` |
-| `app/chrome/` | Pencerenin "çizim kağıdı" görünümü: `style.py` (font, renk), `header.py` (logo, tahta şerit, cetvel + menüler), `cards.py` (panel kartları, title block), `palette.py` (element paleti) |
-| `app/panels.py`, `app/dialogs.py` | Elements / Plot settings panelleri; parametre penceresi (alanlar `app/element_specs.py`'den otomatik) |
-| `app/surface_panel.py` | Surface pressure paneli: Cp grafiği, kuvvetler, CSV |
-| `physics/parallel.py` | İşlemci çekirdekleri: iş havuzu (thread − 1), parçalara bölme; sonuçlar tek çekirdekle bit bit aynı |
-| `app/startup.py` | Uygulama ayarları (sayı biçimi, fontlar, stil) — hafif: yükleme ekranı ağır modüllerden önce çıkabilsin |
-| `app/splash.py` | Yükleme ekranı (`LoadingScreen`: adım, donanım satırları, ilerleme, ilk açılışta çubuğun üstünde not; uzun işler thread'de, ekran donmaz). `app/startup.py`: uygulama ayarları + ilk açılış imzası |
-| `app/restart.py` | Programı her şeyiyle yeniden başlatma (GPU kutusu): durum dosyası yaz / oku, `--resume`, NVIDIA anahtarsız ortam |
-| `app/hardware.py` | Bu bilgisayar: işlemci / çekirdek, ekran kartları (Windows kayıt defteri), OpenGL (ayrı işlemde), ekranlar (Hz); profil QSettings'te, fingerprint değişince yeniden |
-| `app/hardware_dialog.py` | Help → Your computer… |
-| `app/gpu.py` | Ekran kartıyla çizim kuralları: ne zaman açılabilir, fps sınırları (mod başına), GPU sınırları (`GPU_LIMITS`), çökme koruması (kilit dosyası), Windows'ta güçlü kart (kayıt defteri, NVIDIA'da açılışta yeniden başlama) |
-| `app/gpu_panel.py` | Graphics card paneli (başlıktaki okla açılır, sağ tarafın üstüne): çizen kart, canlı FPS, frame rate, Higher limits + sınırlar, "Use AMD…" |
-| `app/errors.py` | Beklenmeyen hatalar: log dosyası, hata penceresi (program açık kalır), çökme dosyası |
-| `app/beaver/` | Kunduz: `art.py` (koddan çizilen piksel art, her poz / açı keskin), `bubble.py` (piksel konuşma balonu, seçenekli diyaloglar), `lines.py` (İngilizce metinler), `faq.py` (soru–cevap), `tour.py` (tanıtım turu adımları), `spotlight.py` (turdaki vurgu), `beaver.py` (davranış: raf, tıklama menüsü, sürükleme, cam, akış, pulse, eve dönüş, tuşlar) |
-| `app/recovery.py` | Otomatik kopya ve çökme sonrası sahneyi geri getirme |
-| `app/verification_dialog.py` | Help → Run verification…: raporu arka planda üretir, check ağacı ve "nasıl hesaplandı" paneli |
-| `app/user_guide.py`, `app/user_guide_text.py` | Help → User guide (F1): bölüm listesi, arama, canlı kısayol tablosu, "Save as web page…"; metinler ayrı dosyada (özellik değişince bölümü de güncelle) |
-| `app/conventions_dialog.py` | Help → Sign conventions: her element için çizimli kart, temel tanımlar, Cp ve kuvvetler |
-| `app/theme.py` | Renkler (açık / koyu), fontlar, boyutlar, marker'lar |
-| `app/geometry.py` | Duvarların çizim geometrisi (köşelerde sadece akışkana bakan kısım çizilir) |
-| `app/scene.py`, `app/recent_files.py`, `app/shortcuts.py` | Başlangıç sahnesi ve preset listesi; son açılanlar; değiştirilebilir kısayollar |
-| `model/` | Sahne modeli: element listesi, komutlar, undo/redo, değişiklik önizlemesi (Qt'siz) |
-| `model/scene_file.py` | Dosya formatı (.pflow, sürüm numaralı JSON), okuma / yazma, anlaşılır hata mesajları |
-| `model/plot_settings.py` | Sahneyle kaydedilen plot ayarları (`PlotSettings`) |
-| `physics/` | Fizik motoru — GUI'den bağımsız, sadece NumPy |
-| `physics/base.py` | Tüm elementlerin ortak temel sınıfı (`FlowElement`) |
-| `physics/elements/` | Her element ayrı dosya: `uniform.py`, `source.py`, `vortex.py`, `doublet.py`, `sector.py`, `wall.py` |
-| `physics/images.py` | Method of images: duvarlarda ardışık yansıtma, π/k köşeler, kanal (kapalı form) |
-| `physics/validation.py` | Sahne kontrolü: duvar arkasında/üstünde element, paralel olmayan uniform flow ... |
-| `physics/registry.py` | Hangi element tipleri var (yeni element otomatik eklenir) |
-| `physics/field.py` | Superposition (w = Σ wₖ), grid hesabı, Cp, singularity masking, fluid region |
-| `physics/streamlines/` | Eşit aralıklı streamline'lar (Jobard–Lefer, RK4): `level.py` (bir aralık seviyesi), `cache.py` (pan'de çizgileri yerinde tutan önbellek), `seeds.py`, `rasters.py`, `arrows.py`, `drawing.py` (soluklaşan uçlar) |
-| `physics/stagnation.py` | Stagnation point'ler (w = 0, Newton) ve dividing streamline'lar |
-| `physics/origin.py` | Akışkanın nereden geldiği (`trace_origin`: serbest akış / cisim / kapalı döngü) = cismin tanımı; serbest stream'in delip geçtiği source / doublet (`open_elements`), doublet ekseni kontrolü |
-| `physics/bodies.py` | Cisimler: bölge resmi (`body_map`), yüzey parçaları (`surface_pieces`) |
-| `physics/surface.py` | Yüzeyler (cisimler + ıslak duvarlar), üzerlerinde Cp, basınç integraliyle kuvvet (Kutta–Joukowski / d'Alembert karşılaştırması), silindirin analitik Cp'si |
-| `physics/warmup.py` | Numba çekirdeklerini arka planda önceden derler / yükler |
-| `physics/particles.py` | Animasyon fiziği: tracer particle'lar, streamline boyunca yolculuk süresi (pulse'lar) |
-| `physics/kernel.py` | Numba ile derlenmiş hız alanı ve integrator (aynı matematik, ~10× hızlı, arayüzü bekletmez) |
-| `physics/diagnostics.py` | Doğrulama tablosu için ölçümler: V_r / V_θ, flux, circulation, silindirde basınç kuvveti (L′, D′) |
-| `physics/verification.py` | Analitik çözümlerle karşılaştırma tablosu (rapor, testler, `--verify`) |
-| `physics/program_checks.py` | Programın sayısal sonuçlarının kontrolü: çizilen streamline'lar, durma noktası araması, izlenen yüzeyler, Cp, basınç integrali (`--verify`) |
-| `tests/` | Otomatik doğrulama testleri (`pytest`) |
-| `scripts/verify_physics.py` | Doğrulama tablosunu yazdırır (`physics/verification.py`) |
-| `scripts/gpu_check.py` | Laptop'ta OpenGL hangi kartta: bugünkü hâl, SHIM_MCCOMPAT ile, (isteğe bağlı) Windows ayarından sonra |
-| `scripts/benchmark.py` | Her şeyin hızı tek çalıştırmada (açılış cold / warm, hesaplar, çizim, pan / zoom / sürükleme, tepki süresi, animasyon, sınırlar, export, verify); `--out` ile JSON, `--gpu` ile ekran kartıyla, `--full` ikisi birden |
-| `benchmarks/` | Son tam ölçüm (`windows_full_nvidia.json`, RTX 3050): sonraki optimizasyonlar bununla karşılaştırılır; eski ölçümlerin sayıları ROADMAP 20'de |
-| `scripts/streamline_quality.py` | Streamline resminin kalite ölçümü (aralık düzgünlüğü, kesik uçlar, süre) |
+| `main.py` | Başlatır: yükleme ekranı → donanım → çekirdekler → pencere; komut satırı seçenekleri |
+| `app_info.py` | Programın adı, alt başlığı, sürümü, kunduzun adı — isim değiştirmek için tek yer |
+| `physics/` | Fizik motoru (Qt'siz): `elements/` (her element ayrı dosya), `field.py` (superposition), `images.py` (method of images), `validation.py` (sahne kontrolü), `kernel.py` + `warmup.py` (Numba), `parallel.py` (çok çekirdek), `streamlines/` (Jobard–Lefer + RK4, önbellek), `stagnation.py` (w = 0, dividing streamline'lar), `origin.py` (akışkan nereden geliyor = cisim), `bodies.py`, `surface.py` (Cp, kuvvetler), `particles.py`, `verification.py` + `program_checks.py` + `diagnostics.py` (doğrulama) |
+| `model/` | Sahne modeli + undo / redo (`scene_model.py`), `.pflow` formatı (`scene_file.py`), plot ayarları |
+| `app/main_window.py`, `app/window/` | Ana pencere ve parçaları: düzen, menüler, dosyalar, export, durum çubuğu, GPU |
+| `app/canvas/` | Plot: `canvas.py` + katmanlar (`*_layer.py`), fare (`interaction.py`), ekran kartı (`gl_*.py`) |
+| `app/export/`, `app/cli/` | Figür / animasyon / CSV export; komut satırı ve doğrulama raporu |
+| `app/chrome/`, `app/theme.py` | "Çizim kağıdı" görünümü; bütün renkler, fontlar, boyutlar |
+| `app/panels.py`, `app/dialogs.py`, `app/surface_panel.py`, `app/gpu_panel.py` | Elements / Plot settings panelleri, element penceresi, Surface pressure ve Graphics card panelleri |
+| `app/beaver/` | Kunduz: davranış, piksel art, konuşma balonu, replikler, soru–cevap, tur |
+| `app/errors.py`, `app/recovery.py`, `app/restart.py` | Log + hata penceresi + çökme notu; otomatik kopya; yeniden başlatma |
+| `app/hardware.py`, `app/gpu.py`, `app/splash.py`, `app/startup.py`, `app/paths.py` | Donanım, GPU kuralları, yükleme ekranı, uygulama ayarları, dosya / veri klasörü yolları |
+| `app/user_guide*.py`, `app/conventions_dialog.py`, `app/verification_dialog.py` | Help menüsü: User guide, Sign conventions, Run verification |
+| `presets/` | Hazır sahneler (klasör = menüdeki grup) |
+| `assets/` | Fontlar, ikonlar |
+| `packaging/` | Exe tarifi (`build_exe.spec`) |
+| `scripts/`, `benchmarks/` | Ölçüm scriptleri; son tam ölçüm (`windows_full_nvidia.json`) |
+| `tests/` | Otomatik testler (`pytest`) |
+| `CLAUDE.md`, `ROADMAP.md` | AI asistan için devir notu; yapılanlar ve sıradaki işler |
 
-**Yeni bir plot katmanı eklemek** (ör. animasyon): `app/canvas/layer.py`'deki `PlotLayer`'dan bir sınıf
-(sadece gereken olaylar: tema, sahne, görünüm, sürükleme…), `PlotCanvas.__init__`'te bir `add_layer(...)`
-satırı ve gerekiyorsa `LAYERS` listesine bir anahtar (Plot settings ve View menüsünde kendiliğinden çıkar).
-**Yeni bir plot ayarı** (3 yer): `model/plot_settings.py`'de bir alan (sahne dosyasına kaydedilir ve açılır,
-kontrolü kendiliğinden), slider'ı varsa `app/canvas/settings.py` → `SLIDERS`'a bir satır (bölüm, etiket, aralık;
-panel kendiliğinden kurulur) ve `PlotCanvas.set_<ad>(değer)` (ayarı plota uygular).
+**Yeni bir plot katmanı:** `app/canvas/layer.py`'deki `PlotLayer`'dan bir sınıf, `PlotCanvas.__init__`'te bir
+`add_layer(...)` satırı, gerekiyorsa `canvas.LAYERS`'a bir anahtar. **Yeni bir plot ayarı:** `model/plot_settings.py`'de
+bir alan, slider'ı varsa `app/canvas/settings.py` → `SLIDERS`'a bir satır, `PlotCanvas.set_<ad>(değer)`.
 
 ## Notasyon (ders notlarıyla aynı)
 
 - F(z) = φ + iψ (complex potential), w = dF/dz = u − iv (complex velocity)
 - Source/sink: F = (m/2π) log(z − z₀), m > 0 source
-- Vortex: F = −i(Γ/2π) log(z − z₀), **Γ > 0 counter-clockwise**
-- Doublet: F = μ e^{iδ}/(z − z₀), μ = mε/π; uniform + doublet → cylinder, a = √(μ/V∞)
+- Vortex: F = −i(Γ/2π) log(z − z₀), **Γ > 0 counter-clockwise** (dersteki dönen silindir clockwise Γ_cw = −Γ
+  ile yazılır: L′ = ρ V∞ Γ_cw; Help → Sign conventions)
+- Doublet: F = μ e^{iδ}/(z − z₀); uniform + doublet (δ = α) → cylinder, a = √(μ/V∞)
 - Cp = 1 − (V/V∞)²
-- Symmetry wall: z* = z_w + e^{2iθ_w} conj(z − z_w); image kuralları plane theorem'den
-  (F_total = F(z) + conj F(z*)): source → aynı m, vortex → −Γ, doublet → δ* = 2θ_w − δ,
-  uniform flow image'lanmaz (duvara paralel olmalı)
-- Sector flow: ζ = (z − z₀)e^{−iθ₁}, F = Vζⁿ, n = π/β, β = θ₂ − θ₁ (saat yönünün tersine, (0°, 360°]);
-  V > 0: akış θ₂ duvarından girer, θ₁ duvarından çıkar. Akışkan bölgesi sadece wedge'in içi.
-  Branch cut wedge'in dışında (β = 360°'de plakanın kendisi).
-- Sector flow + diğer elementler (açıkça tanımlanmış politika):
-  wedge kenarları diğer elementler için duvardır; β = 180°/k ise source/vortex/doublet köşe image'larıyla
-  tam olarak eklenir (90°: 3 image); diğer β'larda, β > 180°'de, birden fazla sector'da, sector + symmetry
-  wall'da ve wedge dışındaki/kenarındaki elementlerde hata verilir. Uniform flow sadece β = 180° ve duvara
-  paralelse kabul edilir. Sector flow'un kendisi image'lanmaz (zaten kendi duvarlarını sağlar).
+- Symmetry wall: image'lar plane theorem'den: source → aynı m, vortex → −Γ, doublet → δ* = 2θ_w − δ; uniform
+  flow duvara paralel olmalı
+- Sector flow: ζ = (z − z₀)e^{−iθ₁}, F = Vζⁿ, n = π/β; akışkan sadece wedge'in içi. Wedge kenarları diğer
+  elementler için duvardır; β = 180°/k ise source / vortex / doublet köşe image'larıyla tam eklenir, diğer
+  durumlar hata verir (ayrıntı: User guide → Adding elements)
 
 ## Fonts
 

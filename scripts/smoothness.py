@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-from PySide6.QtCore import QTimer  # noqa: E402
+from PySide6.QtCore import QEventLoop, QTimer  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from physics import Doublet, SymmetryWall, Source, Uniform, Vortex  # noqa: E402
@@ -65,13 +65,15 @@ def run(win, app, elements):
         stale.append(not cv.streamlines.covers_view())
         if now - t_start > DURATION_S:
             timer.stop()
-            app.quit()
+            loop.quit()
 
+    # a local event loop (app.quit() would also close the window in Qt 6, and the next scene would have none)
+    loop = QEventLoop()
     timer = QTimer()
     timer.setInterval(16)
     timer.timeout.connect(tick)
     timer.start()
-    app.exec()
+    loop.exec()
     gaps = np.diff(ticks) * 1000.0
     pan = np.array(phases[1:])
     st = [s for s in stale if s is not None]

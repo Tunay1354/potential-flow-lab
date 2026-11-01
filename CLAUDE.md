@@ -14,7 +14,7 @@ Fall 2026). Due **≈ 26 Nov 2026**: the program + a 4–6 page report + a user 
 asks for superposition of elementary flows with a GUI, streamlines, and verification cases; the owner wants
 far more: a polished, downloadable Windows tool (exe in a zip), animation, presets, undo / redo, export,
 built-in verification, a mascot. Repo: `github.com/Tunay1354/potential-flow-lab` (private), branch `main`,
-~75 commits. The assignment's verification cases are the scenes in `presets/1 Verification cases
+~110 commits. The assignment's verification cases are the scenes in `presets/1 Verification cases
 (assignment)/` (case 5 = save → reopen → same list and same plot). The assignment PDF is **not** in the repo —
 ask him for it when exact wording matters (e.g. for the report or the final check).
 
@@ -53,9 +53,10 @@ ask him for it when exact wording matters (e.g. for the report or the final chec
 ```
 python main.py                     # GUI (python main.py scene.pflow opens a scene)
 python main.py --first-run         # start as a first-time user (the beaver offers the tour)
-python -m pytest -q                # all tests, ~10 min; GUI tests run offscreen (tests/conftest.py)
+python -m pytest -q                # all tests (~50 min on this 2-core server: run in the background); offscreen GUI
 python main.py --verify            # verification report → verification/ (102 checks, must stay 102 / 102)
 python main.py scene.pflow --figure out.png --data out.csv     # export without a window
+python scripts/benchmark.py --full --out benchmarks/NAME.json             # speed of everything (he runs it on Windows)
 python scripts/streamline_quality.py   /   python scripts/smoothness.py    # measurements
 ```
 - **Before every commit: full test suite green and verification 102 / 102.**
@@ -86,8 +87,9 @@ python scripts/streamline_quality.py   /   python scripts/smoothness.py    # mea
   computed" per check), `errors.py` (log file, error window, crash file), `recovery.py` (autosave + restore after
   a crash), `beaver/` (the mascot, §5), `chrome/` (header, cards, palette, fonts), `theme.py` (all colours and
   sizes).
-- `app_info.py` (root) — the program's name / subtitle / version: the ONLY place to rename it (window, files,
-  reports, exe, settings folder …/IZTECH/<APP_NAME>). Never write the name as text elsewhere: use APP_NAME.
+- `app_info.py` (root) — the program's name / subtitle / version, the beaver's name (`MASCOT_NAME`) and the logger
+  name (`LOGGER`): the ONLY place to rename them (window, files, reports, exe, settings folder …/IZTECH/<APP_NAME>).
+  Never write a name as text elsewhere.
 - `presets/` scenes (folder = menu group), `assets/` (fonts, icons), `packaging/build_exe.spec` (exe),
   `scripts/` measurements, `benchmarks/` (his last full measurement), `tests/`.
 
@@ -110,8 +112,8 @@ python scripts/streamline_quality.py   /   python scripts/smoothness.py    # mea
 **The beaver (`app/beaver/`)** — a pixel-art beaver with a red bandana, drawn by code from shapes (`art.py`, so
 every rotation / size is crisp), speech bubble typed letter by letter (`bubble.py`: "drafting card" look since 29 Oct —
 thick ink frame, stepped corners, shadow, header name + tag, IBM Plex Mono text, buttons with the main one in the
-plank colour; dialogs with choices / buttons), English lines (`lines.py`, 40+ situations, ~180 lines, random without quick repeats; PRIORITY
-decides what may wait vs be skipped so no line is cut off), Q&A (`faq.py`), tour (`tour.py`, 16 steps,
+plank colour; dialogs with choices / buttons), English lines (`lines.py`, 80 situations, ~570 lines, {name} = his name, random without quick repeats; PRIORITY
+decides what may wait vs be skipped so no line is cut off), Q&A (`faq.py`), tour (`tour.py`, 19 steps,
 `spotlight.py` highlight). Behaviour (`beaver.py`): sits on the ruler right of Help; Static mode = glass in
 front of the plot (screen-fixed); Particles = a tracer in the real flow (data-fixed; dizzy in a free vortex,
 swallowed by a sink, stuck at a stagnation point, bored if very slow); Pulses = knocked along his streamline
@@ -196,222 +198,58 @@ GUI / Qt
   (not while a text field or a modal dialog has the keys).
 - Beaver: a press is a click until the mouse moves > 6 px; the sprite has a mask (clicks through transparent
   pixels); rotated pixel art is re-rasterized from shapes (never rotate the bitmap).
-- Windows-specific checks still pending (he hasn't confirmed): the 125 % double line is gone, Help → Run
-  verification, the beaver's feel (speed, drag), the tour from start to end.
 
 ---------------------------------------------------------------------------------------------------------------
 ## 8. Current status and what comes next (keep this section up to date)
 
-- **Done**: ROADMAP items 1–19 (everything above), 29 Oct 2026. Tests green, verification 102 / 102.
-- **29 Oct, handover check (19b)** by the assistant in the owner's second account: clean install, all tests,
-  `--verify` and an independent physics comparison passed; `test_kernel.py` made pytest-9 compatible (pytest ≥ 9
-  refuses nested lists in `approx()`; compare arrays instead). This machine has 2 cores: the full suite takes
-  ~50 min here (run it in the background). Also: the Elements list no longer cuts names / parameters off
-  (`app/panels.py`, `ElementRowDelegate`: parameters in the old 150 px column, wrapped between parameters;
-  under the name when the name is too long). Column 1 still holds `e.summary()` (hidden), tests read it.
-- **29 Oct, tour lock (ROADMAP 19c)**, from his step-by-step Windows test of the tour: while the tour runs the
-  window is locked — `Step.allow` + `Tour.allows` decide what a press / double-click / wheel / right-click may
-  reach (checked in `Beaver._tour_blocks`, app-wide event filter; never block releases or moves); keys: Enter /
-  Space next or skip, Esc end, all others swallowed except `Step.keys` (M in the Move step), also when a text field
-  has the focus. Bubble buttons End tour / Next / Skip (`bubble.buttons`, `button_clicked`). Sub-steps `Tour.sub`:
-  "drag" (palette drag: plot highlighted), "dialog" (the window sends dialog_open / dialog_closed around every
-  element dialog; the beaver stands where his bubble fits beside it). The window also sends edited / setting /
-  mouse_mode / palette_drag(_end). The bubble never covers `Tour.avoid_rect()`. 18 steps.
-  Offscreen note: after a modal dialog the window is not active again by itself → shortcuts (M) need
-  `activateWindow()` in scripts; a real double-click is press, release, double-click, release (QTest.mouseDClick
-  alone is ignored by item views).
-- **29 Oct, bubble restyle + 2 tour bugs (ROADMAP 19d)**: his mock-up (Turkish text, ours stays English): the
-  bubble got a header (name `lines.NAME`, a placeholder, + tag), mono text, buttons (`say(..., title, tag, buttons,
-  primary)`); no hint lines any more (Enter / Space are found anyway). The tour-offer bubble has buttons (Enter /
-  1 yes, Esc / 2 no), menu / questions a Close button, an answer Close + More questions. Bugs: (1) `bubble.clear()`
-  kept the old lines, so a remark still "typing" stopped the tour's first step (i stayed −1) — `clear()` resets
-  them and `Tour.start()` clears the bubble; (2) a slider scrolled out of the Plot settings (he had scrolled the
-  panel) could not be shown nor scrolled to (lock) — `Tour._prepare` opens the panel, scrolls the slider into
-  view, skips the step if its section is hidden.
-- **29 Oct, item 20 started — baseline measured (no OpenGL)**: `scripts/benchmark.py` (new, program unchanged;
-  sections startup / compute / paint / interact / anim / export / verify; `--out x.json`, `--quick`, `--only`)
-  → `benchmarks/2026-10-29_baseline_cloud-2cpu_run{1,2}.json` (this 2-CPU offscreen server; numbers in ROADMAP 20).
-  Everything fine; only stutters: pan / zoom with every layer on (p95 25–40 ms, rare 90–130 ms) and the background
-  compute of busy scenes (8 elements: 1.4 s). He asked to add OpenGL next and compare with the SAME script, also on
-  his Windows PC (ask him to run `python scripts/benchmark.py --out before.json` there before the change).
-- **29 Oct, 20.1 loading screen + hardware (ROADMAP 20.1)**: main.py → `app/splash.LoadingScreen` (shown
-  after the light `app/startup.setup_application`, before heavy imports) → `app/hardware.detect()` (profile in
-  QSettings "hardware/profile", re-detected when `fingerprint()` changes; OpenGL asked ONLY in a child process
-  `main.py --probe-gpu FILE` — a GL call on a non-current context segfaults, seen here) → `physics/warmup.steps()`
-  (everything compiled before the window; checked with numba compile events: nothing compiles later) →
-  MainWindow (`win.hardware`). Help → Your computer… (`hardware_dialog.py`). This server now has Xvfb + Mesa
-  (llvmpipe, GL 4.5): `Xvfb :99 &`, then DISPLAY=:99 QT_QPA_PLATFORM=xcb for OpenGL tests (software only).
-  His PC: Windows 11 laptop, 16 threads, RTX 3050 Ti (+ probably Intel), Hz unknown; his baseline numbers in
-  ROADMAP 20. Next packages: 20.2 multi-core (always on), 20.3 GPU box in the header + OpenGL plot + Graphics card
-  panel (FPS, fps cap Match screen / 60 / 120 / 144) + Intel → NVIDIA (write HKCU\Software\Microsoft\DirectX\
-  UserGpuPreferences "GpuPreference=2;" for the exe / python.exe after asking, restart, check the renderer;
-  fallback: open ms-settings:display-advancedgraphics), 20.4 GPU particles / pulses + calibrated maxima.
-- **29 Oct, 20.2 multi-core (always on)**: `physics/parallel.py` (pool of cpu_threads − 1, `PFL_THREADS`, nested
-  calls run serially, results in order). Used by `level._integrate` / `_integrate_both` (seed pieces of the nogil
-  tracer; both directions at once on several cores) and `field.complex_velocity / complex_potential` (≥ 20 000
-  points). Bit-identical to one core (3457 line arrays, 84 grids; tests/test_parallel.py). This server has 2
-  hyper-threads → workers() = 1 by default: run tests with PFL_THREADS=4 to exercise the parallel code.
-- **29 Oct, 20.3 GPU box + OpenGL plot (ROADMAP 20.3)**: header box `Plank.gpu` + View action `act_gpu` →
-  `GraphicsMixin.set_gpu` (`app/window/graphics.py`) → `PlotCanvas.set_gpu` swaps the plot viewport to
-  `PlotGLViewport` (`app/canvas/gl_viewport.py`, 4× MSAA) at run time; FullViewportUpdate with GL (Minimal would
-  leave the rest of the frame empty); `PlotInteraction.viewport_changed` rebinds drops / cursor / filter. Rules,
-  fps cap, crash guard (`SessionGuard` lock file) and the Windows GpuPreference registry write live in `app/gpu.py`;
-  panel `app/gpu_panel.py` (dock "Graphics card", only while on). Fallback: no context / no frameSwapped in 6 s →
-  raster + message. Laptop: `hardware.runs_on_weak_card` → offer → registry + `hardware/reprobe` → restart
-  (`restart_program`) → `_gpu_check_switch`. Tests replace `_ask_strong_card`, `_show_switch_help`. Offscreen
-  has no OpenGL (switching on fails cleanly there — tested); real GL test runs in a subprocess on Xvfb
-  (`test_opengl_draws_the_plot`, skipped when no X server answers). Software GL is refused by the box
-  (`PFL_GPU_ALLOW_SOFTWARE=1` for server tests; `benchmark.py --gpu` forces it). He has not tried it on Windows yet.
-- **29 Oct, 20.3b**: on his laptop the registry entry for `.venv\Scripts\python.exe` did not help (still Intel): his
-  base Python is the **Microsoft Store** one (WindowsApps; the venv exe only starts it). Now the real process file
-  (`hardware.process_image_path`) is registered too, and after "Use NVIDIA" `SHIM_MCCOMPAT=0x800000001` is set at
-  every start (`gpu.apply_startup_env`). `scripts/gpu_check.py` shows which way works — waiting for his output.
-- **29 Oct, 20.3c**: his Windows numbers came (benchmarks/windows_after_*.json, if he pushed them): the GPU helps
-  painting with many layers (channel every layer 32.5 → 8.3 ms), animation was capped at 23 fps by the
-  pixmap cache (fixed, see §7). Benchmark anim now reports the frames the plot really showed + paint ms.
-- **29 Oct, 20.3d**: stale-picture fix, frame pacing, `kernel.draw_segments_parallel` (row bands, bit-identical),
-  `parallel.run` does queued tasks itself. Friend's C++ project (laurance18/potential-flow-lab) studied: everything
-  is drawn by the GPU (points / polylines + shaders, trail fade in an FBO); see ROADMAP 20.3d.
-- **29 Oct, 20.4 (done)**: with the GPU box on, Particles / Pulses are drawn by the card
-  (`app/canvas/gl_animation.py`, instanced capsules with the draw_segments coverage formula, FBO per layer,
-  composited in `TrailItem.paint` via beginNativePainting; layers record `GLFrame` ops; `gpu_broken` → CPU).
-  Pulses upload pieces once, the shader decides lit pieces from the time. Particles max with GPU calibrated
-  (`step_ms`, stored `gpu/particles_max` + fingerprint, ≤ 100 000); advect split on cores for ≥ 10 000.
-  Uniforms must be set by location (`gl_animation._uniform`): PySide's name overloads are ambiguous.
-- **29 Oct, 20.5**: `scripts/benchmark.py --full --out benchmarks/<name>.json` = the one command for him (all
-  sections incl. the new `limits` with `stress_scene()`, then paint / interact / anim / limits again with the GPU,
-  keys suffixed " [GPU]"). He runs it and pushes the JSON from GitHub Desktop.
-- **29 Oct, 20.5b**: his `windows_full.json` [GPU] part ran on **Intel** (the in-process SHIM_MCCOMPAT of 20.3b does
-  NOT work; only at process start). `gpu.relaunch_on_strong_card()` (main.py when "Use NVIDIA" was chosen;
-  benchmark --gpu/--full always unless --integrated) restarts the process once with the switch and waits.
-  Not verified on Windows yet — ask him to run `--full` again and check the "graphics card:" line.
-- **30 Oct, 20.6**: his `windows_full_nvidia.json` confirms the relaunch (RTX 3050 draws). Results + the remaining weak
-  spots (heavy MP4 export 30 s, startup 3 s warm / 18 s cold, heavy-scene pan p95 ~70 ms, add-element 380 ms) in
-  ROADMAP 20.6. He will now send his list of small / big issues; then cleanup (21) incl. folder tidy-up.
-- **30 Oct, 20.7 his 21-item list** (after 20.6), in three commits A / B / C. **20.7A (tour + beaver)**: Right arrow =
-  next, Left / "‹ Back" = `Tour.back()` (never re-runs a step's `enter`; a step whose action is done (`Tour.done`,
-  or the mode is already on) shows "Done already" + Next); bubble buttons are handled by their LABEL now
-  (`Tour.button`). Doublet dialog hint: `physics.validation.doublet_misalignment` (the same test as the warning) is
-  polled every 0.25 s while a doublet dialog is open (`dlg.row` = edited row or None); first time long, later
-  "we talked about". Add / Edit dialogs ask `beaver.tour_allows_add / tour_allows_edit` (only in their own step).
-  Slider steps wait for `isSliderDown()` False (`Tour.released`). `beaver.start_tour(confirmed)`: a full plot →
-  dialog "tour_clear" (Save first / Clear and start / Cancel). GPU step after Help (19 steps). P =
-  `act_beaver_menu` → `beaver.toggle_menu()` (the old duplicate act_faq in Edit + Help made P ambiguous = dead).
-- **30 Oct, 20.7B**: the program starts EMPTY (`MainWindow.START_SCENE = None`; tests/conftest sets the lifting
-  cylinder — most GUI tests assume it; benchmark / smoothness scripts too). Default layout: Elements 260 px
-  (`layout._resize_dock`: Qt's resizeDocks needs ask-look-correct), LAYOUT_STATE_VERSION 2. Surface pressure
-  width remembered in "layout/surface_width" (only after a fitted open: `_surface_fitted`), Reset layout clears
-  it; unticking the layer hides the dock. Grid = layer "grid" (QSettings "plot/grid"). Splash first-start box:
-  `startup.is_first_start / mark_prepared` (signature of version + Python + physics/ files). New:
-  `app/user_guide.py` + `user_guide_text.py` (F1, non-modal, `win._guide`), `app/conventions_dialog.py`.
-  The plot card needs ~840 px: on a 1400 px window the Surface panel can only get ~255 px.
-- **30 Oct, 20.7C (GPU)**: the GPU box (and View → Draw with the graphics card) = `gpu_box_changed` → ask
-  (`_ask_restart`, tests replace it) → `gpu.set_enabled` → `restart_program()` → `app/restart.py` writes scene +
-  state JSON, `start_again` (QProcess.startDetached, env without SHIM / PFL_STRONG_CARD; tests replace
-  `_start_again`), `_restarting` skips the save question in closeEvent; main.py `split_resume` →
-  `win.resume_from(path)` (files.py). `set_gpu(on)` is still the LIVE switch (start-up, tests, benchmark);
-  default user=False now. `gpu.wants_strong_card()` = GPU enabled (no KEY_OPTIMUS any more). Panel:
-  `GpuPanel(QFrame)` child of the window, placed by `_place_gpu_panel` (right, from the desk's top; resizeEvent),
-  opened by `plank.gpu_more` / `act_gpu_panel` (`show_gpu_panel`). Fps cap per mode (`gpu.fps_cap(on_card)`).
-  Limits: `gpu.GPU_LIMITS` + `particles_max()` (measured, cached per fingerprint) → `_apply_limits()` →
-  `SettingsPanel.set_slider_max(key, hi, mark)`; `LimitSlider.mark_x/paintEvent`; `_limit_sliders` (old name
-  `_limit_particles` kept as alias). pulse_length / pulse_spacing clamp at 14 now. Item 17 not reproducible here.
-- **30 Oct, 20.7D (his Windows check)**: Surface dock drag fixed (`layout._surface_dragged`: do nothing while
-  floating / left button down — Qt hides+shows a dragged dock); tour `back()` → `_take_back(j)` undoes to
-  `marks[j]` (model's top undo id when the step began) + Move/Particles/slider; hint angles via `tour._deg`
-  (rounded); GPU box restarts WITHOUT a question (`_ask_restart` removed); `LimitSlider` mark = device-snapped
-  3×14 px rect in theme `logo_dot`, clipped out of the handle; `GpuPanel` paints its own card (notch at
-  `notch_x`, ink frame, hard shadow), placed by `_place_gpu_panel` under the arrow.
-- **30 Oct, 20.7E**: tour hint never removed once shown (`GONE_TEXT` appended; typing resumes where texts differ);
-  edit step: Apply without a change = done; guide buttons not autoDefault, "Save as web page…" via file dialog
-  (Store Python's AppData is private to it — the browser cannot open files there; check the verification
-  report's "Open full report" for the same in 24); `beaver._safety_net`: ON_PLOT_STATES longer than 15 s →
-  say("rescue") + hop home.
-- **30 Oct, 20.7F**: lines.py has ~570 lines in 78 keys (Picker forgets after half a key's lines). New situations go
-  through `Beaver.remark(key)` (chance `REMARK_CHANCE`, gap `REMARK_GAP_S`, only on his shelf, silent while
-  talking / tour / dialog); the window sends element_added / deleted / cleared / undo / redo / preset / exported /
-  theme / gpu / scene via `_tell_beaver` → `notify` → `_react` (the tour gets them instead while it runs).
-- **31 Oct, 20.7G**: renamed **Flowy** (`app_info.APP_NAME`, header subtitle `APP_SUBTITLE`; since 1 Nov the settings / data folder
-  follow APP_NAME too — the old name is gone everywhere). Zoom:
-  (1) `streamlines/cache.py`: each level finds its own `v_min` (the first view's made far-out lines end at once);
-  (2) Qt's GL paint engine thickens cosmetic pens beyond ~1e4 px per item unit → curves are `canvas/scaled_curve.
-  ScaledCurve` (local coords ≈ px, own transform + boundingRect; **pyqtgraph paints from getData(), so getData is
-  local — use `.xy()` for data**), grid = `grid_item.PaperGridItem` (device pixels); (3) user zoom limits
-  `canvas.ZOOM_RANGE` = 1e4 × Fit size (`update_zoom_limits`, `setLimits`; program-set views widen them),
-  `zoom_limit` signal once per arrival → `_zoom_limit` flash + beaver `zoom_limit_in/out` (REMARK_CHANCE 0.5);
-  (4) `panels.ViewSpinBox` (±1e12, decimals from the view width, 1.5e-05 form). Tests: `tests/test_zoom.py`.
-- **1 Nov, 20.7H (zoom: fans / no lines / slide at the limit / slow Fit)** — continued by the first account again. Four
-  causes, see ROADMAP 20.7H and §7. Rules from it: (1) probe lines (`trace_origin` etc.) are traced with their own
-  small step — never across a box that grows with the view: `_probe_region` caps it far out, `_trace_staged` stages it
-  far in (single stage = old behaviour in normal views); (2) `PlotViewBox.scaleBy` clamps zoom to the limits itself;
-  (3) the streamline job is cancelled when the newest view needs another spacing level; (4) `draw_barriers` samples
-  only inside the grid. Measure with a fast-wheel script (offscreen MainWindow, `vb.wheelEvent` with a fake event,
-  `--all` layers) — not only the physics functions: the Solid bodies / field layers run in the GUI thread.
-- **1 Nov, item 21 started — cleanup package 1/13 (root and structure)**. The 13-package plan (one commit each, he tests
-  between them; after each package show him the table with ✅): 1 root · 2 physics core (ask for his textbook /
-  notes / project file) · 3 kernel + streamlines (Numba cache for the exe) · 4 stagnation / bodies / surface /
-  particles · 5 verification + model (assignment cases) · 6 plot 1 · 7 plot 2 (bug: GPU + Pulses + extreme zoom →
-  Fit = hard crash, no Python traceback in his log) · 8 main window (restarts in the exe) · 9 panels / theme / chrome
-  (bug: GPU on → a thicker inner line at the plot's right edge) · 10 export / cli / verification dialog · 11 system
-  (bug: Help → Open log folder fails with Store Python — its AppData is redirected to %LOCALAPPDATA%\Packages\
-  PythonSoftwareFoundation.Python.3.*\LocalCache\Local; also no crash note was logged for the GPU crash) ·
-  12 beaver (his name as a {name} placeholder in the lines) · 13 scripts, conftest, docs (README / CLAUDE.md are
-  too long: slim them), pyflakes everywhere. Rules: behaviour unchanged unless a bug; everything with the final
-  exe in mind; short, clear comments.
-  Package 1 done: name only in app_info (APP_ID gone → settings folder IZTECH/Flowy: his old settings, hardware
-  profile, tour flag start fresh once), subtitle "2D Potential Flow", log file flowy.log, file format tag
-  "pflow-scene" (old "potential-flow-lab-scene" still opens), presets rewritten, spec → packaging/build_exe.spec
-  (exe named APP_NAME), Pixelify font and 6 superseded benchmark files removed, main.py split into run_window /
-  detect_hardware.
-  Package 2 done (physics core): formulas checked against his notes + Anderson (all correct, physics unchanged).
-  Sign note: his notes define the vortex with Γ > 0 ccw but write the rotating cylinder with + iΓ/2π log z (Γ > 0
-  clockwise, as Anderson) — the program keeps ONE rule (ccw); the Sign conventions dialog says how to translate.
-  The assignment text and his notes are in the session's scratchpad `reference/` only (not in the repo; the
-  book PDF must not go in). Dead code removed: scene_is_valid, element_from_dict / from_dict, with_defaults,
-  ImageSystem.levels. User guide now states the wall / sector-flow interaction rules (the assignment asks for it).
-  Package 3 done (engine): disabled COARSE_LEVELS feature + test-only fade_pieces removed; output checked bit for
-  bit before / after on 186 pictures (scratchpad check/engine_snapshot.py + engine_compare.py: use them again for
-  any engine change; keep a copy of the old source with `git archive` and SRC=… instead of git stash).
-  Package 4 done (analysis): stagnation.py split — "where fluid comes from" (trace_origin / trace_ends / staged
-  tracing, open_elements, body_size, bodies_box, doublet_alignment) is now physics/origin.py; test-only find_bodies /
-  Body / body_mask / _chain and scene_reference_speed removed (tests use body_surfaces / body_map); checked bit for
-  bit on 1155 items (check/analysis_snapshot.py: stagnation, features, body maps, surfaces, Cp, forces, particles,
-  travel times) + the 186 engine pictures.
-  Package 5 done (verification + model): all 5 assignment cases present; the table writes the course's clockwise
-  circulation as Γ_cw ("L′ = ρ V∞ Γ_cw"), the program keeps Γ > 0 ccw; `_cylinder_rows` no longer raises on a doublet
-  turned against the flow (returns no rows); 75 verification numbers bit for bit the same (check/verify_snapshot.py).
-  Package 6 done (plot 1): dead CanvasBar.message / ArrowsItem.count / PlotCanvas.set_animated removed,
-  `scene_zoom_limits`, ELEMENT_MIME "application/x-pflow-element"; 126 plot pictures pixel for pixel the same
-  (check/plot_snapshot.py: presets × 3 layer sets × 2 themes, offscreen; use it again for plot changes).
-  Package 7 done (plot 2): **the Pulses crash fixed** (zoom far + Fit: the old view's lines cut at the new pixel
-  size = 279 million pieces, tens of GB); pulse_layer cuts only lines near the view, at most MAX_PIECES (else
-  waits for the new lines); `layer.BackgroundJob` shared; pulse pieces bit for bit the same (check/pulse_snapshot.py).
-  Package 8 done (main window): restored scene (after a crash) now keeps to the slider limits
-  (`_apply_view_and_settings`, as Open); `_limit_particles` alias gone; setup_application only from app.startup.
-  Package 9 done (panels / theme / chrome): GPU right-edge line → `PlotView.drawBackground` fills the whole GL frame
-  first (not reproducible on Xvfb: ask him to check on Windows); in-function imports moved up except chrome →
-  canvas (chrome is loaded by the loading screen: keep it free of pyqtgraph / physics); `plot_grid` colour removed.
-  Package 10 done (export / cli / verification dialog): Store Python "Open full report / folder / log folder" →
-  `paths.outside_path` (its writes under %LOCALAPPDATA% really go to Packages\…\LocalCache\Local); data folder only
-  via `paths.data_folder`. For the exe (24): bundle imageio-ffmpeg's ffmpeg binary; the CLI prints nothing (no console).
-  Package 11 done (system): crash file per program (`logs/crash-<pid>.txt` + `.lock`); an empty one of a program
-  that is gone = "did not end normally" (killed / froze); `errors.ended_abnormally()`; logger name = `app_info.LOGGER`.
-  Package 12 done (beaver): his name = `app_info.MASCOT_NAME` (lines write {name}; name-only jokes in
-  `lines.NAME_LINES`; user guide {beaver}); dead `greet` removed.
-- **Next**: his Windows check of 20.7H (fast zoom in / out to the limits with GPU on, wheel at the limit, Fit), of 20.7D–F, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
-  remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
-- Then, in this order (all planned, "as if time were unlimited"):
-  21 code cleanup without behaviour change (dead / duplicate code, names, docstrings, pyflakes, long files) →
+- **Done: ROADMAP 1–21** (2 Nov 2026). Tests green, verification 102 / 102. The full history with measured numbers is
+  in ROADMAP (Turkish); this section keeps only what the next session needs.
+- **Item 21 = cleanup in 13 packages** (one commit each, ROADMAP 21.1–21.13; he tested between them). Behaviour
+  unchanged — checked by snapshots (bit / pixel identical before / after) — except the bugs found on the way:
+  Pulses + zoom far + Fit crashed (`pulse_layer`: only lines near the view, MAX_PIECES) · GPU on → dark line at the
+  plot's right edge (`PlotView.drawBackground`) · Store Python: Open log folder / full report opened nothing
+  (`paths.outside_path`) · no note in the log after a killed session, two programs shared crash.txt (crash-<pid>.txt +
+  lock) · a scene restored after a crash skipped the slider limits · `program_checks` raised on a doublet turned
+  against the flow. **None of these is confirmed on Windows yet — ask him.**
+- **Snapshot method for any change that must not change results** (scripts lived in the session scratchpad
+  `check/`; recreate them when needed): keep the old source with `git archive HEAD physics model app app_info.py
+  presets assets | tar -x -C OLD` (never git stash), run the same script with `SRC=OLD` and without, compare
+  exactly. Used: streamline engine (186 pictures), analysis (1155 items: stagnation, bodies, surfaces, Cp, forces,
+  particles), verification numbers (75), plot pixels (presets × 3 layer sets × 2 themes = 126), pulse pieces,
+  the whole window (light / dark; only the status bar's ms differ).
+- **Subsystems in brief** (details in ROADMAP 20.x): GPU box = restart (`app/restart.py`, `--resume`; scene and
+  state come back); on a laptop with NVIDIA the program relaunches itself once with SHIM_MCCOMPAT
+  (`gpu.relaunch_on_strong_card`; an in-process switch does not work); OpenGL is only asked in a child process
+  (`main.py --probe-gpu`); GPU slider limits `gpu.GPU_LIMITS` + measured particles; the program starts EMPTY
+  (`MainWindow.START_SCENE = None`; tests/conftest sets the lifting cylinder); zoom limits 1e4 × Fit
+  (`canvas.ZOOM_RANGE`); multi-core `physics/parallel.py` (`PFL_THREADS`; this server has 2 threads → run tests
+  with PFL_THREADS=4 to exercise it); loading screen + first-start signature (`app/startup.py`, `app/splash.py`);
+  the tour locks the window (`Step.allow`, `Tour.allows`, keys via ShortcutOverride) and can go back
+  (`Tour.back` undoes to the step's mark); beaver remarks via `Beaver.remark` (`REMARK_CHANCE`, `REMARK_GAP_S`).
+  Offscreen notes: after a modal dialog call `activateWindow()` before shortcuts; a real double-click is press,
+  release, double-click, release. OpenGL tests: `Xvfb :99 &`, DISPLAY=:99 QT_QPA_PLATFORM=xcb
+  PFL_GPU_ALLOW_SOFTWARE=1 (add QT_SCALE_FACTOR=1.25 for his 125 %).
+- **His reference files** (assignment docx, his notebook photos, Anderson chapters) were in the session
+  scratchpad `reference/` only — never in the repo (the book must not go in); ask him again when needed. His
+  notes' rotating cylinder uses clockwise Γ (as Anderson); the program keeps Γ > 0 ccw and writes the course's
+  value as Γ_cw (Sign conventions dialog, verification table).
+- **Waiting for his Windows check**: the bug fixes above; 20.7H zoom (fast wheel to both limits with GPU, wheel
+  at the limit, Fit); 144 fps in Pulses / Particles; the tour from start to end; the beaver's feel.
+- **Next, in this order**:
   22 text and visual review **with him** (every UI string in one list + screenshot gallery; he marks what to
   change; open decisions: dividing-streamline colour, element colours, icons, the beaver's name and his side /
-  swimming poses, which he finds a bit odd) →
-  23 exhaustive random test with the final code (hundreds–thousands of random scenes in several views:
-  no exceptions, V = 0 at stagnation points, ψ constant along lines, no crossing lines, zoom-independent bodies,
-  forces vs Kutta–Joukowski / d'Alembert, save → reopen, exports, particles stay in the fluid; plus random GUI
-  actions incl. undo / redo and recovery; every bug found becomes a permanent test) →
-  24 packaging (Windows exe in a zip, version 1.0, GitHub Releases, Inno Setup, Numba cache, .pflow file
-  association, test on a PC without Python; note for the zip: Windows SmartScreen "More info → Run anyway") →
-  25 report (4–6 pages; figures and tables from `--verify`) + user guide (Help → User guide, F1 is a placeholder
-  today) → 26 final check against the assignment text, item by item → 27 demo rehearsal.
+  swimming poses) →
+  23 exhaustive random test with the final code (hundreds–thousands of random scenes in several views: no
+  exceptions, V = 0 at stagnation points, ψ constant along lines, no crossing lines, zoom-independent bodies, forces
+  vs Kutta–Joukowski / d'Alembert, save → reopen, exports, particles stay in the fluid; random GUI actions incl.
+  undo / redo and recovery; every bug found becomes a permanent test) →
+  24 packaging — **he chose both A (zip: Flowy\Flowy.exe + _internal\) and C (Inno Setup installer: Start menu,
+  .pflow association, uninstaller)**, version 1.0, GitHub Releases, test on a PC without Python, SmartScreen note
+  ("More info → Run anyway"). To do there: bundle imageio-ffmpeg's ffmpeg binary in the spec; Numba's cache goes to
+  %LOCALAPPDATA%\numba by itself; settings (registry …\IZTECH\Flowy) and data (%LOCALAPPDATA%\IZTECH\Flowy) are per
+  user, the same for A and C, kept across updates; the exe has no console (the CLI prints nothing, exit codes work);
+  `startup.prepared_signature` sees no physics/*.py in the exe → only the version decides "first start" there →
+  25 report (4–6 pages; figures and tables from `--verify`; read his report preferences in memory first) + user
+  guide as a document → 26 final check against the assignment text, item by item → 27 demo rehearsal.
 - **Maybe** (not dropped): dye rake (streaklines), Joukowski airfoil (conformal mapping, Kutta condition).
 - Suggestions he did not take yet: GitHub Actions (Windows tests + automatic exe), test on another PC, macOS.

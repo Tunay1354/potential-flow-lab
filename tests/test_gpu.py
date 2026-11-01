@@ -418,7 +418,7 @@ w.model.mark_clean(); w.close()
 
 def test_animation_pictures_fit_in_the_pixmap_cache(window, qapp):
     """While animating, every plot item is kept as a picture; Qt's 10 MB default pixmap cache threw them away
-    with a few layers on (every frame drew everything again: 23 fps on the owner's laptop). Animating must
+    with a few layers on (every frame drew everything again: 23 fps on a laptop). Animating must
     make room for them."""
     from PySide6.QtGui import QPixmapCache
     from app.canvas.canvas import PIXMAP_CACHE_MIN_KB, pixmap_cache_kb
@@ -612,7 +612,7 @@ w.model.mark_clean(); w.close()
 
 def test_relaunch_on_the_nvidia_card(qapp, monkeypatch):
     """Laptop + GPU box ticked: the program starts itself once more with SHIM_MCCOMPAT at the start (set inside the
-    running process the window still got the Intel card — his benchmark, 29 Oct)."""
+    running process the window still got the Intel card)."""
     from PySide6.QtCore import QSettings
     import app.hardware as hw
     calls = []

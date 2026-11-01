@@ -758,7 +758,7 @@ def test_user_guide_opens_with_f1_and_finds_words(window, qapp):
     g.save_web_page = lambda path=None: saved.append(path)
     g.find.setText("Kutta")
     g.find.setFocus()
-    QTest.keyClick(g.find, Qt.Key_Return)                            # Enter searches, nothing else (his report)
+    QTest.keyClick(g.find, Qt.Key_Return)                            # Enter searches, nothing else
     qapp.processEvents()
     assert "Kutta" in g.text.toPlainText() and not saved and g.isVisible()
     g.find.setText("no such word xyz")
