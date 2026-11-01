@@ -128,9 +128,9 @@ def test_staged_tracing_gives_the_same_origins_zoomed_in():
     whole far-field box with the view's tiny step: the same answers, far faster."""
     import time
 
-    from physics import stagnation
+    from physics import origin
     from physics.elements import Doublet, Source, Uniform, Vortex
-    from physics.stagnation import trace_ends
+    from physics.origin import trace_ends
     rng = np.random.default_rng(3)
     unknown = total = 0
     for els in ([Uniform(V=1.0), Doublet(mu=2 * np.pi), Vortex(Gamma=-6.0)],
@@ -142,21 +142,21 @@ def test_staged_tracing_gives_the_same_origins_zoomed_in():
             seeds = c + w * (rng.random(12) - 0.5 + 1j * (rng.random(12) - 0.5))
             got = {}
             for name, growth in (("single", 1e300), ("staged", 8.0)):
-                old = stagnation.STAGE_GROWTH
-                stagnation.STAGE_GROWTH = growth
+                old = origin.STAGE_GROWTH
+                origin.STAGE_GROWTH = growth
                 try:
                     t = time.perf_counter()
                     got[name] = trace_ends(els, seeds, region, w, -1.0)
                     got[name + "_s"] = time.perf_counter() - t
                 finally:
-                    stagnation.STAGE_GROWTH = old
+                    origin.STAGE_GROWTH = old
             # where both know the answer it is the same; a line passing a stagnation point closer than the
             # coarser stages resolve may end there ("stopped" = unknown: it does not vote in body_map)
             a, b = got["single"][0], got["staged"][0]
-            known = (a != stagnation.STOPPED) & (b != stagnation.STOPPED)
+            known = (a != origin.STOPPED) & (b != origin.STOPPED)
             assert np.array_equal(a[known], b[known])
             assert np.array_equal(got["single"][1][known], got["staged"][1][known])
-            unknown += int(np.count_nonzero(b == stagnation.STOPPED) - np.count_nonzero(a == stagnation.STOPPED))
+            unknown += int(np.count_nonzero(b == origin.STOPPED) - np.count_nonzero(a == origin.STOPPED))
             total += a.size
     assert unknown <= 0.05 * total
 

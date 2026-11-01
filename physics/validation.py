@@ -14,7 +14,7 @@ import numpy as np
 from .base import FlowElement, Issue
 from .field import coincident_singularities, singular_points
 from .images import build_image_system, resolve
-from .stagnation import ALIGN_TOL_DEG, doublet_alignment, flow_at
+from .origin import ALIGN_TOL_DEG, doublet_alignment, flow_at
 
 
 @dataclass(frozen=True)
@@ -98,10 +98,10 @@ def check_scene(elements: Sequence[FlowElement]) -> list[SceneIssue]:
 
 def doublet_misalignment(elements) -> dict:
     """Doublets whose axis is not along the flow AT the doublet (made by the other elements;
-    stagnation.doublet_alignment): {index: (flow angle °, the δ that fixes it °, True if only the uniform
+    origin.doublet_alignment): {index: (flow angle °, the δ that fixes it °, True if only the uniform
     flow is there)}. Uniform flow + doublet is the flow past a cylinder only for δ = α. Other elements turn
     the flow there too (e.g. a vortex beside the doublet, not at its center, or a source nearby). The Solid
-    bodies layer uses the same test (stagnation.open_elements); the beaver's tour explains the warning."""
+    bodies layer uses the same test (origin.open_elements); the beaver's tour explains the warning."""
     act = [e for e in elements if e.enabled]
     fs = complex(sum((e.freestream_velocity() or 0j) for e in act))
     if abs(fs) == 0 and not any(e.TYPE == "sector" for e in act):

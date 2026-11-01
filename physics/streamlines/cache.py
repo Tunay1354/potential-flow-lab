@@ -127,7 +127,8 @@ class StreamlineCache:
         """Stagnation points and dividing streamlines for 3× the view. A point on every dividing
         streamline (about one line spacing from its stagnation point) becomes a first seed of the
         streamline fields, so the regular lines are spaced from the dividing ones."""
-        from ..stagnation import bodies_box, features_with_context, flow_features
+        from ..origin import bodies_box
+        from ..stagnation import features_with_context, flow_features
         x0, x1, y0, y1 = visible
         W, H = x1 - x0, y1 - y0
         region = (x0 - W, x1 + W, y0 - H, y1 + H)

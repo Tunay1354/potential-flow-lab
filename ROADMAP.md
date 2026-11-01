@@ -794,6 +794,17 @@ bırakıldı (kullanıcı kararı).
       = 186 görüntüde çizgiler, uç solmaları, oklar, stagnation point'ler, dividing streamline'lar **birebir aynı**
       (tek çekirdek, 3 çekirdek; Numba'sız yol 42 görüntüde aynı). Süre aynı (~25–29 s, ölçüm farkı içinde).
       Hızlandırma fırsatı aranmadı / gerek görülmedi: motor derlenmiş ve çok çekirdekli.
+    - ✅ **21.4 Fizik analiz** (1 Kasım; `stagnation, bodies, surface, particles`, satır satır): `stagnation.py` (810
+      satır) ikiye ayrıldı — stagnation point'ler + dividing streamline'lar `stagnation.py`'de (450), "akışkan nereden
+      geliyor" (= cismin tanımı: `trace_origin` / `trace_ends`, aşamalı izleme, `open_elements`, `body_size`,
+      `bodies_box`, `doublet_alignment`) yeni `physics/origin.py`'de (380). Ölü kod: programda hiç kullanılmayan
+      `find_bodies` / `Body` / `_chain` / `body_mask` (Surface pressure'ın `body_surfaces`'ı yerini almıştı; testler
+      ona geçti, kontroller aynı), `scene_reference_speed`, `_first_x`, ikinci `_runs` kopyası; "Paket S" gibi Türkçe
+      kalıntılar. Formüller defterle karşılaştırıldı: silindir Cp = 1 − (2 sin θ − Γ/2πaV∞)² (Γ = 0: 1 − 4 sin²θ),
+      basınç integrali F′ = −∮ p n ds, Kutta–Joukowski −ρV∞Γ (ccw Γ; defterde clockwise Γ ile ρV∞Γ), d'Alembert 0 —
+      doğru. Kontrol: önce / sonra 21 preset + 14 rastgele sahne × 5 görünüm (normal, yakın, uzak, 50× yakın, 300× uzak)
+      = 1155 kalem (stagnation point'ler, dividing / inner çizgiler, cisim haritaları, duvar ve cisim yüzeyleri, Cp,
+      kuvvetler, particles, pulse süreleri) **birebir aynı**; streamline motorunun 186 görüntüsü de aynı.
 22. ☐ **Görsel ve metin son kontrolü** (kullanıcı ile): programdaki tüm yazılar (menüler, paneller, dialog'lar,
     tooltip'ler, uyarı mesajları, lejantlar, durum çubuğu) tek bir listede + ekran görüntüsü galerisi; kullanıcı
     beğenmediklerini işaretler / yenisini yazar, ben değiştiririm. Açık kararlar burada: dividing streamline

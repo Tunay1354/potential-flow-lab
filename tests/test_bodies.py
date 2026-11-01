@@ -4,9 +4,11 @@ import numpy as np
 import pytest
 
 from physics import Doublet, Source, Uniform, Vortex, kernel
-from physics.bodies import _label, body_map, body_mask, draw_barriers, find_bodies
-from physics.stagnation import BODY, FAR, LOOP, find_stagnation_points, trace_origin
+from physics.bodies import _label, body_map, draw_barriers
+from physics.origin import BODY, FAR, LOOP, trace_origin
+from physics.stagnation import find_stagnation_points
 from physics.streamlines import StreamlineCache
+from physics.surface import body_surfaces
 
 
 def _dividing(els, box):
@@ -16,7 +18,8 @@ def _dividing(els, box):
 def _mask(els, box, rows=300):
     res = StreamlineCache(tuple(els), 1.0).update(((box[0], box[1]), (box[2], box[3])), force=True)
     cols = int(rows * (box[1] - box[0]) / (box[3] - box[2]))
-    return body_mask(els, box, (rows, cols), res.dividing)
+    bmap = body_map(els, box, (rows, cols), res.dividing)
+    return None if bmap is None else bmap.mask
 
 
 def test_cylinder_and_rankine_oval_areas():
@@ -73,39 +76,32 @@ def test_fast_spinning_cylinder_is_one_body_with_its_ring():
     box = (-3.2, 3.2, -3.0, 3.0)
     (p,) = find_stagnation_points(els, box)
     assert p.kind == "body"
-    (body,) = find_bodies(els, _dividing(els, box), box)
-    ring = body.surface[0][:, 0] + 1j * body.surface[0][:, 1]
-    assert body.closed and np.min(np.abs(ring - p.z)) < 0.02 and np.max(np.abs(ring)) > 1.5
+    (body,) = body_surfaces(els)
+    assert body.closed and np.min(np.abs(body.z - p.z)) < 0.02 and np.max(np.abs(body.z)) > 1.5
 
 
 def test_body_surfaces_are_closed_counter_clockwise_rings():
-    box = (-3.2, 3.2, -2.0, 2.0)
     els = [Uniform(), Doublet(mu=1.0), Vortex(Gamma=-2.0)]
-    (body,) = find_bodies(els, _dividing(els, box), box)
-    (ring,) = body.surface
-    z = ring[:, 0] + 1j * ring[:, 1]
+    (body,) = body_surfaces(els)
+    z = body.z
     assert body.closed and np.allclose(np.abs(z), 1.0, atol=2e-3)
-    assert body.length == pytest.approx(2 * np.pi, rel=0.01)
+    assert body.s[-1] + abs(z[0] - z[-1]) == pytest.approx(2 * np.pi, rel=0.01)
     area = 0.5 * np.sum(z.real * np.roll(z.imag, -1) - np.roll(z.real, -1) * z.imag)
     assert area == pytest.approx(np.pi, rel=0.01)                              # > 0: counter-clockwise
-    assert body.singular and all(abs(s) < 1e-12 for s in body.singular)
+    assert body.inside and all(abs(s) < 1e-12 for s in body.inside)
     # two cylinders: two bodies
-    els = [Uniform(), Doublet(mu=0.5, x0=-1.5), Doublet(mu=0.5, x0=1.5)]
-    box = (-4.0, 4.0, -2.5, 2.5)
-    bodies = find_bodies(els, _dividing(els, box), box)
+    bodies = body_surfaces([Uniform(), Doublet(mu=0.5, x0=-1.5), Doublet(mu=0.5, x0=1.5)])
     assert len(bodies) == 2 and all(b.closed for b in bodies)
-    assert sorted(b.singular[0].real for b in bodies) == [-1.5, 1.5]
+    assert sorted(b.inside[0].real for b in bodies) == [-1.5, 1.5]
 
 
-def test_open_half_body_surface_ends_at_the_region_border():
-    box = (-3.0, 5.0, -2.5, 2.5)
-    els = [Uniform(), Source(m=2 * np.pi)]
-    (body,) = find_bodies(els, _dividing(els, box), box)
+def test_open_half_body_surface_is_open():
+    (body,) = body_surfaces([Uniform(), Source(m=2 * np.pi)])
     assert not body.closed
-    z = np.concatenate([s[:, 0] + 1j * s[:, 1] for s in body.surface])
+    z = body.z
     assert z.real.min() == pytest.approx(-1.0, abs=0.01)                         # the nose
     assert z[0].imag > 0 > z[-1].imag                                            # top -> nose -> bottom
-    assert find_bodies([Uniform(), Vortex(Gamma=-6.0)], _dividing([Uniform(), Vortex(Gamma=-6.0)], box), box) == []
+    assert body_surfaces([Uniform(), Vortex(Gamma=-6.0)]) == []
 
 
 def test_barrier_lines_separate_regions():
@@ -267,7 +263,7 @@ OFF_CENTER = [Uniform(), Doublet(mu=1.0, x0=0.3672, y0=-0.268), Vortex(Gamma=-2.
     ([Uniform(), Source(m=-2.0)], {1}),                                           # a sink swallows the stream
 ])
 def test_elements_the_free_stream_passes_through(els, opened):
-    from physics.stagnation import open_elements
+    from physics.origin import open_elements
     assert set(open_elements(els)) == opened
 
 
@@ -332,7 +328,7 @@ def test_warning_and_fill_agree_for_a_doublet():
     """The status bar warning (doublet not along the flow at it) and the Solid bodies layer use one
     test: misaligned (the source turns the flow at the doublet by −2.2°) = no body; δ set as the
     warning says = a closed body (the source's half-body is there in both)."""
-    from physics.stagnation import open_elements
+    from physics.origin import open_elements
     from physics.validation import check_scene
     assert open_elements(WITH_SOURCE) == {1}
     (w,) = [s for s in check_scene(WITH_SOURCE) if s.severity == "warning"]

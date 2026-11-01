@@ -1,5 +1,5 @@
 """
-surface.py — pressure on the surfaces of a scene (Paket S): the surfaces of the solid bodies and the
+surface.py — pressure on the surfaces of a scene: the surfaces of the solid bodies and the
 walls, Cp along them, and the force on a closed body from the pressure integral.
 
 Surfaces
@@ -31,10 +31,11 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from .field import active, complex_velocity, fluid_mask, reference_speed, singular_points
+from .field import active, complex_velocity, fluid_mask, singular_points
 from .images import resolve
 from .bodies import PROBE_CELLS, body_map
-from .stagnation import BODY, _encloses, bodies_box, body_size, flow_features, has_free_stream, trace_ends
+from .origin import BODY, _encloses, bodies_box, body_size, has_free_stream, trace_ends
+from .stagnation import _runs, flow_features
 
 POINTS_PER_SIZE = 240           # surface points per body size (cylinder radius, half-body width …)
 MAX_POINTS = 4000
@@ -169,7 +170,7 @@ def _surface_parts(els, bmap, lines, box, scale, cell):
     between two bodies (two half-bodies close together: a hair of free stream runs between them, which
     no grid of cells resolves) from two bodies that touch (two sources side by side). There the sides
     are tested by tracing the streamline just beside the line back to where it starts
-    (stagnation.trace_ends): a point less than half way to the next dividing streamline, traced with
+    (origin.trace_ends): a point less than half way to the next dividing streamline, traced with
     steps much shorter than that (its streamline passes close to a stagnation point)."""
     x0, x1, y0, y1 = box
     L = max(x1 - x0, y1 - y0)
@@ -309,10 +310,6 @@ def _outlines(pieces, stag, tol, reach):
     return out
 
 
-def _first_x(b) -> float:
-    return float(min(np.min(c[:, 0]) for c in b.surface))
-
-
 def _resample(z, closed, ds):
     """Points evenly spaced along the polyline, about ds apart (at most MAX_POINTS)."""
     zz = np.append(z, z[0]) if closed else z
@@ -355,9 +352,8 @@ def rotate_to_theta0(surf: Surface, alpha_deg: float = 0.0) -> Surface:
         return surf
     k = int(np.argmin(surf.theta(alpha_deg)))
     z, vel = np.roll(surf.z, -k), np.roll(surf.vel, -k)
-    out = Surface(surf.kind, surf.name, z, _arc(z), vel, True, surf.center, surf.inside, surf.gamma,
-                  surf.alone, surf.note)
-    return out
+    return Surface(surf.kind, surf.name, z, _arc(z), vel, True, surf.center, surf.inside, surf.gamma,
+                   surf.alone, surf.note)
 
 
 # ---------------------------------------------------------------------- walls
@@ -416,12 +412,6 @@ def _clip_line(p, d, box):
     return t0, t1
 
 
-def _runs(mask):
-    idx = np.nonzero(mask)[0]
-    if not idx.size:
-        return []
-    return np.split(idx, np.nonzero(np.diff(idx) > 1)[0] + 1)
-
 
 # ---------------------------------------------------------------------- force
 def pressure_force(surf: Surface, elements, v_ref: float | None) -> Force | None:
@@ -479,6 +469,3 @@ def free_stream_angle(elements) -> float:
     fs = complex(sum((e.freestream_velocity() or 0j) for e in active(elements)))
     return float(np.degrees(np.angle(fs))) if abs(fs) > 0 else 0.0
 
-
-def scene_reference_speed(elements):
-    return reference_speed(active(elements))

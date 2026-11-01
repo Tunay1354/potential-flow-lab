@@ -293,8 +293,9 @@ ve `--gpu`'lu iki çalıştırma karşılaştırılır (paint / interact / anim 
 | `physics/registry.py` | Hangi element tipleri var (yeni element otomatik eklenir) |
 | `physics/field.py` | Superposition (w = Σ wₖ), grid hesabı, Cp, singularity masking, fluid region |
 | `physics/streamlines/` | Eşit aralıklı streamline'lar (Jobard–Lefer, RK4): `level.py` (bir aralık seviyesi), `cache.py` (pan'de çizgileri yerinde tutan önbellek), `seeds.py`, `rasters.py`, `arrows.py`, `drawing.py` (soluklaşan uçlar) |
-| `physics/stagnation.py` | Stagnation point'ler (w = 0, Newton) ve dividing streamline'lar; akışkanın nereden geldiği (`trace_origin`: serbest akış / cisim / kapalı döngü) |
-| `physics/bodies.py` | Cisimler: bölge resmi (`body_map`), yüzeyler saat yönünün tersine sıralı (`find_bodies`) |
+| `physics/stagnation.py` | Stagnation point'ler (w = 0, Newton) ve dividing streamline'lar |
+| `physics/origin.py` | Akışkanın nereden geldiği (`trace_origin`: serbest akış / cisim / kapalı döngü) = cismin tanımı; serbest stream'in delip geçtiği source / doublet (`open_elements`), doublet ekseni kontrolü |
+| `physics/bodies.py` | Cisimler: bölge resmi (`body_map`), yüzey parçaları (`surface_pieces`) |
 | `physics/surface.py` | Yüzeyler (cisimler + ıslak duvarlar), üzerlerinde Cp, basınç integraliyle kuvvet (Kutta–Joukowski / d'Alembert karşılaştırması), silindirin analitik Cp'si |
 | `physics/warmup.py` | Numba çekirdeklerini arka planda önceden derler / yükler |
 | `physics/particles.py` | Animasyon fiziği: tracer particle'lar, streamline boyunca yolculuk süresi (pulse'lar) |

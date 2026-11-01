@@ -4,10 +4,10 @@ bodies.py — the solid bodies of a scene: where they are (a picture of a region
 In potential flow a body is not a solid object: its surface is a streamline that closes around sources
 or doublets, and the mathematics also gives a (fictitious) flow inside it. The body is the fluid whose
 streamline, followed backwards, starts at a source or a doublet, or turns round one
-(stagnation.trace_origin, BODY): the inside of a cylinder, a Rankine oval or a Rankine half-body (also
+(origin.trace_origin, BODY): the inside of a cylinder, a Rankine oval or a Rankine half-body (also
 in a corner flow). Fluid turning round a free vortex is real flow; fluid from far away is the free
 stream (a uniform flow or a sector flow). Without a free stream there are no bodies.
-A source / doublet the free stream passes THROUGH makes no body (stagnation.open_elements, OPEN): a
+A source / doublet the free stream passes THROUGH makes no body (origin.open_elements, OPEN): a
 doublet not along the flow at it (δ ≠ α, or a vortex beside it turning the flow there), a source–sink
 pair across the flow. That is decided per element, for the whole scene, so the picture is the same at
 every zoom. (A fast-spinning cylinder, Γ > 4πV∞a: the ring of fluid that turns with it belongs to the
@@ -17,11 +17,11 @@ ordinary closed streamline.)
 How (body_map): the region is cut into cells (for the plot: the screen pixels). The dividing
 streamlines are drawn into the cells as barriers; the cells between them form regions (connected
 cells, 4-neighbour), and every region is tested with a few streamlines traced backwards from its cells
-(the most frequent origin wins; lines that stopped do not count). Streamlines never cross a dividing streamline, so a region is all body
-or all other fluid.
+(the most frequent origin wins; lines that stopped do not count). Streamlines never cross a dividing
+streamline, so a region is all body or all other fluid.
 
-find_bodies: the bodies with their surfaces (parts of the dividing streamlines and of such traced
-surfaces) as polylines ordered counter-clockwise (body on the left), for surface pressure and forces.
+surface_pieces: the parts of the dividing streamlines with body on one side, for the body edge on the plot and
+the body surfaces of Surface pressure (surface.py).
 """
 from __future__ import annotations
 
@@ -30,8 +30,8 @@ from dataclasses import dataclass
 import numpy as np
 
 from . import kernel
-from .field import active, fluid_mask, singular_points
-from .stagnation import BODY, FAR, OPEN, STOPPED, has_free_stream, no_outflow_elements, trace_ends
+from .field import active, fluid_mask
+from .origin import BODY, FAR, OPEN, STOPPED, has_free_stream, no_outflow_elements, trace_ends
 
 SAMPLES = 5                      # cells traced per region
 MIN_CELLS = 12                   # smaller regions (slivers between two dividing lines) stay free stream
@@ -334,20 +334,6 @@ def surface_pieces(bmap: BodyMap, lines) -> list[tuple[int, np.ndarray]]:
     return [(b, np.column_stack([z.real, z.imag])) for b, z in kept]
 
 
-@dataclass
-class Body:
-    """One body: its surface as polylines ordered counter-clockwise (body on the left; one closed
-    ring when the whole body is in the region, else open parts that end at the region border) and
-    the singular points inside it."""
-    surface: list[np.ndarray]
-    closed: bool
-    singular: list[complex]
-
-    @property
-    def length(self) -> float:
-        return float(sum(np.sum(np.hypot(*np.diff(s, axis=0).T)) for s in self.surface))
-
-
 def scene_map(elements, result, cells: int = 400) -> BodyMap | None:
     """A coarse map of all bodies of the scene (the hint of body_map), from the scene-wide dividing
     streamlines of a StreamlineSet; None when it has none."""
@@ -358,58 +344,3 @@ def scene_map(elements, result, cells: int = 400) -> BodyMap | None:
     shape = (max(8, int(round(cells * h / max(w, h)))), max(8, int(round(cells * w / max(w, h)))))
     return body_map(elements, result.scene_region, shape,
                     list(result.scene_dividing) + list(getattr(result, "scene_inner", [])))
-
-
-def find_bodies(elements, dividing, region, cells: int = 480, inner=()) -> list[Body]:
-    """The bodies of a scene in `region` = (x0, x1, y0, y1) (a grid of about `cells` cells across is
-    used to tell the sides of the lines apart; the surfaces themselves are the traced lines).
-    `inner`: the branches into bodies (borders, never surfaces). Body regions that touch (e.g. the
-    ring of a fast-spinning cylinder and the cylinder) are one body."""
-    x0, x1, y0, y1 = map(float, region)
-    w, h = x1 - x0, y1 - y0
-    shape = (max(8, int(round(cells * h / max(w, h)))), max(8, int(round(cells * w / max(w, h)))))
-    bmap = body_map(elements, (x0, x1, y0, y1), shape, list(dividing) + list(inner))
-    if bmap is None or bmap.count == 0:
-        return []
-    labels, count = _label(bmap.mask)                                  # touching regions: one body
-    bmap = BodyMap(bmap.box, labels.astype(np.int32), int(count))
-    pieces = surface_pieces(bmap, dividing)
-    sing = np.array(singular_points(active(elements)), dtype=complex)
-    cell = max(w / shape[1], h / shape[0])
-    out = []
-    for k in range(1, bmap.count + 1):
-        mine = [p[:, 0] + 1j * p[:, 1] for b, p in pieces if b == k]
-        if not mine:
-            continue
-        chains, closed = _chain(mine, 4.0 * cell)
-        inside = [complex(s) for s in sing if bmap.body_at(np.array([s]))[0] == k]
-        out.append(Body([np.column_stack([c.real, c.imag]) for c in chains], closed, inside))
-    return out
-
-
-def _chain(parts, tol):
-    """Join pieces end to start (all go the same way round) into as few polylines as possible.
-    Returns (chains, closed): closed = one chain whose end meets its start."""
-    parts = list(parts)
-    chains = []
-    while parts:
-        # start at a piece that no other piece leads into (an open end), else anywhere
-        ends = [p[-1] for p in parts]
-        first = next((i for i, p in enumerate(parts)
-                      if min((abs(p[0] - e) for j, e in enumerate(ends) if j != i), default=np.inf) > tol), 0)
-        chain = parts.pop(first)
-        while parts:
-            gaps = [abs(p[0] - chain[-1]) for p in parts]
-            j = int(np.argmin(gaps))
-            if gaps[j] > tol:
-                break
-            chain = np.concatenate([chain, parts.pop(j)[1:]])
-        chains.append(chain)
-    closed = len(chains) == 1 and abs(chains[0][-1] - chains[0][0]) <= tol
-    return chains, closed
-
-
-def body_mask(elements, box, shape, dividing, rng=None) -> np.ndarray | None:
-    """Bool picture (rows, cols) of the box: True = inside a body (see body_map)."""
-    bmap = body_map(elements, box, shape, dividing, rng)
-    return None if bmap is None else bmap.mask

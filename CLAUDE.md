@@ -71,7 +71,7 @@ python scripts/streamline_quality.py   /   python scripts/smoothness.py    # mea
   wall), superposition (`field.py`), method of images incl. corners π/k and channels in closed form
   (`images.py`), scene validation → errors / warnings / notes (`validation.py`), Numba kernels with NumPy
   fallback (`kernel.py`, `warmup.py`), evenly spaced streamlines (`streamlines/`: Jobard–Lefer + RK4, pan
-  cache), stagnation points (Newton) + dividing streamlines + where fluid comes from (`stagnation.py`), solid
+  cache), stagnation points (Newton) + dividing streamlines (`stagnation.py`), where fluid comes from = what a body is (`origin.py`), solid
   bodies map (`bodies.py`), body surfaces / Cp / pressure force / Kutta–Joukowski (`surface.py`), particles and
   pulse travel times (`particles.py`), verification (`verification.py` analytic, `program_checks.py` the
   program's own numerical results; every check has a `how` text).
@@ -364,6 +364,11 @@ GUI / Qt
   Package 3 done (engine): disabled COARSE_LEVELS feature + test-only fade_pieces removed; output checked bit for
   bit before / after on 186 pictures (scratchpad check/engine_snapshot.py + engine_compare.py: use them again for
   any engine change; keep a copy of the old source with `git archive` and SRC=… instead of git stash).
+  Package 4 done (analysis): stagnation.py split — "where fluid comes from" (trace_origin / trace_ends / staged
+  tracing, open_elements, body_size, bodies_box, doublet_alignment) is now physics/origin.py; test-only find_bodies /
+  Body / body_mask / _chain and scene_reference_speed removed (tests use body_surfaces / body_map); checked bit for
+  bit on 1155 items (check/analysis_snapshot.py: stagnation, features, body maps, surfaces, Cp, forces, particles,
+  travel times) + the 186 engine pictures.
 - **Next**: his Windows check of 20.7H (fast zoom in / out to the limits with GPU on, wheel at the limit, Fit), of 20.7D–F, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
   remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
 - Then, in this order (all planned, "as if time were unlimited"):
