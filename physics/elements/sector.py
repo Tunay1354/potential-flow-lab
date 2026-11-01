@@ -28,7 +28,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..base import FlowElement, Issue, ParamSpec, as_complex_array
+from ..base import FlowElement, Issue, ParamSpec, short_number, as_complex_array
 from ..registry import register
 from .wall import SymmetryWall
 
@@ -162,5 +162,5 @@ class SectorFlow(FlowElement):
         return issues
 
     def summary(self) -> str:
-        return (f"V = {self.V:.4g},  vertex ({self.x0:.4g}, {self.y0:.4g}),  θ₁ = {self.theta1:.4g}°,  "
-                f"θ₂ = {self.theta2:.4g}°  (β = {self.beta_deg:.4g}°, n = {self.n:.4g})")
+        return (f"V = {short_number(self.V)},  vertex ({short_number(self.x0)}, {short_number(self.y0)}),  θ₁ = {short_number(self.theta1)}°,  "
+                f"θ₂ = {short_number(self.theta2)}°  (β = {short_number(self.beta_deg)}°, n = {short_number(self.n)})")

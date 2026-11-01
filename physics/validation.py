@@ -12,7 +12,7 @@ from typing import Sequence
 import numpy as np
 
 from .base import FlowElement, Issue
-from .field import coincident_singularities, complex_velocity, singular_points
+from .field import coincident_singularities, singular_points
 from .images import build_image_system, resolve
 from .stagnation import ALIGN_TOL_DEG, doublet_alignment, flow_at
 
@@ -144,10 +144,6 @@ def _doublet_alignment(elements) -> list[SceneIssue]:
                 text += " For a lifting cylinder put the vortex at the doublet's center."
         out.append(SceneIssue(i, Issue("warning", text)))
     return out
-
-
-def scene_is_valid(elements) -> bool:
-    return not any(s.is_error for s in check_scene(elements))
 
 
 def _fluid_exists(walls) -> bool:

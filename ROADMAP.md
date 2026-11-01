@@ -773,6 +773,18 @@ bırakıldı (kullanıcı kararı).
       21 preset yeni etiketle yeniden yazıldı (içerik birebir aynı). Exe spec'i `packaging/build_exe.spec` (exe adı
       `APP_NAME`'den). Kullanılmayan Pixelify Sans fontu ve yerini son tam ölçümün aldığı 6 benchmark dosyası
       silindi (sayıları bu dosyada). `main.py` sadeleşti (`run_window`, `detect_hardware`), davranış aynı.
+    - ✅ **21.2 Fizik çekirdeği** (1 Kasım; `physics/base, registry, elements/*, field, images, validation,
+      diagnostics` + testleri, satır satır): bütün formüller defterle (ve kitapla) karşılaştırıldı — uniform
+      `F = V∞ e^{−iα} z`, source `(m/2π) log z`, vortex `−i(Γ/2π) log z` (Γ > 0 ccw), doublet `μ/z` (μ = mε/π, silindir
+      a = √(μ/V∞)), sector `V zⁿ` (n = π/β; Vr, Vθ), image kuralları (source aynı m, vortex −Γ, doublet δ* = 2θw − δ),
+      kanal satırları (cot / csc²): hepsi doğru, fizik değişmedi. Defterde bir işaret farkı bulundu: vortex tanımında
+      Γ > 0 ccw (F = −iΓ/2π log z), dönen silindir örneğinde ise + iΓ/2π log z (Anderson gibi Γ > 0 clockwise) → program
+      tek kural kullanıyor (ccw, ödevdeki "signed circulation"); Sign conventions'a "Rotating cylinder" satırı eklendi
+      (sin θs = Γ/4πV∞a burada, notlarda −Γ/4πV∞a, L′ = ρV∞Γ). Vortex kartında u_θ → V_θ (defterdeki gibi). User guide'a
+      ödevin istediği açıklama eklendi: duvarlar (image, 180°/k, kanal) ve sector flow'un sınırlarının diğer
+      elementlerle ilişkisi. Ölü kod silindi: `scene_is_valid`, `element_from_dict` / `from_dict`, `with_defaults`,
+      `ImageSystem.levels`, kullanılmayan import; testler programın gerçek yolunu kullanıyor (sahne dosyası kaydet →
+      aç) ve sınıf varsayılanlarının PARAMS varsayılanlarıyla aynı olduğunu da kontrol ediyor.
 22. ☐ **Görsel ve metin son kontrolü** (kullanıcı ile): programdaki tüm yazılar (menüler, paneller, dialog'lar,
     tooltip'ler, uyarı mesajları, lejantlar, durum çubuğu) tek bir listede + ekran görüntüsü galerisi; kullanıcı
     beğenmediklerini işaretler / yenisini yazar, ben değiştiririm. Açık kararlar burada: dividing streamline

@@ -2,12 +2,13 @@
 Checks that run automatically for EVERY registered element type (also future ones):
   * w = dF/dz                         (velocity and potential formulas agree)
   * ∇·V = 0 and ∇×V = 0               (incompressible and irrotational = potential flow)
-  * save/load round trip
+  * save / open round trip, defaults
 """
 import numpy as np
 import pytest
 
-from physics import ELEMENT_TYPES, element_from_dict, velocity
+from model import scene_file as sf
+from physics import ELEMENT_TYPES, velocity
 
 TYPES = sorted(ELEMENT_TYPES)
 
@@ -15,7 +16,7 @@ TYPES = sorted(ELEMENT_TYPES)
 def make(type_key):
     """An element with non-trivial parameters, placed off the origin."""
     cls = ELEMENT_TYPES[type_key]
-    el = cls.with_defaults()
+    el = cls()
     for p in cls.PARAMS:
         if p.key == "x0":
             setattr(el, p.key, 0.3)
@@ -60,14 +61,18 @@ def test_divergence_and_curl_are_zero(type_key):
 def test_save_load_round_trip(type_key):
     el = make(type_key)
     el.enabled = False
-    copy = element_from_dict(el.to_dict())
+    copy = sf.loads(sf.dumps(sf.SceneDocument([el]))).elements[0]
     assert copy == el
     assert copy is not el
 
 
 @pytest.mark.parametrize("type_key", TYPES)
 def test_defaults_are_valid(type_key):
-    assert ELEMENT_TYPES[type_key].with_defaults().is_valid()
+    """The class defaults are the PARAMS defaults (one place for both), and valid."""
+    cls = ELEMENT_TYPES[type_key]
+    el = cls()
+    assert all(getattr(el, p.key) == p.default for p in cls.PARAMS)
+    assert el.is_valid()
 
 
 @pytest.mark.parametrize("type_key", TYPES)
@@ -77,9 +82,9 @@ def test_non_finite_parameter_is_rejected(type_key):
     assert not el.is_valid()
 
 
-def test_unknown_type_raises():
-    with pytest.raises(ValueError):
-        element_from_dict({"type": "black_hole"})
+def test_unknown_type_is_refused():
+    with pytest.raises(sf.SceneFileError):
+        sf.loads('{"format": "pflow-scene", "version": 1, "elements": [{"type": "black_hole"}]}')
 
 
 # ---------------------------------------------------------------- walls / images (all element types)

@@ -103,7 +103,7 @@ def test_far_views_find_stagnation_points_quickly():
 
     from physics.elements import Doublet, Uniform, Vortex
     from physics.stagnation import find_stagnation_points
-    els = [Uniform(V=1.0), Doublet(mu=2 * np.pi), Vortex(Gamma=-6.0)]           # lifting cylinder, a = 1
+    els = [Uniform(V=1.0), Doublet(mu=2 * np.pi), Vortex(Gamma=-6.0)]           # lifting cylinder, a = √(2π)
     near = find_stagnation_points(els, (-3, 3, -2, 2))
     t = time.perf_counter()
     far = find_stagnation_points(els, (-12000, 12000, -8000, 8000))

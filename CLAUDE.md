@@ -355,6 +355,12 @@ GUI / Qt
   "pflow-scene" (old "potential-flow-lab-scene" still opens), presets rewritten, spec → packaging/build_exe.spec
   (exe named APP_NAME), Pixelify font and 6 superseded benchmark files removed, main.py split into run_window /
   detect_hardware.
+  Package 2 done (physics core): formulas checked against his notes + Anderson (all correct, physics unchanged).
+  Sign note: his notes define the vortex with Γ > 0 ccw but write the rotating cylinder with + iΓ/2π log z (Γ > 0
+  clockwise, as Anderson) — the program keeps ONE rule (ccw); the Sign conventions dialog says how to translate.
+  The assignment text and his notes are in the session's scratchpad `reference/` only (not in the repo; the
+  book PDF must not go in). Dead code removed: scene_is_valid, element_from_dict / from_dict, with_defaults,
+  ImageSystem.levels. User guide now states the wall / sector-flow interaction rules (the assignment asks for it).
 - **Next**: his Windows check of 20.7H (fast zoom in / out to the limits with GPU on, wheel at the limit, Fit), of 20.7D–F, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
   remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
 - Then, in this order (all planned, "as if time were unlimited"):

@@ -18,7 +18,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..base import FlowElement, ParamSpec, as_complex_array
+from ..base import FlowElement, ParamSpec, short_number, as_complex_array
 from ..registry import register
 
 SIDES = ("left", "right")
@@ -91,5 +91,4 @@ class SymmetryWall(FlowElement):
         return None                                    # walls are not imaged (see images.py)
 
     def summary(self) -> str:
-        return (f"through ({self.xw:.4g}, {self.yw:.4g}),  θ_w = {self.theta_w:.4g}°,  "
-                f"fluid: {SIDES[int(self.side)]}")
+        return f"through ({short_number(self.xw)}, {short_number(self.yw)}),  θ_w = {short_number(self.theta_w)}°,  fluid: {SIDES[int(self.side)]}"

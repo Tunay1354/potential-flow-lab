@@ -1,9 +1,6 @@
 """
-registry.py — list of all available element types.
-
-Each element class registers itself with the @register decorator. The GUI
-(toolbar, dialogs) and save/load read this registry, so adding a new
-element type never requires editing them.
+registry.py — all element types, by their TYPE key. Each element class registers itself with @register; the
+palette, the dialogs and the scene files read ELEMENT_TYPES, so a new element type needs no change there.
 """
 from __future__ import annotations
 
@@ -19,11 +16,3 @@ def register(cls: type[FlowElement]) -> type[FlowElement]:
         raise ValueError(f"Element type '{cls.TYPE}' registered twice")
     ELEMENT_TYPES[cls.TYPE] = cls
     return cls
-
-
-def element_from_dict(data: dict) -> FlowElement:
-    try:
-        cls = ELEMENT_TYPES[data["type"]]
-    except KeyError:
-        raise ValueError(f"Unknown element type: {data.get('type')!r}") from None
-    return cls.from_dict(data)

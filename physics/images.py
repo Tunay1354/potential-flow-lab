@@ -92,7 +92,6 @@ class ImageSystem:
     n_images: int = 0
     closed: bool = True                             # False -> series truncated
     periodic: bool = False                          # True -> channel, infinite rows in closed form
-    levels: int = 0
     issues: list = field(default_factory=list)      # list[Issue]
 
     @property
@@ -160,7 +159,7 @@ def build_image_system(elements, max_levels: int = DEFAULT_MAX_LEVELS) -> ImageS
     frontier = list(originals)
     images = []
     system.closed = False
-    for level in range(1, max_levels + 1):
+    for _ in range(max_levels):
         new = []
         for e in frontier:
             for w in walls:
@@ -176,7 +175,6 @@ def build_image_system(elements, max_levels: int = DEFAULT_MAX_LEVELS) -> ImageS
                     continue
                 seen.add(k)
                 new.append(m)
-        system.levels = level
         if not new:
             system.closed = True
             break

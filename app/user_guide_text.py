@@ -60,6 +60,15 @@ and θ₂</td></tr>
 <tr><td>Wall</td><td>a point, θ<sub>w</sub>, fluid side</td><td>a straight impermeable wall (method of images);
 the fluid is only on the chosen side</td></tr>
 </table>
+<p><b>Walls.</b> Every flow element gets its mirror images in every wall, so V·n = 0 holds on the wall exactly. One
+wall, two walls meeting at 180°/k (90°, 60°, 45° …) and two parallel walls (a channel: the infinite rows of images
+are summed in closed form) are exact; other corners are refused. A uniform flow must be parallel to every wall.</p>
+<p><b>Sector flow and other elements.</b> A sector flow exists only inside its wedge, between the walls at θ₁ and
+θ₂ — there is no fluid outside it. Its two sides are walls for the other elements: a source, vortex or doublet
+inside the wedge gets mirror images in them, which is exact for β = 180°/k. The sector flow itself is not mirrored
+(it already satisfies its walls). Refused, with a message: elements outside the wedge or on its sides, other
+elements together with β &gt; 180°, a second sector flow, symmetry walls together with a sector flow, and a uniform
+flow that is not parallel to the sides.</p>
 <p>The window <b>checks the values while you type</b>. A <span class="warn">⚠ warning</span> means the result
 may not be what you expect (for example a doublet whose axis is not along the flow: no closed cylinder). A
 <span class="err">✖ error</span> means the scene would be physically inconsistent (for example a source

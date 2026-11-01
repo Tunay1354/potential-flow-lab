@@ -16,7 +16,7 @@ the fluid region.
 from __future__ import annotations
 
 import math
-from dataclasses import asdict, dataclass, fields, replace
+from dataclasses import asdict, dataclass, replace
 from typing import ClassVar
 
 import numpy as np
@@ -166,14 +166,10 @@ class FlowElement:
     def is_valid(self) -> bool:
         return not any(i.is_error for i in self.check())
 
-    # ------------------------------------------------------------------ save / load
+    # ------------------------------------------------------------------ copies
     def to_dict(self) -> dict:
+        """Type and every field (a comparable key of the element; scene files: model/scene_file.py)."""
         return {"type": self.TYPE, **asdict(self)}
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "FlowElement":
-        names = {f.name for f in fields(cls)}
-        return cls(**{k: v for k, v in data.items() if k in names})
 
     def copy(self, **changes) -> "FlowElement":
         """New element with some parameters changed (elements are never modified in place)."""
@@ -186,13 +182,6 @@ class FlowElement:
         kx, ky = self.POSITION_KEYS
         return self.copy(**{kx: getattr(self, kx) + dx, ky: getattr(self, ky) + dy})
 
-    @classmethod
-    def with_defaults(cls, **overrides) -> "FlowElement":
-        """New element with the default value of every parameter (used by the 'Add' dialog)."""
-        values = {p.key: p.default for p in cls.PARAMS}
-        values.update(overrides)
-        return cls(**values)
-
     # ------------------------------------------------------------------ display
     def summary(self) -> str:
         """Short text for the element list, e.g. 'm = 1, (0, 0)'."""
@@ -201,17 +190,18 @@ class FlowElement:
         for p in self.PARAMS:
             val = getattr(self, p.key)
             if p.key == "x0" and "y0" in keys:            # position shown as (x0, y0)
-                parts.append(f"at ({_fmt(val)}, {_fmt(getattr(self, 'y0'))})")
+                parts.append(f"at ({short_number(val)}, {short_number(getattr(self, 'y0'))})")
             elif p.key == "y0" and "x0" in keys:
                 continue
             elif p.choices:
                 parts.append(f"{p.name.lower()}: {p.choices[int(val)]}")
             else:
-                parts.append(f"{p.symbol} = {_fmt(val)}{'°' if p.is_angle else ''}")
+                parts.append(f"{p.symbol} = {short_number(val)}{'°' if p.is_angle else ''}")
         return ",  ".join(parts)
 
 
-def _fmt(x: float) -> str:
+def short_number(x: float) -> str:
+    """A number for the element list: 4 significant digits."""
     return f"{x:.4g}"
 
 

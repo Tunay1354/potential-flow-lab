@@ -31,7 +31,7 @@ CARDS = [
     ("vortex", "Vortex", "F(z) = −i (Γ / 2π) log(z − z<sub>0</sub>)",
      ["<b style='color:{el}'>Γ &gt; 0</b> — counter-clockwise",
       "<b>Γ &lt; 0</b> — clockwise",
-      "speed round it: u<sub>θ</sub> = Γ / (2π r)"]),
+      "speed round it: V<sub>θ</sub> = Γ / (2π r),  V<sub>r</sub> = 0"]),
     ("doublet", "Doublet", "F(z) = μ e<sup>iδ</sup> / (z − z<sub>0</sub>)",
      ["<b>δ</b> — turns the doublet counter-clockwise; δ = 0 as in the course notes",
       "with a uniform flow: a cylinder of radius a = √(μ / V<sub>∞</sub>) when <b>δ = α</b> "
@@ -59,6 +59,10 @@ PRESSURE = [
     ("Forces per unit depth", "L′ = −ρ V<sub>∞</sub> Γ",
      "lift across the free stream (90° counter-clockwise from it), drag along it; a clockwise "
      "Γ &lt; 0 lifts upwards; no drag (d'Alembert)"),
+    ("Rotating cylinder", "sin θ<sub>s</sub> = Γ / (4π V<sub>∞</sub> a)",
+     "stagnation points on r = a. The course notes (and Anderson) write this flow with + iΓ/2π log z, "
+     "i.e. Γ &gt; 0 clockwise: their Γ is −Γ here, so their sin θ<sub>s</sub> = −Γ / (4π V<sub>∞</sub> a) "
+     "and L′ = ρ V<sub>∞</sub> Γ"),
 ]
 
 
