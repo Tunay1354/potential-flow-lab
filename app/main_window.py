@@ -10,9 +10,10 @@ Data flow (one direction only):
 No widget changes the elements directly, so undo / redo always restores exactly.
 
 The window's parts are in app/window/: layout.py (side panels, palette side), menus.py (palette, menus,
-shortcuts), files.py (New / Open / Save, presets), exporting.py (figure and CSV export), status.py
-(status bar, probe, scene check, titles). This file keeps the assembly, the wiring and the element
-commands (add / edit / move / duplicate / delete, undo / redo).
+shortcuts), files.py (New / Open / Save, presets, restore after a restart / crash), exporting.py (figure,
+animation and CSV export), status.py (status bar, probe, scene check, titles; issues_popup.py), graphics.py
+(the graphics card). This file keeps the assembly, the wiring and the element commands (add / edit / move /
+duplicate / delete, undo / redo).
 """
 from PySide6.QtCore import QEvent, QSettings, Qt, QTimer
 from PySide6.QtGui import QColor, QKeySequence, QPalette, QShortcut
@@ -25,7 +26,6 @@ from physics.warmup import warm_up_in_background
 
 from .beaver import Beaver, BeaverSprite
 from .canvas import LIVE_DRAG_DEFAULT, PlotCanvas
-from .recovery import SessionRecovery
 from .chrome import HeaderBar, load_fonts, paint_paper_grid, tint_title_bar
 from .dialogs import ElementDialog, dispose
 from .element_specs import spec_for
@@ -34,6 +34,7 @@ from .hardware import load_profile
 from .icons import make_app_icon, make_palette_icon
 from .panels import ElementsPanel, LimitSlider, SettingsPanel, element_title
 from .recent_files import RecentFiles
+from .recovery import SessionRecovery
 from .surface_panel import SurfacePanel
 from .theme import DEFAULT_THEME, LAYOUT, build_stylesheet
 from .window import ExportMixin, FilesMixin, GraphicsMixin, LayoutMixin, MenusMixin, StatusMixin
@@ -71,7 +72,7 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         self.model.mark_clean()
         self.elements = self.model.elements            # same list object for the whole session
 
-        # header: wooden plank (logo, name, file) + ruler with the menus (and, later, the beaver)
+        # header: wooden plank (logo, name, file, GPU box) + ruler with the menus (the beaver sits on it)
         self.header = HeaderBar(self)
         self.setMenuWidget(self.header)
         self._menu_bar = self.header.menu_bar
@@ -87,8 +88,8 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         self._desk_layout.addWidget(self.canvas, 1)
         self.setCentralWidget(self.desk)
 
-        # side panels: only left or right of the plot, stacked; no floating, no tabs
-        # left or right of the plot; nested: a panel can also stand beside another (a second column)
+        # side panels: left or right of the plot, stacked (no floating, no tabs); nested: a panel can also
+        # stand beside another (a second column)
         self.setDockOptions(QMainWindow.AnimatedDocks | QMainWindow.AllowNestedDocks)
         self.elements_panel = ElementsPanel(self.theme)
         self.dock_elements = self._dock("Elements", self.elements_panel)
@@ -563,7 +564,3 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
                           f"<b>{APP_NAME}</b> {APP_VERSION} — {APP_SUBTITLE}<br>"
                           "Interactive 2D incompressible, irrotational flow builder.<br><br>"
                           "Aerodynamics semester project, IZTECH Mechanical Engineering.")
-
-
-# (moved to app/startup.py: light, so the loading screen can show before this module is imported)
-from .startup import default_font, setup_application  # noqa: E402,F401

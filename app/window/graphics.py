@@ -26,7 +26,7 @@ import html
 import logging
 import os
 
-from PySide6.QtCore import QSettings, Qt, QTimer, QUrl
+from PySide6.QtCore import QPoint, QSettings, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -297,7 +297,6 @@ class GraphicsMixin:
         p = getattr(self, "gpu_panel", None)
         if p is None or not p.isVisible():
             return
-        from PySide6.QtCore import QPoint
         arrow, plank = self.header.plank.gpu_more, self.header.plank
         a = arrow.mapTo(self, QPoint(arrow.width() // 2, arrow.height()))
         top = plank.mapTo(self, QPoint(0, plank.height())).y() - 3          # the notch reaches into the plank's edge
@@ -401,11 +400,8 @@ class GraphicsMixin:
         sp, cv = self.settings_panel, self.canvas
         for key, w in sp.sliders.items():
             spec = slider(key)
-            if spec.position(getattr(cv.settings, key)) > w.maximum() or \
-                    int(round((getattr(cv.settings, key) - spec.offset) / spec.step)) > w.maximum():
+            if int(round((getattr(cv.settings, key) - spec.offset) / spec.step)) > w.maximum():
                 getattr(cv, f"set_{key}")(spec.value(w.maximum()))
-
-    _limit_particles = _limit_sliders                # (the older name, files.py)
 
     # ------------------------------------------------------------------ the faster card (laptops)
     def _weak_card(self, info: dict) -> dict | None:

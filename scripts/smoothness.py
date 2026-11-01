@@ -84,7 +84,8 @@ def run(win, app, elements):
 
 
 def main():
-    from app.main_window import MainWindow, setup_application
+    from app.main_window import MainWindow
+    from app.startup import setup_application
     app = QApplication.instance() or QApplication(sys.argv)
     setup_application(app)
     from app.scene import starter_scene                     # (the scene the numbers were always taken with)

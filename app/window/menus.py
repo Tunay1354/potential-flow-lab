@@ -9,12 +9,12 @@ from PySide6.QtGui import QAction, QActionGroup, QDesktopServices, QKeySequence,
 
 from physics import ELEMENT_TYPES
 
+from ..canvas import LAYERS
 from ..chrome import DropIndicator, ElementPalette
 from ..dialogs import dispose
-from ..errors import open_log_folder
 from ..element_specs import spec_for, toolbar_types
+from ..errors import open_log_folder
 from ..icons import make_element_icon
-from ..canvas import LAYERS
 from ..panels import element_icon, element_title
 from ..scene import PRESETS_DIR, list_presets
 from ..shortcuts import Shortcuts, ShortcutsDialog

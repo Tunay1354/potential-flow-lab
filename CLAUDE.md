@@ -126,7 +126,8 @@ import os; os.environ["QT_QPA_PLATFORM"] = "offscreen"
 from PySide6.QtCore import QStandardPaths; QStandardPaths.setTestModeEnabled(True)
 from PySide6.QtWidgets import QApplication
 app = QApplication([])
-from app.main_window import MainWindow, setup_application
+from app.main_window import MainWindow
+from app.startup import setup_application
 setup_application(app)
 w = MainWindow(); w.setFixedSize(1536, 830); w.show()      # his logical screen size
 # … processEvents for ~1.5 s, drive the beaver with w.beaver.advance(dt), the animation with
@@ -381,6 +382,8 @@ GUI / Qt
   Package 7 done (plot 2): **the Pulses crash fixed** (zoom far + Fit: the old view's lines cut at the new pixel
   size = 279 million pieces, tens of GB); pulse_layer cuts only lines near the view, at most MAX_PIECES (else
   waits for the new lines); `layer.BackgroundJob` shared; pulse pieces bit for bit the same (check/pulse_snapshot.py).
+  Package 8 done (main window): restored scene (after a crash) now keeps to the slider limits
+  (`_apply_view_and_settings`, as Open); `_limit_particles` alias gone; setup_application only from app.startup.
 - **Next**: his Windows check of 20.7H (fast zoom in / out to the limits with GPU on, wheel at the limit, Fit), of 20.7D–F, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
   remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
 - Then, in this order (all planned, "as if time were unlimited"):

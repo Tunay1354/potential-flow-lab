@@ -15,7 +15,7 @@ def qapp(tmp_path_factory):
     QStandardPaths.setTestModeEnabled(True)          # data folders (logs, recovery copies) outside the user's
     QSettings.setDefaultFormat(QSettings.IniFormat)
     QSettings.setPath(QSettings.IniFormat, QSettings.UserScope, str(tmp_path_factory.mktemp("settings")))
-    from app.main_window import setup_application
+    from app.startup import setup_application
     app = widgets.QApplication.instance() or widgets.QApplication([])
     setup_application(app)
     QSettings().setValue("beaver/tour_offered", True)     # no first-start tour question during the tests

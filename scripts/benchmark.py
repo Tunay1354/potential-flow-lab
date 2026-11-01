@@ -140,7 +140,8 @@ class Bench:
         QStandardPaths.setTestModeEnabled(True)                      # never the user's settings / files
         from PySide6.QtWidgets import QApplication
         self.app = QApplication.instance() or QApplication(sys.argv)
-        from app.main_window import MainWindow, setup_application
+        from app.main_window import MainWindow
+        from app.startup import setup_application
         setup_application(self.app)
         try:
             from app import hardware

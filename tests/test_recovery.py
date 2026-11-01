@@ -62,7 +62,7 @@ def test_a_running_session_is_not_offered(window):
     assert find_recoverable(window.recovery.folder) == []          # its lock is held (this program runs)
 
 
-def _crashed_session(folder):
+def _crashed_session(folder, settings='{"density": 1.5}'):
     """A program that had an unsaved scene and then died (no normal close)."""
     code = f"""
 import os, sys
@@ -74,7 +74,7 @@ from app.recovery import SessionRecovery
 from model.scene_file import SceneDocument
 from physics.elements import Uniform, Doublet, Vortex
 doc = SceneDocument([Uniform(V=2.0), Doublet(mu=2.0), Vortex(Gamma=-3.0)], "My cylinder", ((-5.0, 5.0), (-3.0, 3.0)),
-                    {{"density": 1.5}})
+                    {settings})
 rec = SessionRecovery(lambda: doc, lambda: True, lambda: ({str(folder / 'work.pflow')!r}, "My cylinder"),
                       folder={str(folder / 'recovery')!r})
 rec.save_now()
@@ -98,6 +98,15 @@ def test_a_crashed_session_is_offered_and_restored(window, tmp_path):
     assert os.path.exists(window.recovery.scene_path)                  # … this session keeps its own
     window.model.undo()                                                # Undo: the scene before (V∞ = 1)
     assert window.elements[0].V == 1.0
+
+
+def test_a_restored_scene_keeps_to_the_slider_limits(window, tmp_path):
+    """Saved with the graphics card's 50 000 particles, restored where the processor draws: as many as its
+    slider allows (as when a file is opened; the restore used to skip that)."""
+    from app.canvas.settings import slider
+    _crashed_session(tmp_path, '{"particles": 50000.0}')
+    assert window.offer_recovery(str(tmp_path / "recovery"), ask=lambda r: "restore")
+    assert window.canvas.settings.particles == slider("particles").hi
 
 
 def test_not_now_keeps_it_and_discard_removes_it(window, tmp_path):

@@ -22,7 +22,7 @@ def application():
     if app is None:
         qInstallMessageHandler(_quiet)
         app = QApplication([sys.argv[0]])
-        from app.main_window import setup_application
+        from app.startup import setup_application
         setup_application(app)
     return app
 

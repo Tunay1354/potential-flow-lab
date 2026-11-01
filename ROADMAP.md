@@ -835,6 +835,15 @@ bırakıldı (kullanıcı kararı).
       (hızlı tekerle iki sınıra, sonra Fit; GPU'lu ve GPU'suz) artık en çok ~85 000 parça, ~500 MB. Temizlik: iki
       kopya arka plan iş sınıfı → `layer.BackgroundJob`; `body_layer`'da sınıfın altındaki sabit yukarı, başlatılmamış
       `_result`; tarih notları; `logging` içeriden başa. 126 plot görüntüsü yine piksel piksel aynı.
+    - ✅ **21.8 Ana pencere** (1 Kasım; `main_window.py`, `app/window/*`, `restart.py`, `recovery.py`, `shortcuts.py`,
+      `recent_files.py`): **Hata:** çökme sonrası "Restore" ile gelen sahnede slider sınırı uygulanmıyordu (GPU'yla
+      kaydedilmiş 50 000 particle, GPU'suz modda da 50 000 kalıyordu; dosya açarken yapılıyordu) → görünüş + ayarlar
+      tek fonksiyonda (`_apply_view_and_settings`), ikisi de sınırı uyguluyor (yeni test; eski kodda başarısız).
+      Restart'ın exe'de doğru çalıştığı kontrol edildi (exe kendini, kaynak `python main.py`'yi başlatır). Temizlik:
+      eski ad `_limit_particles` → `_limit_sliders` (ve gereksiz çift koşul), `main_window`'daki
+      `setup_application` yeniden dışa verme kalktı (herkes `app.startup`'tan alıyor), çelişen / eski yorumlar
+      ("ileride kunduz", "no floating" + "nested"), tarih notu, tekrarlanan logger, fonksiyon içi import'lar,
+      import sırası, ayar yolunun eski hali (`IZTECH` → `IZTECH\<APP_NAME>`).
 22. ☐ **Görsel ve metin son kontrolü** (kullanıcı ile): programdaki tüm yazılar (menüler, paneller, dialog'lar,
     tooltip'ler, uyarı mesajları, lejantlar, durum çubuğu) tek bir listede + ekran görüntüsü galerisi; kullanıcı
     beğenmediklerini işaretler / yenisini yazar, ben değiştiririm. Açık kararlar burada: dividing streamline

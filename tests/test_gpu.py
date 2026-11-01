@@ -514,7 +514,7 @@ def test_a_scene_with_more_particles_than_allowed_opens_with_the_maximum(window)
     w.settings_panel.show_settings(st)
     assert w.settings_panel.sliders["particles"].value() == 5000       # the slider never beyond its end
     w.canvas.settings.particles = 30000
-    w._limit_particles()
+    w._limit_sliders()
     assert w.canvas.settings.particles == 5000
 
 

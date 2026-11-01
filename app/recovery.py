@@ -18,6 +18,7 @@ from __future__ import annotations
 import datetime
 import glob
 import json
+import logging
 import os
 from dataclasses import dataclass
 
@@ -153,7 +154,6 @@ class SessionRecovery(QObject):
                 os.replace(tmp, target)
             self.saved = True
         except (OSError, SceneFileError, ValueError):
-            import logging
             logging.getLogger("pflab").exception("autosave failed")
 
     def remove(self):

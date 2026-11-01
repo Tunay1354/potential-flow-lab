@@ -10,7 +10,7 @@ Surface pressure opens on the left (it comes with its layer), as wide as the use
 (QSettings "layout/surface_width"; a missing or odd width: LAYOUT["surface_panel_width"]).
 """
 from PySide6.QtCore import QByteArray, QRect, QSettings, Qt, QTimer
-from PySide6.QtWidgets import QDockWidget
+from PySide6.QtWidgets import QApplication, QDockWidget
 
 from ..chrome import PanelBody, PanelTitle
 from ..theme import LAYOUT
@@ -130,7 +130,7 @@ class LayoutMixin:
     # ------------------------------------------------------------------ the Surface pressure panel's width
     def _surface_dock_visible(self, visible: bool):
         """Opened: as wide as last time (or the default); closed: its width is remembered. Not while it is
-        dragged to another place (Qt hides and shows it then; his report of 30 Oct: it could not be moved)."""
+        dragged to another place (Qt hides and shows it then: reacting would make it impossible to move)."""
         if self._surface_dragged():
             return
         if visible:
@@ -141,7 +141,6 @@ class LayoutMixin:
             self._surface_fitted = False
 
     def _surface_dragged(self) -> bool:
-        from PySide6.QtWidgets import QApplication
         return self.dock_surface.isFloating() or bool(QApplication.mouseButtons() & Qt.LeftButton)
 
     def _remember_surface_width(self):

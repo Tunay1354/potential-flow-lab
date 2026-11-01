@@ -1,8 +1,8 @@
 """
 recent_files.py — the "Open recent" list and the last used folder, remembered between sessions.
 
-Stored with QSettings (Windows: registry under HKEY_CURRENT_USER\\Software\\IZTECH,
-macOS: a .plist file), so it survives restarts and needs no file of our own.
+Stored with QSettings (Windows: the registry under HKEY_CURRENT_USER\\Software\\IZTECH\\<APP_NAME>), so it
+survives restarts and needs no file of our own.
 """
 import os
 

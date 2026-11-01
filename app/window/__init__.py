@@ -3,9 +3,9 @@ window — the parts of MainWindow (app/main_window.py), one mixin class per con
 
     layout.py     side panels, palette left / right, remembering / resetting the layout
     menus.py      element palette, menus, keyboard shortcuts
-    files.py      New / Open / Save / Save as, presets, dropped scene files
-    exporting.py  Export figure / Export data
-    status.py     status bar (probe, scene check), error strip, window title, title block
+    files.py      New / Open / Save / Save as, presets, dropped scene files, restore after a restart / crash
+    exporting.py  Export figure / animation / data
+    status.py     status bar (probe, scene check; issues_popup.py), error strip, window title, title block
     graphics.py   drawing with the graphics card (GPU box, Graphics card panel, the faster laptop card)
 """
 from .exporting import ExportMixin

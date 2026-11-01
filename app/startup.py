@@ -1,7 +1,6 @@
 """
 startup.py — application settings made before anything else (light: only PySide6 and the theme, so the
 loading screen can appear before the heavy modules — pyqtgraph, Numba, the physics — are imported).
-main_window.setup_application is this function (kept there for scripts and tests).
 """
 from PySide6.QtGui import QFont
 

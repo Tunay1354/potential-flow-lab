@@ -19,6 +19,8 @@ from model import save_scene as write_scene_file
 from ..recovery import find_recoverable
 from ..theme import LAYOUT
 
+log = logging.getLogger("pflab")
+
 FILE_FILTER = f"{APP_NAME} scenes (*{EXTENSION});;JSON files (*.json);;All files (*)"
 
 
@@ -52,7 +54,7 @@ class FilesMixin:
         try:
             doc = read_scene_file(path)
         except SceneFileError as exc:
-            logging.getLogger("pflab").warning("cannot open %s: %s", path, exc)
+            log.warning("cannot open %s: %s", path, exc)
             self._notify_user("warning", "Cannot open the file", str(exc))
             if not os.path.exists(path):
                 self.recent.remove(path)
@@ -63,7 +65,7 @@ class FilesMixin:
         self.recent.add(path)
         self._update_title()
         self.flash(f"Opened {os.path.basename(path)}  —  {len(doc.elements)} elements")
-        logging.getLogger("pflab").info("opened %s (%d elements)", path, len(doc.elements))
+        log.info("opened %s (%d elements)", path, len(doc.elements))
         if doc.warnings:
             self._notify_user("information", "File opened with small problems",
                               "The file was opened, but:\n\n• " + "\n• ".join(doc.warnings))
@@ -91,7 +93,7 @@ class FilesMixin:
         try:
             write_scene_file(path, self._document())
         except SceneFileError as exc:
-            logging.getLogger("pflab").warning("cannot save %s: %s", path, exc)
+            log.warning("cannot save %s: %s", path, exc)
             self._notify_user("warning", "Cannot save the file", str(exc))
             return False
         self.current_path = os.path.abspath(path)
@@ -99,7 +101,7 @@ class FilesMixin:
         self.recent.add(path)
         self._update_title()
         self.flash(f"Saved {os.path.basename(path)}")
-        logging.getLogger("pflab").info("saved %s", path)
+        log.info("saved %s", path)
         if getattr(self, "beaver", None) is not None:
             self.beaver.on_saved()
         return True
@@ -110,13 +112,17 @@ class FilesMixin:
         return SceneDocument(list(self.elements), self.scene_title, cv.view(), cv.settings.to_document())
 
     def _apply_document(self, doc: SceneDocument):
+        self._apply_view_and_settings(doc)
+        self.model.reset(doc.elements)         # one computation with the new view + settings
+
+    def _apply_view_and_settings(self, doc: SceneDocument):
+        """The view and the plot settings of a scene file (not yet its elements)."""
         if doc.view is not None:
             self.canvas.set_view(*doc.view)
         settings = self.canvas.settings.updated(doc.settings)
         self.canvas.apply_settings(settings)
         self.settings_panel.show_settings(settings)
-        self._limit_particles()                # (a scene saved with more particles than this mode allows)
-        self.model.reset(doc.elements)         # one computation with the new view + settings
+        self._limit_sliders()                  # (a scene saved with more particles than this mode allows)
 
     def maybe_save(self) -> bool:
         """Before the scene is replaced or the window closes: offer to save unsaved changes.
@@ -148,13 +154,12 @@ class FilesMixin:
         self.model.load(elements, f"Load “{title}”" if title else "Load scene")
         self._flash_done()
 
-    # ------------------------------------------------------------------ after a crash
+    # ------------------------------------------------------------------ after a restart / a crash
     def resume_from(self, path: str) -> bool:
         """After a restart (the GPU box, app/restart.py): the scene exactly as the previous program had it —
         its file name, title, unsaved changes (still unsaved), view, plot settings, layers, view mode,
         selection. True if it worked (else the program starts as usual and says so)."""
         from .. import restart
-        log = logging.getLogger("pflab")
         try:
             doc, state = restart.read_state(path)
         except (OSError, ValueError, SceneFileError) as exc:
@@ -207,7 +212,7 @@ class FilesMixin:
             return False
         if answer != "restore":
             newest.discard()
-            logging.getLogger("pflab").info("recovered scene discarded: %s", newest.scene_path)
+            log.info("recovered scene discarded: %s", newest.scene_path)
             return False
         try:
             doc = newest.document()
@@ -215,18 +220,14 @@ class FilesMixin:
             self._notify_user("warning", "Cannot restore the scene", str(exc))
             newest.release()
             return False
-        if doc.view is not None:
-            self.canvas.set_view(*doc.view)
-        settings = self.canvas.settings.updated(doc.settings)
-        self.canvas.apply_settings(settings)
-        self.settings_panel.show_settings(settings)
+        self._apply_view_and_settings(doc)
         original = newest.original
         self.current_path = original if original and os.path.exists(os.path.dirname(original) or ".") else None
         self.scene_title = newest.title
         self.model.load(doc.elements, "Restore unsaved scene")
         newest.discard()
         self.recovery.save_now()                         # this session's copy from now on
-        logging.getLogger("pflab").info("recovered scene restored (%s, %d elements)", newest.title,
+        log.info("recovered scene restored (%s, %d elements)", newest.title,
                                         len(doc.elements))
         self.flash(f"Restored “{newest.title}” — not saved yet (Ctrl+S). Undo goes back to the start scene.")
         return True

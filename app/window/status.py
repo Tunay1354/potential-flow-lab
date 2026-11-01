@@ -14,7 +14,6 @@ from ..theme import LAYOUT
 from .issues_popup import IssueButton, IssuesPopup
 
 
-
 def _count(n: int, word: str) -> str:
     return f"{n} {word}{'s' if n > 1 else ''}"
 
