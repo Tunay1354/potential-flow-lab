@@ -3,9 +3,13 @@ errors.py — what happens when something goes wrong.
 
   setup_logging()     a log file in the program's data folder (logs/<name>.log, at most 3 × 1 MB):
                       start-up information, every unexpected error with its traceback, Qt's warnings.
-                      The exe has no console: print / sys.stderr go to the log there. Hard crashes (the whole
-                      process dies, e.g. in compiled code) are written by faulthandler to logs/crash.txt; the
-                      next start copies them into the log (previous_crash() says if there was one).
+                      The exe has no console: print / sys.stderr go to the log there.
+                      Every running program keeps logs/crash-<pid>.txt (faulthandler writes a hard crash into
+                      it: the whole process dies, e.g. in compiled code or a graphics driver) and holds
+                      crash-<pid>.lock; a normal end removes both. The next start reads a file whose program is
+                      gone into the log: with a stack (a hard crash), or empty — that program ended without a
+                      word: it froze and was closed from outside (Task Manager), or the computer went off.
+                      previous_crash() / ended_abnormally() say what was found.
   ErrorReporter       an error that nobody caught — in a button handler, in drawing, in a background
                       computation re-raised in the window — no longer just disappears: it is logged and a
                       window says what happened (details, copy, open the log folder). The program stays open.
@@ -15,6 +19,7 @@ errors.py — what happens when something goes wrong.
 from __future__ import annotations
 
 import faulthandler
+import glob
 import logging
 import logging.handlers
 import os
@@ -23,19 +28,21 @@ import sys
 import threading
 import traceback
 
-from PySide6.QtCore import QObject, Qt, QTimer, QUrl, Signal
+from PySide6.QtCore import QLockFile, QObject, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QGuiApplication
 from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton, QStyle, QVBoxLayout)
 
-from app_info import APP_NAME
+from app_info import APP_NAME, APP_VERSION, LOGGER
 
 from .paths import data_folder, outside_path
 
 LOG_NAME = f"{APP_NAME.lower()}.log"
-CRASH_NAME = "crash.txt"
-log = logging.getLogger("pflab")
+CRASH_PREFIX = "crash-"             # crash-<pid>.txt / .lock: one pair per running program
+OLD_CRASH_NAME = "crash.txt"        # (the single crash file of older versions: still read once)
+log = logging.getLogger(LOGGER)
 
-_state = {"folder": None, "crash_file": None, "previous_crash": "", "handler": None}
+_state = {"folder": None, "crash_file": None, "crash_lock": None, "previous_crash": "", "abnormal": False,
+          "handler": None}
 
 
 # ---------------------------------------------------------------------- the log file
@@ -82,7 +89,7 @@ def setup_logging(folder: str | None = None) -> str:
         if old is not None:
             log.removeHandler(old)
             old.close()
-            _close_crash_file(remove=False)
+            _close_crash_file()
         handler = logging.handlers.RotatingFileHandler(path, maxBytes=1_000_000, backupCount=2, encoding="utf-8")
         handler.setFormatter(logging.Formatter("%(asctime)s  %(levelname)-7s %(message)s", "%Y-%m-%d %H:%M:%S"))
         log.addHandler(handler)
@@ -100,7 +107,6 @@ def setup_logging(folder: str | None = None) -> str:
 
 
 def _versions() -> str:
-    from app_info import APP_VERSION
     parts = [f"{APP_NAME} {APP_VERSION}", f"Python {platform.python_version()}", platform.platform()]
     try:
         import PySide6
@@ -120,45 +126,86 @@ def _versions() -> str:
 
 
 def _start_faulthandler(folder):
-    """A hard crash (the process itself dies) writes its stack to crash.txt; copied into the log at the
-    next start."""
-    path = os.path.join(folder, CRASH_NAME)
-    _state["previous_crash"] = ""
+    """The crash files of programs that are gone into the log, then this program's own (see the module text)."""
+    _state["previous_crash"], _state["abnormal"] = "", False
     try:
-        if os.path.exists(path) and os.path.getsize(path) > 0:
-            with open(path, encoding="utf-8", errors="replace") as f:
-                text = f.read()
-            _state["previous_crash"] = text
-            log.error("the previous session ended in a crash:\n%s", text.rstrip())
+        _read_left_crash_files(folder)
         if _state["crash_file"] is None:
-            _state["crash_file"] = open(path, "w", encoding="utf-8")   # (kept open: faulthandler writes to it)
+            stem = os.path.join(folder, f"{CRASH_PREFIX}{os.getpid()}")
+            lock = QLockFile(stem + ".lock")
+            lock.setStaleLockTime(0)                  # stale only when its program is gone
+            lock.tryLock(0)
+            _state["crash_lock"] = lock
+            _state["crash_file"] = open(stem + ".txt", "w", encoding="utf-8")   # (kept open: faulthandler writes)
             faulthandler.enable(_state["crash_file"], all_threads=True)
     except OSError:                                   # pragma: no cover - read-only folder: no crash file
         pass
 
 
+def _read_left_crash_files(folder):
+    """Crash files whose program is not running any more (its lock is stale): into the log, then removed.
+    Those of programs still running (another window open) are left alone."""
+    found = sorted(glob.glob(os.path.join(folder, CRASH_PREFIX + "*.txt")))
+    old = os.path.join(folder, OLD_CRASH_NAME)
+    for path in found + ([old] if os.path.exists(old) else []):
+        lock = None
+        if path != old:
+            lock = QLockFile(os.path.splitext(path)[0] + ".lock")
+            lock.setStaleLockTime(0)
+            if not lock.tryLock(0):
+                continue                              # its program is still running
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                text = f.read()
+        except OSError:
+            text = ""
+        if text.strip():
+            _state["previous_crash"] = text
+            log.error("the previous session ended in a crash:\n%s", text.rstrip())
+        elif path != old:
+            _state["abnormal"] = True
+            log.warning("the previous session did not end normally (no crash details: it froze and was closed "
+                        "from outside, e.g. with the Task Manager, or the computer went off)")
+        _remove(path)
+        if lock is not None:
+            lock.unlock()                             # (removes the lock file)
+
+
+def _remove(path):
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
 def previous_crash() -> str:
-    """The stack written by the previous session's hard crash ('' if it ended normally)."""
+    """The stack written by the previous session's hard crash ('' if there was none)."""
     return _state["previous_crash"]
 
 
-def _close_crash_file(remove: bool):
-    f = _state["crash_file"]
-    if f is None:
-        return
-    try:
-        faulthandler.disable()
-        f.close()
-        if remove:
-            os.remove(f.name)
-    except OSError:                                   # pragma: no cover
-        pass
-    _state["crash_file"] = None
+def ended_abnormally() -> bool:
+    """The previous session did not end normally: a hard crash, or it was closed from outside / froze."""
+    return bool(_state["previous_crash"]) or _state["abnormal"]
+
+
+def _close_crash_file():
+    """This program's crash file and lock removed (a normal end, or the log moved to another folder)."""
+    f, lock = _state["crash_file"], _state["crash_lock"]
+    if f is not None:
+        try:
+            faulthandler.disable()
+            f.close()
+        except OSError:                               # pragma: no cover
+            pass
+        _remove(f.name)
+    if lock is not None and lock.isLocked():
+        lock.unlock()
+    _state["crash_file"], _state["crash_lock"] = None, None
 
 
 def shutdown_logging():
     """Normal end of the program: no crash to report next time."""
-    _close_crash_file(remove=True)
+    _close_crash_file()
     log.info("end")
 
 

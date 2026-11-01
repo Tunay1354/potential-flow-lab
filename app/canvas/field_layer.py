@@ -25,6 +25,7 @@ from PySide6.QtCore import QRectF, Qt, QTimer
 from PySide6.QtGui import QBrush, QColor, QPen
 from PySide6.QtWidgets import QGraphicsPathItem
 
+from app_info import LOGGER
 from physics.field import (active, complex_potential, complex_velocity, compute_field, fluid_mask,
                            singular_points, singularity_mask)
 from physics.images import resolve
@@ -168,7 +169,7 @@ class FieldLayer(PlotLayer):
         try:
             self.update(cv.elements, cv.view(), cv.layers, s.field_quality, s.cp_reference, s.density)
         except Exception as exc:                     # never let a field layer break the window
-            logging.getLogger("pflab").exception("field layers could not be drawn")
+            logging.getLogger(LOGGER).exception("field layers could not be drawn")
             self.hide_all()
             cv.message.emit(f"Field layers could not be drawn: {exc}")
             return

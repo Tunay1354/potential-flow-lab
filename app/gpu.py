@@ -31,13 +31,20 @@ effect when the program starts again.
 """
 from __future__ import annotations
 
+import glob
 import logging
 import os
+import subprocess
 import sys
 
+from PySide6.QtCore import QLockFile, QSettings
+
+from app_info import APP_NAME, LOGGER, ORGANIZATION
+
+from . import hardware
 from .paths import data_folder
 
-log = logging.getLogger("pflab")
+log = logging.getLogger(LOGGER)
 
 KEY_ENABLED = "gpu/enabled"
 KEY_CAP = "gpu/fps_cap"
@@ -66,7 +73,6 @@ SETTINGS_URL = "ms-settings:display-advancedgraphics"
 
 # --------------------------------------------------------------------------------------------- settings
 def _settings():
-    from PySide6.QtCore import QSettings
     return QSettings()
 
 
@@ -132,11 +138,10 @@ def program_paths() -> list[str]:
     """The files Windows may see as "this program": the exe; with Python, python.exe — in a virtual
     environment also the Python it starts, and the file the process really runs from (Microsoft Store
     Python: a file in WindowsApps). Windows decides the graphics card by the last one."""
-    from .hardware import process_image_path
     paths = [sys.executable]
     if not getattr(sys, "frozen", False):
         paths.append(getattr(sys, "_base_executable", None))
-    paths.append(process_image_path())
+    paths.append(hardware.process_image_path())
     out, seen = [], set()
     for p in paths:
         if not p:
@@ -170,8 +175,6 @@ RELAUNCH_ENV = "PFL_STRONG_CARD"           # set in the process started by relau
 def wants_strong_card() -> bool:
     """Before any QApplication exists: the GPU box is ticked (the program draws with the graphics card)."""
     try:
-        from PySide6.QtCore import QSettings
-        from app_info import APP_NAME, ORGANIZATION
         return QSettings(ORGANIZATION, APP_NAME).value(KEY_ENABLED, False, bool)
     except Exception:                                 # noqa: BLE001
         return False
@@ -179,8 +182,8 @@ def wants_strong_card() -> bool:
 
 def relaunch_on_strong_card(force: bool = False, call=None) -> int | None:
     """NVIDIA's Optimus switch (SHIM_MCCOMPAT) only works when it is there AT THE START of the process: set
-    inside the running program (apply_startup_env) the window still got the Intel card (his benchmark of 29 Oct:
-    "Intel(R) UHD Graphics"). So on a Windows computer with an NVIDIA card, with the GPU box ticked (or force),
+    inside the running program (apply_startup_env) the window still got the Intel card (measured: "Intel(R) UHD
+    Graphics"). So on a Windows computer with an NVIDIA card, with the GPU box ticked (or force),
     the program starts itself once more with the switch and waits for it; returns its exit code. None: nothing
     to do (not Windows, no NVIDIA card, already started that way) — go on normally."""
     if sys.platform != "win32" or os.environ.get(SHIM_ENV) or os.environ.get(RELAUNCH_ENV):
@@ -188,13 +191,11 @@ def relaunch_on_strong_card(force: bool = False, call=None) -> int | None:
     if not (force or wants_strong_card()):
         return None
     try:
-        from .hardware import display_adapters, strong_adapter, vendor_of
-        strong = strong_adapter(display_adapters())
-        if strong is None or vendor_of(strong["name"]) != "nvidia":
+        strong = hardware.strong_adapter(hardware.display_adapters())
+        if strong is None or hardware.vendor_of(strong["name"]) != "nvidia":
             return None
     except Exception:                                 # noqa: BLE001
         return None
-    import subprocess
     env = dict(os.environ, **{SHIM_ENV: SHIM_VALUE, RELAUNCH_ENV: "1"})
     args = sys.argv[1:] if getattr(sys, "frozen", False) else sys.argv
     try:
@@ -280,7 +281,6 @@ class SessionGuard:
     graphics card drew (a driver crash, a hang that was killed): the next start begins without it."""
 
     def __init__(self, folder: str | None = None):
-        from PySide6.QtCore import QLockFile
         self.folder = folder or guard_folder()
         self.path = os.path.join(self.folder, f"session-{os.getpid()}-{id(self):x}.lock")
         self.lock = QLockFile(self.path)
@@ -300,8 +300,6 @@ class SessionGuard:
 
     def crashed_before(self) -> bool:
         """A lock of a program that is gone (removed now, so it is reported once)."""
-        import glob
-        from PySide6.QtCore import QLockFile
         found = False
         for path in glob.glob(os.path.join(self.folder, "session-*.lock")):
             if os.path.abspath(path) == os.path.abspath(self.path):

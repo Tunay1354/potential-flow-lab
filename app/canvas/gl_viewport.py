@@ -21,7 +21,9 @@ from PySide6.QtCore import QRectF, Signal
 from PySide6.QtGui import QOpenGLContext, QPainter, QSurfaceFormat
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
-log = logging.getLogger("pflab")
+from app_info import LOGGER
+
+log = logging.getLogger(LOGGER)
 
 GL_VENDOR, GL_RENDERER, GL_VERSION, GL_SAMPLES = 0x1F00, 0x1F01, 0x1F02, 0x80A9
 

@@ -24,7 +24,9 @@ import sys
 import tempfile
 import time
 
-log = logging.getLogger("pflab")
+from app_info import LOGGER
+
+log = logging.getLogger(LOGGER)
 
 PROFILE_KEY = "hardware/profile"
 PROFILE_VERSION = 1                    # increase when the profile's contents change: every PC detects again

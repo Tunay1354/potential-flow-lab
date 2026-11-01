@@ -177,9 +177,8 @@ class UserGuideDialog(QDialog):
         self.note.setText(f"“{word}” is not in the guide.")
 
     def save_web_page(self, path: str | None = None) -> str | None:
-        """The whole guide as one HTML file where the user chooses (Documents by default), then opened in the
-        browser. (A file in the program's own data folder could not be opened by the browser with Microsoft
-        Store Python: Windows keeps that folder private to it.)"""
+        """The whole guide as one HTML file where the user chooses (Documents by default: a file to keep and
+        share), then opened in the browser."""
         if path is None:
             from PySide6.QtWidgets import QFileDialog
             start = QStandardPaths.writableLocation(QStandardPaths.DocumentsLocation) or os.path.expanduser("~")

@@ -25,6 +25,7 @@ from PySide6.QtGui import QColor, QImage, QPainter, QPen
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QGraphicsItem
 
+from app_info import LOGGER
 from physics import kernel
 from physics.particles import nice_top
 
@@ -417,7 +418,7 @@ class AnimatedLayer(PlotLayer):
                     anim.segments(t, self._palette, radius, pulse=(phase, length), keep_max=True)
             anim.present(t, self._corners_on_viewport(), viewport)
         except Exception:                                 # noqa: BLE001 - the processor takes over
-            logging.getLogger("pflab").exception("animation on the graphics card failed: the processor draws it")
+            logging.getLogger(LOGGER).exception("animation on the graphics card failed: the processor draws it")
             self.gpu_broken = True
             self._view_key = None
         finally:

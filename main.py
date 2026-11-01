@@ -12,7 +12,9 @@ OpenGL which graphics card draws, in its own process, app/hardware.py).
 import logging
 import sys
 
-log = logging.getLogger("pflab")
+from app_info import LOGGER
+
+log = logging.getLogger(LOGGER)
 
 
 def main():

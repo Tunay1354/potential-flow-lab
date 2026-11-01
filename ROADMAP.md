@@ -867,6 +867,18 @@ bırakıldı (kullanıcı kararı).
       Temizlik: "Paket V" kalıntısı, fonksiyon içi import'lar (CLI'dakiler bilerek içeride: `--verify --no-figures`
       Qt'siz çalışır). Exe notu (24): MP4 için imageio-ffmpeg'in ffmpeg'i exe tarifine eklenmeli; exe konsolsuz
       olduğundan komut satırı çıktısı görünmez (exit code çalışır).
+    - ✅ **21.11 Sistem** (1 Kasım; `errors, hardware, gpu, splash, startup, hardware_dialog, paths, user_guide*`):
+      **Hata (onun bildirdiği): GPU çökmesinden sonra log'da çökme notu yoktu.** Not faulthandler'dan gelir — sadece
+      programın kendi kodu çökerse yazar; o oturum büyük ihtimalle Pulses hatasında (21.7) belleği doldurup dondu ve
+      dışarıdan kapatıldı (not yazacak an yok). Ayrıca iki pencere açıkken ikisi aynı `crash.txt`'yi kullanıyordu
+      (ikinci açılan birincinin dosyasını siliyordu). Düzeltme: her program kendi `crash-<pid>.txt` + `.lock`
+      dosyasını tutar (GPU korumasındaki yöntem); sonraki açılış sahibi gitmiş bir dosyayı log'a yazar — yığın varsa
+      "ended in a crash", boşsa "did not end normally (froze and was closed from outside, or the computer went off)";
+      `ended_abnormally()` recovery mesajlarında kullanılıyor; çalışan bir programın dosyasına dokunulmaz (2 yeni
+      test). Eski isim: logger adı "pflab" 13 dosyada elle yazılıydı → `app_info.LOGGER` (= APP_NAME.lower());
+      thread adı "pflab-core" → "physics-core". Open log folder (Store Python) 21.10'da düzelmişti, kontrol edildi.
+      Temizlik: tarih notu, `gpu.py` / `startup.py` fonksiyon içi import'lar başa (açılış ekranı hâlâ hafif; probe
+      süreci ve winreg bilerek içeride), user guide'ın eskimiş Store açıklaması.
 22. ☐ **Görsel ve metin son kontrolü** (kullanıcı ile): programdaki tüm yazılar (menüler, paneller, dialog'lar,
     tooltip'ler, uyarı mesajları, lejantlar, durum çubuğu) tek bir listede + ekran görüntüsü galerisi; kullanıcı
     beğenmediklerini işaretler / yenisini yazar, ben değiştiririm. Açık kararlar burada: dividing streamline

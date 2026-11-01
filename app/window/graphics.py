@@ -30,11 +30,13 @@ from PySide6.QtCore import QPoint, QSettings, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QApplication, QMessageBox
 
+from app_info import LOGGER
+
 from .. import gpu, hardware
 from ..chrome import tint_title_bar
 from ..gpu_panel import short_name
 
-log = logging.getLogger("pflab")
+log = logging.getLogger(LOGGER)
 
 PARTICLE_BUDGET_MS = 4.0             # GPU mode: the most particles = what this computer moves in ~4 ms a frame
 PARTICLES_GPU_MAX = 100_000          # ... at most (the slider's upper end)

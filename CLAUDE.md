@@ -187,10 +187,11 @@ GUI / Qt
 - **Exceptions in Qt slots / paint events** go to `sys.excepthook` → `app/errors.py` logs them and shows one
   window per distinct error (no floods). Background threads (QThreadPool) never touch widgets; results and
   errors come back through signals.
-- **The exe has no console**: `sys.stderr` is None there → never rely on `print`; use the `pflab` logger.
+- **The exe has no console**: `sys.stderr` is None there → never rely on `print`; use the program's logger (`logging.getLogger(app_info.LOGGER)`).
 - **Microsoft Store Python** redirects files under %LOCALAPPDATA% into its package folder: anything opened in
   the browser / Explorer goes through `paths.outside_path`.
 - Recovery after a crash: each session holds a `QLockFile`; a copy whose owner is gone = a crashed session.
+  The same for the crash file (`errors`, crash-<pid>.txt) and the GPU guard (`gpu.SessionGuard`).
 - **Space / Esc are window shortcuts** → in the beaver's tour / dialogs they are taken via `ShortcutOverride`
   (not while a text field or a modal dialog has the keys).
 - Beaver: a press is a click until the mouse moves > 6 px; the sprite has a mask (clicks through transparent
@@ -393,6 +394,8 @@ GUI / Qt
   Package 10 done (export / cli / verification dialog): Store Python "Open full report / folder / log folder" →
   `paths.outside_path` (its writes under %LOCALAPPDATA% really go to Packages\…\LocalCache\Local); data folder only
   via `paths.data_folder`. For the exe (24): bundle imageio-ffmpeg's ffmpeg binary; the CLI prints nothing (no console).
+  Package 11 done (system): crash file per program (`logs/crash-<pid>.txt` + `.lock`); an empty one of a program
+  that is gone = "did not end normally" (killed / froze); `errors.ended_abnormally()`; logger name = `app_info.LOGGER`.
 - **Next**: his Windows check of 20.7H (fast zoom in / out to the limits with GPU on, wheel at the limit, Fit), of 20.7D–F, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
   remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
 - Then, in this order (all planned, "as if time were unlimited"):

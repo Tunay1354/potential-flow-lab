@@ -19,9 +19,11 @@ import os
 import sys
 import time
 
+from app_info import LOGGER
+
 from .paths import data_folder
 
-log = logging.getLogger("pflab")
+log = logging.getLogger(LOGGER)
 
 RESUME_ARG = "--resume"
 STATE_VERSION = 1

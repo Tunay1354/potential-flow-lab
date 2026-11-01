@@ -26,6 +26,7 @@ from PySide6.QtGui import QColor, QDesktopServices, QImage, QTextDocument
 from PySide6.QtWidgets import (QDialog, QFileDialog, QHBoxLayout, QHeaderView, QLabel, QMessageBox, QProgressBar,
                                QPushButton, QSplitter, QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout)
 
+from app_info import LOGGER
 from app.cli import report as rp
 from app.paths import data_folder, outside_path
 
@@ -62,7 +63,7 @@ class _Checks(QRunnable):
                 self.signals.step.emit(k, label)
                 out += job()
         except Exception as exc:                                     # noqa: BLE001 - shown in the dialog
-            logging.getLogger("pflab").exception("verification failed")
+            logging.getLogger(LOGGER).exception("verification failed")
             self.signals.failed.emit(f"{type(exc).__name__}: {exc}")
             return
         self.signals.done.emit(out)

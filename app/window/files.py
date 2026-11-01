@@ -11,7 +11,7 @@ import re
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
-from app_info import APP_NAME
+from app_info import APP_NAME, LOGGER
 from model import EXTENSION, SceneDocument, SceneFileError
 from model import load_scene as read_scene_file
 from model import save_scene as write_scene_file
@@ -19,7 +19,7 @@ from model import save_scene as write_scene_file
 from ..recovery import find_recoverable
 from ..theme import LAYOUT
 
-log = logging.getLogger("pflab")
+log = logging.getLogger(LOGGER)
 
 FILE_FILTER = f"{APP_NAME} scenes (*{EXTENSION});;JSON files (*.json);;All files (*)"
 
@@ -197,10 +197,10 @@ class FilesMixin:
         """At start: a scene left unsaved by a session that did not end normally → "Restore it?". It comes
         back as an unsaved change (Undo returns to the start scene), with its file name if it had one.
         `ask(found) -> "restore" | "discard" | "later"` replaces the question (tests). True = restored."""
-        from ..errors import previous_crash
+        from ..errors import ended_abnormally
         found = find_recoverable(folder or self.recovery.folder, exclude=self.recovery.stem)
         if not found:
-            if previous_crash():
+            if ended_abnormally():
                 self.flash("The program closed unexpectedly last time — details: Help → Open log folder.")
             return False
         newest, older = found[0], found[1:]
@@ -233,14 +233,14 @@ class FilesMixin:
         return True
 
     def _ask_restore(self, found) -> str:
-        from ..errors import previous_crash
+        from ..errors import ended_abnormally
         where = os.path.basename(found.original) if found.original else "never saved"
         box = QMessageBox(QMessageBox.Question, "Restore unsaved scene",
                           f"{APP_NAME} did not close normally last time.", parent=self)
         box.setInformativeText(
             f"A scene with unsaved changes was kept:\n\n    {found.title}   ({where})\n    last change: "
             f"{found.when}\n\nRestore it? It opens as an unsaved scene — save it to keep it."
-            + ("\n\nWhat went wrong is in the log (Help → Open log folder)." if previous_crash() else ""))
+            + ("\n\nWhat went wrong is in the log (Help → Open log folder)." if ended_abnormally() else ""))
         restore = box.addButton("Restore", QMessageBox.AcceptRole)
         restore.setObjectName("Primary")
         discard = box.addButton("Discard", QMessageBox.DestructiveRole)

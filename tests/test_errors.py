@@ -9,6 +9,8 @@ import time
 
 import pytest
 
+from app_info import LOGGER
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -17,7 +19,7 @@ def logdir(qapp, tmp_path):
     from app import errors
     path = errors.setup_logging(str(tmp_path / "logs"))
     yield tmp_path / "logs"
-    errors._close_crash_file(remove=True)
+    errors._close_crash_file()
     assert os.path.exists(path)
 
 
@@ -33,7 +35,7 @@ def reporter(qapp, logdir):
 
 def _log_text(logdir):
     from app import errors
-    for h in logging.getLogger("pflab").handlers:
+    for h in logging.getLogger(LOGGER).handlers:
         h.flush()
     return (logdir / errors.LOG_NAME).read_text(encoding="utf-8")
 
@@ -133,14 +135,42 @@ def test_a_hard_crash_is_found_at_the_next_start(tmp_path):
             % (ROOT, str(folder)))
     res = subprocess.run([sys.executable, "-c", code], capture_output=True, timeout=120)
     assert res.returncode != 0
-    assert (folder / "crash.txt").stat().st_size > 0
+    (left,) = folder.glob("crash-*.txt")
+    assert left.stat().st_size > 0
     code2 = ("import os, sys; sys.path.insert(0, %r)\nfrom app import errors\nerrors.setup_logging(%r)\n"
              "print('CRASH' if 'Fatal Python error' in errors.previous_crash() else 'none')\n"
              "errors.shutdown_logging()\n" % (ROOT, str(folder)))
     res = subprocess.run([sys.executable, "-c", code2], capture_output=True, text=True, timeout=120)
     assert res.stdout.strip() == "CRASH"
     assert "previous session ended in a crash" in (folder / errors.LOG_NAME).read_text(encoding="utf-8")
-    assert not (folder / "crash.txt").exists()            # a normal end removes it
+    assert not list(folder.glob("crash-*"))                  # read, then removed; a normal end removes its own
+
+
+def test_a_session_that_was_killed_is_noted_at_the_next_start(tmp_path):
+    """Killed from outside (Task Manager) or frozen: no stack, but the next start says the session did not end
+    normally (the GPU crash of 1 Nov left nothing in the log)."""
+    from app import errors
+    folder = tmp_path / "logs"
+    code = ("import os, sys; sys.path.insert(0, %r)\nfrom app import errors\nerrors.setup_logging(%r)\n"
+            "os._exit(9)\n" % (ROOT, str(folder)))
+    assert subprocess.run([sys.executable, "-c", code], capture_output=True, timeout=120).returncode == 9
+    code2 = ("import os, sys; sys.path.insert(0, %r)\nfrom app import errors\nerrors.setup_logging(%r)\n"
+             "print(errors.ended_abnormally(), repr(errors.previous_crash()))\nerrors.shutdown_logging()\n"
+             % (ROOT, str(folder)))
+    res = subprocess.run([sys.executable, "-c", code2], capture_output=True, text=True, timeout=120)
+    assert res.stdout.strip() == "True ''"
+    assert "did not end normally" in (folder / errors.LOG_NAME).read_text(encoding="utf-8")
+    assert not list(folder.glob("crash-*"))
+
+
+def test_a_second_program_leaves_the_running_ones_crash_file_alone(qapp, logdir):
+    """Two windows of the program: the second start must not read (or remove) the first one's file."""
+    from app import errors
+    code = ("import os, sys; sys.path.insert(0, %r)\nfrom app import errors\nerrors.setup_logging(%r)\n"
+            "print(errors.ended_abnormally())\nerrors.shutdown_logging()\n" % (ROOT, str(logdir)))
+    res = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120)
+    assert res.stdout.strip() == "False"
+    assert os.path.exists(errors._state["crash_file"].name)              # this program's file is still there
 
 
 def test_help_menu_opens_the_log_folder(qapp):

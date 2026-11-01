@@ -24,7 +24,9 @@ from PySide6.QtGui import QOpenGLContext, QVector2D, QVector4D
 from PySide6.QtOpenGL import (QOpenGLBuffer, QOpenGLFramebufferObject, QOpenGLFramebufferObjectFormat,
                               QOpenGLShader, QOpenGLShaderProgram, QOpenGLVertexArrayObject)
 
-log = logging.getLogger("pflab")
+from app_info import LOGGER
+
+log = logging.getLogger(LOGGER)
 
 # OpenGL constants (not in Qt's Python classes)
 GL_FLOAT, GL_TRIANGLES, GL_TRIANGLE_STRIP = 0x1406, 0x0004, 0x0005

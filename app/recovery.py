@@ -24,6 +24,7 @@ from dataclasses import dataclass
 
 from PySide6.QtCore import QLockFile, QObject, QTimer
 
+from app_info import LOGGER
 from model.scene_file import SceneFileError, dumps, loads
 
 from .paths import data_folder
@@ -155,7 +156,7 @@ class SessionRecovery(QObject):
                 os.replace(tmp, target)
             self.saved = True
         except (OSError, SceneFileError, ValueError):
-            logging.getLogger("pflab").exception("autosave failed")
+            logging.getLogger(LOGGER).exception("autosave failed")
 
     def remove(self):
         if self.saved or os.path.exists(self.scene_path):

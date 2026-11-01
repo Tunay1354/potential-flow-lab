@@ -44,7 +44,7 @@ def pool() -> ThreadPoolExecutor:
     global _pool
     with _lock:
         if _pool is None:
-            _pool = ThreadPoolExecutor(max_workers=workers(), thread_name_prefix="pflab-core", initializer=_mark)
+            _pool = ThreadPoolExecutor(max_workers=workers(), thread_name_prefix="physics-core", initializer=_mark)
         return _pool
 
 
