@@ -1036,3 +1036,20 @@ def test_scene_shapes():
     assert scene_shape([Uniform(), Doublet(mu=1.0), Vortex(Gamma=-2.0)]) == "lifting"
     assert scene_shape([Uniform(), Doublet(mu=1.0), Vortex(Gamma=-2.0, x0=2.0)]) is None
     assert scene_shape([Uniform(), Doublet(mu=1.0), Source(m=1.0, x0=3.0)]) is None
+
+
+def test_his_name_is_in_one_place(monkeypatch):
+    """The beaver's name is app_info.MASCOT_NAME (a placeholder): his lines write {name}; only the jokes that need
+    one particular name (NAME_LINES) and the stream function ψ itself ("Psi = 0") spell it out."""
+    from app.beaver import lines
+    from app_info import MASCOT_NAME
+    assert lines.NAME == MASCOT_NAME
+    special = {t for extra in lines.NAME_LINES.values() for texts in extra.values() for t in texts}
+    for key, texts in lines.LINES.items():
+        for t in texts:
+            if MASCOT_NAME in t and t not in special:
+                assert "Psi = 0" in t, (key, t)
+    monkeypatch.setattr(lines, "NAME", "Bob")
+    picker = lines.Picker(seed=3)
+    said = {picker.pick("ask_tour") for _ in range(6)}
+    assert all("Bob" in t and "{name}" not in t for t in said)

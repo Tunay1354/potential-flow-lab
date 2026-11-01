@@ -22,6 +22,8 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetricsF, QPainter
 from PySide6.QtWidgets import QWidget
 
+from ..theme import first_family
+
 CPS = 38.0                       # characters per second
 HOLD_S = 1.6                     # shown this long after the last character …
 HOLD_PER_CHAR_S = 0.035          # … plus this per character
@@ -41,7 +43,6 @@ BTN_TOP = 12                     # text / choices → buttons
 
 
 def _font(px, weight=QFont.Medium, caps=False, spacing=100.0):
-    from ..theme import first_family
     f = QFont(first_family("mono"))
     f.setPixelSize(px)
     f.setWeight(weight)

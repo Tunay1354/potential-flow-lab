@@ -4,19 +4,22 @@ line of a key, never one of the last few said for that key, so the jokes do not 
 
 PRIORITY: 2 = an event he must tell (waits until the line before it can be read), 1 = normal (skipped if he
 is still talking), 0 = small talk (skipped if he is talking).
+
+{name} in a line is his name (app_info.MASCOT_NAME); NAME_LINES has the jokes that only work with one name.
 """
 import random
 
-NAME = "Psi"            # his name (a placeholder: the owner will choose one); shown on his speech bubbles
+from app_info import MASCOT_NAME
+
+NAME = MASCOT_NAME      # shown on his speech bubbles
 
 LINES = {
     "hello": [
-        "Hi! I'm Psi, your flow buddy.\nGrab me and drop me on the plot!",
-        "Hello there! I'm Psi.\nDrag me onto the plot, I dare you.",
-        "Hi! I'm Psi. I live on this ruler. Rent is cheap.",
-        "Hello! Psi here. Part beaver, part streamline.",
+        "Hi! I'm {name}, your flow buddy.\nGrab me and drop me on the plot!",
+        "Hello there! I'm {name}.\nDrag me onto the plot, I dare you.",
+        "Hi! I'm {name}. I live on this ruler. Rent is cheap.",
+        "Hello! {name} here. Part beaver, part streamline.",
         "Hey there! Want to see me swim? Drop me on the plot.",
-        "Hi! I'm Psi. Yes, like the stream function. My parents were engineers.",
     ],
     "menu": [
         "What can I do for you?",
@@ -24,7 +27,7 @@ LINES = {
         "Hi! How can I help?",
         "At your service!",
         "You rang?",
-        "Psi at your service. What's up?",
+        "{name} at your service. What's up?",
         "Questions? Tours? Trivia? I do it all.",
         "Hm? Oh, hi! What do you need?",
         "Ready when you are.",
@@ -48,8 +51,8 @@ LINES = {
         "I'm doing science here!",
     ],
     "ask_tour": [
-        "Hi! I'm Psi, your flow buddy. First time here? Want a quick tour? It takes about two minutes.",
-        "Hello! I'm Psi. Looks like you're new here. Shall I show you around? Two minutes, promise.",
+        "Hi! I'm {name}, your flow buddy. First time here? Want a quick tour? It takes about two minutes.",
+        "Hello! I'm {name}. Looks like you're new here. Shall I show you around? Two minutes, promise.",
     ],
     "tour_declined": [
         "Okay! Click me or press P whenever you need help.",
@@ -770,6 +773,13 @@ LINES = {
     ],
 }
 
+# jokes about one particular name: added to LINES only while the beaver has that name
+NAME_LINES = {
+    "Psi": {"hello": ["Hi! I'm Psi. Yes, like the stream function. My parents were engineers."]},
+}
+for _key, _extra in NAME_LINES.get(NAME, {}).items():
+    LINES[_key] = LINES[_key] + _extra
+
 # a remark on what the user does is only a "maybe" (Beaver.remark): its chance here, so serious work is not
 # interrupted all the time; and at most one remark every REMARK_GAP_S seconds
 REMARK_CHANCE = {
@@ -812,4 +822,5 @@ class Picker:
         recent.append(line)
         keep = self.memory if self.memory is not None else max(3, len(options) // 2)
         del recent[:-min(keep, max(1, len(options) - 1))]
+        line = line.replace("{name}", NAME)
         return line.format(**fmt) if fmt else line

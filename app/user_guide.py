@@ -13,7 +13,7 @@ from PySide6.QtGui import QDesktopServices, QKeySequence, QShortcut, QTextDocume
 from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QLineEdit, QListWidget, QPushButton, QTextBrowser,
                                QVBoxLayout)
 
-from app_info import APP_NAME
+from app_info import APP_NAME, MASCOT_NAME
 
 from .user_guide_text import CHAPTERS
 
@@ -54,7 +54,8 @@ def style_sheet(t: dict) -> str:
 def chapter_html(key: str, shortcuts=None) -> str:
     for k, _title, text in CHAPTERS:
         if k == key:
-            return text.replace("{keys}", shortcut_table(shortcuts)).replace("{app}", APP_NAME)
+            return (text.replace("{keys}", shortcut_table(shortcuts)).replace("{app}", APP_NAME)
+                    .replace("{beaver}", MASCOT_NAME))
     return ""
 
 

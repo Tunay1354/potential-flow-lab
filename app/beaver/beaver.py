@@ -1,5 +1,5 @@
 """
-beaver.py — Psi, the pixel-art beaver (placeholder name). He lives on the ruler next to Help and can be
+beaver.py — the pixel-art beaver (his name: app_info.MASCOT_NAME, a placeholder). He lives on the ruler next to Help and can be
 dragged onto the plot; what happens then depends on the view mode:
 
   Static     there is glass in front of the plot: he sticks to it, taps on it, jokes, and goes home.
@@ -23,16 +23,21 @@ flow → vanish / gone → walk. `advance(dt)` is one step (the timer, or tests)
 """
 from __future__ import annotations
 
+import datetime
 import math
+import time
 
 import numpy as np
 from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRect, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QCursor, QPainter, QRegion, QWheelEvent
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtWidgets import QAbstractSpinBox, QApplication, QLineEdit, QWidget
 
 from physics.field import active, complex_velocity, fluid_mask
 from physics.images import resolve
 from physics.particles import time_scale, typical_speed
+from physics.validation import doublet_misalignment
+
+from ..canvas.animation_layer import speed_factor
 
 from . import art
 from .bubble import SpeechBubble
@@ -45,9 +50,9 @@ ACTIVE_MS, IDLE_MS = 33, 120          # timer: while something happens / sitting
 WALK_PX_S = 270.0                     # walking speed on the ruler
 HOP_S = 0.6
 ON_PLOT_STATES = ("glass", "flow", "bored", "pulse", "run", "vanish", "gone")   # he is out on the plot
-ON_PLOT_MAX_S = 15.0
+ON_PLOT_MAX_S = 15.0                  # a safety net: out on the plot this long -> a remark and a hop home
 CROWDED = 8                           # elements: "That's a crowded flow!"
-SESSION_REMINDER_S = 3600.0           # an hour of work: "stretch!"                  # a safety net: out on the plot this long -> a remark and a hop home
+SESSION_REMINDER_S = 3600.0           # an hour of work: "stretch!"
 SLEEP_AFTER_S = 180.0
 HEAD_TOP = 15.0                       # art px from the canvas centre up to the top of the head (front / perch)
 STAG_FRACTION = 0.03                  # slower than this × the typical speed = at a stagnation point
@@ -73,7 +78,6 @@ def scene_shape(elements) -> str | None:
             or any(e.TYPE not in ("uniform", "doublet", "vortex") for e in act)):
         return None
     try:
-        from physics.validation import doublet_misalignment
         if doublets[0][0] in doublet_misalignment(elements):
             return None
     except Exception:                                    # noqa: BLE001 - an invalid scene: no remark
@@ -313,9 +317,6 @@ class Beaver(QObject):
             self.remark("crowded")
         self._shape, self._crowded = shape, crowded
 
-    def greet(self):
-        self.say("hello")
-
     def start_session(self, first: bool):
         """The program has started: a first-time user is offered the tour; later, now and then, a hello."""
         if not self.enabled:
@@ -323,7 +324,6 @@ class Beaver(QObject):
         if first:
             self.ask_tour()
         elif self.lines.rng.random() < 0.35:
-            import datetime
             h = datetime.datetime.now().hour
             daytime = "night" if h < 5 or h >= 23 else "morning" if h < 12 else "afternoon" if h < 18 else "evening"
             self.say(daytime if self.lines.rng.random() < 0.5 else "welcome_back")
@@ -344,7 +344,6 @@ class Beaver(QObject):
 
     @staticmethod
     def clock_now():
-        import time
         return time.perf_counter()
 
     def advance(self, dt: float):
@@ -471,7 +470,6 @@ class Beaver(QObject):
         """Animation time for dt real seconds: the same time scale as the particles (their speed slider)."""
         if self.cv.paused:
             return 0.0
-        from app.canvas.animation_layer import speed_factor
         (x0, x1), (y0, y1) = self.cv.view()
         return dt * time_scale((x0, x1, y0, y1), self.typical_speed(), speed_factor(self.cv.particles.speed_slider))
 
@@ -531,7 +529,6 @@ class Beaver(QObject):
         swallows every other key, except the ones its step asks for (Tour.allows_key)."""
         if not self.enabled or not (self.tour.active or self.dialog):
             return False
-        from PySide6.QtWidgets import QAbstractSpinBox, QLineEdit
         if QApplication.activeModalWidget() is not None:
             return False
         if not isinstance(obj, QWidget) or obj.window() is not self.win:
@@ -658,7 +655,7 @@ class Beaver(QObject):
         self._dialog("faq", "Ask me something:", [q for q, _a in FAQ], tag="questions", buttons=["Close"])
 
     def answer(self, i: int):
-        q, a = FAQ[i]
+        _q, a = FAQ[i]
         self._dialog("answer", a, tag="answer", buttons=["Close", "More questions \u203a"], primary=1)
         self.data["question"] = i
 
@@ -753,7 +750,9 @@ class Beaver(QObject):
 
     def tour_ended(self, completed: bool):
         self.bubble.clear()
-        self._go("hop", start=QPointF(self.center)) if self.state == "tour" and self.data.get("feet") else \
+        if self.state == "tour" and self.data.get("feet"):
+            self._go("hop", start=QPointF(self.center))       # from where the tour left him
+        else:
             self._go("perch")
         if not completed:
             self.say("tour_skipped")
@@ -1190,7 +1189,6 @@ class Beaver(QObject):
         pl = self.cv.pulses
         if not pl.period > 0 or self.cv.paused:
             return float("inf")
-        from app.canvas.animation_layer import speed_factor
         (x0, x1), (y0, y1) = self.cv.view()
         rate = time_scale((x0, x1, y0, y1), pl.v_typ, speed_factor(pl.speed_slider))
         return pl.period / rate if rate > 0 else float("inf")

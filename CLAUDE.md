@@ -45,7 +45,7 @@ ask him for it when exact wording matters (e.g. for the report or the final chec
   requirements-dev.txt`).
 - Decisions he made: the exe is built **last** (fallback: source zip + install notes, or demo from his laptop);
   dye rake and Joukowski airfoil are "maybe"; the beaver speaks **English**; the beaver's name "Psi" is a
-  placeholder.
+  placeholder (`app_info.MASCOT_NAME`: change it there only).
 
 ---------------------------------------------------------------------------------------------------------------
 ## 3. Running, testing, checking
@@ -396,6 +396,8 @@ GUI / Qt
   via `paths.data_folder`. For the exe (24): bundle imageio-ffmpeg's ffmpeg binary; the CLI prints nothing (no console).
   Package 11 done (system): crash file per program (`logs/crash-<pid>.txt` + `.lock`); an empty one of a program
   that is gone = "did not end normally" (killed / froze); `errors.ended_abnormally()`; logger name = `app_info.LOGGER`.
+  Package 12 done (beaver): his name = `app_info.MASCOT_NAME` (lines write {name}; name-only jokes in
+  `lines.NAME_LINES`; user guide {beaver}); dead `greet` removed.
 - **Next**: his Windows check of 20.7H (fast zoom in / out to the limits with GPU on, wheel at the limit, Fit), of 20.7D–F, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
   remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
 - Then, in this order (all planned, "as if time were unlimited"):

@@ -24,14 +24,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PySide6.QtCore import QEvent, QPoint, QPointF, QRectF, Qt
+from PySide6.QtWidgets import QScrollArea, QStyle, QStyleOptionViewItem
 
 from app_info import APP_NAME
+from model.preview import candidate_scene
+from physics.elements import Doublet
+from physics.validation import doublet_misalignment
 
 from .spotlight import PAD
 
 
 def _scroll_area_of(w):
-    from PySide6.QtWidgets import QScrollArea
     while w is not None and not isinstance(w, QScrollArea):
         w = w.parentWidget()
     return w
@@ -208,8 +211,8 @@ class Tour:
     def back(self):
         """Left arrow / the Back button: the step before (never its "enter" again: no second clearing). What
         was done in that step and after it is taken back (the element added, the edit, the move, Move mode,
-        the slider, Particles), so the step asks for it again (his report of 30 Oct: the uniform stayed and
-        he had to add a second one)."""
+        the slider, Particles), so the step asks for it again (otherwise the uniform flow added in that step
+        stayed and the user had to add a second one)."""
         if self.i <= 0 or self.sub is not None or self.done_wait is not None:
             return
         j = self.i - 1
@@ -340,9 +343,6 @@ class Tour:
         if dlg is None or getattr(getattr(dlg, "spec", None), "key", "") != "doublet":
             return ""
         try:
-            from model.preview import candidate_scene
-            from physics.elements import Doublet
-            from physics.validation import doublet_misalignment
             vals, row, els = dlg.values(), getattr(dlg, "row", None), self.win.elements
             new = Doublet(**vals) if row is None else els[row].copy(**vals)
             cand, idx = candidate_scene(els, new, row)
@@ -551,7 +551,6 @@ class Tour:
 
     @staticmethod
     def _check_box_rect(tree, item):
-        from PySide6.QtWidgets import QStyle, QStyleOptionViewItem
         index = tree.indexFromItem(item, 0)
         opt = QStyleOptionViewItem()
         opt.initFrom(tree)

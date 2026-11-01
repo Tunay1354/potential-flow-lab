@@ -244,7 +244,7 @@ default) and the limits themselves.</p>
 
     ("beaver", "The beaver", """
 <h2>The beaver</h2>
-<p>Psi, the pixel beaver on the ruler, is your guide. <b>Click</b> him (or press <b>P</b>) for his menu:
+<p>{beaver}, the pixel beaver on the ruler, is your guide. <b>Click</b> him (or press <b>P</b>) for his menu:
 questions &amp; answers, the tour, a fun fact. <b>Drag</b> him onto the plot: in Static mode he taps on the
 glass in front of the plot; in Particles he rides the flow (and gets dizzy in a vortex); in Pulses the pulses
 knock him along his streamline.</p>

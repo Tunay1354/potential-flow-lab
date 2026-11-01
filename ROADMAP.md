@@ -879,6 +879,13 @@ bırakıldı (kullanıcı kararı).
       thread adı "pflab-core" → "physics-core". Open log folder (Store Python) 21.10'da düzelmişti, kontrol edildi.
       Temizlik: tarih notu, `gpu.py` / `startup.py` fonksiyon içi import'lar başa (açılış ekranı hâlâ hafif; probe
       süreci ve winreg bilerek içeride), user guide'ın eskimiş Store açıklaması.
+    - ✅ **21.12 Kunduz** (1 Kasım; `app/beaver/*`): **ismi tek yerde**: `app_info.MASCOT_NAME = "Psi"` (yer tutucu);
+      repliklerde `{name}` (Picker yerleştirir), konuşma balonunun başlığı ve user guide (`{beaver}`) ondan alıyor.
+      Sadece bir isimle çalışan espri ("Yes, like the stream function") `lines.NAME_LINES["Psi"]`'de: isim değişince
+      kendiliğinden çıkar; "Psi = 0" akım fonksiyonu ψ'dir, isim değil (yeni test: ismi elle yazan replik kalmadı).
+      Repliklerin hepsi önce / sonra aynı (80 anahtar). Temizlik: hiç çağrılmayan `greet`, "(Faz 6)" kalıntısı +
+      eksik dosya listesi (`beaver/__init__`), sabitlerin yorumu kaymıştı (ON_PLOT_MAX_S / SESSION_REMINDER_S),
+      ifade olarak yazılmış if/else, tarih notu, fonksiyon içi import'lar başa.
 22. ☐ **Görsel ve metin son kontrolü** (kullanıcı ile): programdaki tüm yazılar (menüler, paneller, dialog'lar,
     tooltip'ler, uyarı mesajları, lejantlar, durum çubuğu) tek bir listede + ekran görüntüsü galerisi; kullanıcı
     beğenmediklerini işaretler / yenisini yazar, ben değiştiririm. Açık kararlar burada: dividing streamline
