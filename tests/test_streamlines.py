@@ -132,8 +132,15 @@ def test_result_is_repeatable_and_empty_cases():
 
 # ---------------------------------------------------------------- picture quality (Package B)
 from physics import SectorFlow, SymmetryWall  # noqa: E402
-from physics.streamlines import (STOP_RATIO, TAPER_RATIO, Cancelled, fade_pieces,  # noqa: E402
-                                 trace_streamlines as _trace)
+from physics.streamlines import STOP_RATIO, TAPER_RATIO, Cancelled, fade_piece_boxes  # noqa: E402
+from physics.streamlines import trace_streamlines as _trace  # noqa: E402
+
+
+def fade_pieces(lines, tapers, d, levels=4):
+    """Per opacity level all pieces as one (x, y) array, pieces separated by a NaN row."""
+    gap = np.array([[np.nan, np.nan]])
+    return [np.vstack([x for p in parts for x in (p, gap)]) if parts else np.zeros((0, 2))
+            for parts, _boxes in fade_piece_boxes(lines, tapers, d, levels)]
 
 
 def _offsets_across(lines, alpha):

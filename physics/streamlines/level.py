@@ -4,8 +4,8 @@ integration (compiled kernel or NumPy), stop rules; trace_streamlines() for one 
 """
 from __future__ import annotations
 
-from collections import deque
 import math
+from collections import deque
 from typing import Callable, Sequence
 
 import numpy as np
@@ -40,10 +40,7 @@ class StreamlineField:
         self.v_min = v_min
         self.compiled = kernel.compile_scene(self.els, self.flows) if use_kernel else None
         self.domain: tuple[float, float, float, float] | None = None
-        self.lines: list[_Line] = []             # lines of this level
-        self.base_lines: list[_Line] = []        # lines of the coarser level (kept as they are)
-        self._base_source: list[_Line] = []      # the same lines as given (before refining)
-        self._fresh_parts: list[np.ndarray] = []  # new pieces of the coarser picture since the last fill
+        self.lines: list[_Line] = []
         self.queue: deque = deque()
         self.special_seeds = np.zeros(0, complex)   # e.g. points on dividing streamlines: used first
         self._cancelled: Callable[[], bool] | None = None
@@ -51,34 +48,12 @@ class StreamlineField:
                           if e.crosses_boundary(np.zeros(1, complex), np.zeros(1, complex)) is not None]
 
     # ------------------------------------------------------------------ public
-    @property
-    def all_lines(self) -> list[_Line]:
-        return self.base_lines + self.lines
-
     def contains(self, region) -> bool:
         if self.domain is None:
             return False
         x0, x1, y0, y1 = region
         a0, a1, b0, b1 = self.domain
         return a0 <= x0 and x1 <= a1 and b0 <= y0 and y1 <= b1
-
-    def set_base(self, lines: list[_Line]):
-        """Lines of the coarser level: drawn and avoided, never changed by this level. They were
-        traced with a longer step, so points are added in between (on the exact tangent
-        directions) until their step is as small as this level's."""
-        # remember the parts of the coarser picture that are NEW (new lines, lengthened ends): this
-        # level has to make room for them (see _yield_to_fresh_base)
-        known = np.concatenate([ln.pts for ln in self._base_source]) if self._base_source else np.zeros(0, complex)
-        for ln in lines:
-            new = ~np.isin(ln.pts, known)
-            if not new.any():
-                continue
-            edges = np.diff(np.concatenate([[0], new.astype(int), [0]]))
-            for a, b in zip(np.nonzero(edges == 1)[0], np.nonzero(edges == -1)[0]):
-                part = ln.pts[max(a - 1, 0):min(b + 1, ln.pts.size)]          # with the joining point
-                self._fresh_parts.append(_refine(part, self.h, self.flows))
-        self._base_source = list(lines)
-        self.base_lines = [_Line(ln.id, _refine(ln.pts, self.h, self.flows), ln.start, ln.end) for ln in lines]
 
     def extend(self, region, seeds: Sequence[complex] = (),
                cancelled: Callable[[], bool] | None = None) -> bool:
@@ -123,25 +98,20 @@ class StreamlineField:
                     wall = origin + np.arange(t_lo, t_hi + d / 4.0, d / 4.0) * direc
                     self.near_stop.stamp(wall, STOP_RATIO * d, WALL_ID)
                     self.near_seed.stamp(wall, SEED_RATIO * d)
-        for ln in self.base_lines:
-            self._stamp(ln.pts, ln.id)
-        self._yield_to_fresh_base()
         for ln in self.lines:
             self._stamp(ln.pts, ln.id)
 
-        if not first:
-            self._continue_lines()
-        if not first or self.base_lines:
-            for ln in self.all_lines:                      # gaps along existing lines (d away from them)
+        if not first:                                       # a grown region: old lines run on into it,
+            self._continue_lines()                          # gaps along them are seeded (d away)
+            for ln in self.lines:
                 self.queue.extend(_neighbour_seeds(ln.pts, d))
             self.queue = deque(self._usable(np.array(self.queue, dtype=complex)))
         rx0, rx1, ry0, ry1 = map(float, region)
         priority = deque(self._usable(_priority_seeds(self.els, x0, x1, y0, y1, d, self.sing, self.r_sing)))
         grid = deque(self._usable(_grid_seeds(x0, x1, y0, y1, d,
                                               center=complex(0.5 * (rx0 + rx1), 0.5 * (ry0 + ry1)))))
-        # the first lines start on the inflow border; a grown region, or a level built on a coarser
-        # one, continues from the existing lines (neighbour seeds d away), so the spacing stays even
-        inflow = (_inflow_seeds(self.els, self.flows, x0, x1, y0, y1, d) if first and not self.base_lines
+        # the first lines start on the inflow border; a grown region continues from the existing lines
+        inflow = (_inflow_seeds(self.els, self.flows, x0, x1, y0, y1, d) if first
                   else np.zeros(0, complex))
         sp = self.special_seeds
         inside = (sp.real > x0) & (sp.real < x1) & (sp.imag > y0) & (sp.imag < y1)
@@ -151,11 +121,9 @@ class StreamlineField:
         return True
 
     def result(self, arrow_density: float = 1.0, arrow_box=None) -> StreamlineSet:
-        """All lines (this level and the coarser ones) for drawing; arrows inside `arrow_box`
-        (x, y, width, height), default: the whole region."""
-        lines = self.all_lines
-        out = StreamlineSet(lines=[np.column_stack([ln.pts.real, ln.pts.imag]) for ln in lines],
-                            tapers=[ln.taper for ln in lines], separation=self.d, domain=self.domain)
+        """All lines for drawing; arrows inside `arrow_box` (x, y, width, height), default: the whole region."""
+        out = StreamlineSet(lines=[np.column_stack([ln.pts.real, ln.pts.imag]) for ln in self.lines],
+                            tapers=[ln.taper for ln in self.lines], separation=self.d, domain=self.domain)
         if arrow_box is None and self.domain is not None:
             x0, x1, y0, y1 = self.domain
             arrow_box = (x0 + 0.5 * self.d, y0 + 0.5 * self.d, x1 - x0 - self.d, y1 - y0 - self.d)
@@ -334,36 +302,6 @@ class StreamlineField:
         return traj, closed, near_end, left_box
 
     # ------------------------------------------------------------------ growing the picture
-    def _yield_to_fresh_base(self):
-        """The coarser level is primary: where one of its new (or lengthened) lines comes too close to
-        a line of this level, this level's line is cut there; both pieces fade out at the cut and the
-        gap is filled again by the usual seeding."""
-        fresh, self._fresh_parts = self._fresh_parts, []
-        if not fresh or not self.lines:
-            return
-        ns = self.near_stop
-        probe = _Raster(ns.x0, ns.y0, ns.nx * ns.c, ns.ny * ns.c, ns.c)
-        for part in fresh:
-            probe.stamp(part, STOP_RATIO * self.d)
-        kept = []
-        for ln in self.lines:
-            hit = probe.test(ln.pts)
-            if not hit.any():
-                kept.append(ln)
-                continue
-            edges = np.diff(np.concatenate([[0], (~hit).astype(int), [0]]))
-            for a, b in zip(np.nonzero(edges == 1)[0], np.nonzero(edges == -1)[0]):
-                piece = ln.pts[a:b]
-                r0 = ln.start if a == 0 else "near"
-                r1 = ln.end if b == ln.pts.size else "near"
-                if "closed" in (r0, r1) and (r0, r1) != ("closed", "closed"):
-                    r0 = "near" if r0 == "closed" else r0
-                    r1 = "near" if r1 == "closed" else r1
-                min_len = (MIN_LENGTH_RATIO + TAPER_RATIO * ((r0 == "near") + (r1 == "near"))) * self.d
-                if piece.size >= 3 and float(np.sum(np.abs(np.diff(piece)))) >= min_len:
-                    kept.append(_Line(next(_line_ids), piece, r0, r1))
-        self.lines = kept
-
     def _continue_lines(self):
         """Lines of this level that ended at the old region border run on into the new region."""
         bx0, bx1, by0, by1 = self.box
@@ -516,32 +454,6 @@ class StreamlineField:
                 self.queue.extend(_neighbour_seeds(seg, d))
 
 
-def _refine(pts: np.ndarray, h: float, flows) -> np.ndarray:
-    """Insert points into a streamline polyline so that no step is longer than h. Between two points
-    the curve is a cubic Hermite spline using the flow direction at both points (exact tangents),
-    so the refined line stays on the streamline to high accuracy."""
-    if pts.size < 2:
-        return pts
-    chord = np.diff(pts)
-    L = np.abs(chord)
-    k = np.maximum(1, np.ceil(L / h - 1e-9).astype(int))
-    if k.max() == 1:
-        return pts
-    with np.errstate(all="ignore"):
-        vel = np.conj(complex_velocity(flows, pts))
-        t = vel / np.abs(vel)
-    # orient the tangents along the line; use the chord where the velocity is unusable
-    ref = np.concatenate([chord, chord[-1:]])
-    ref = ref / np.where(np.abs(ref) > 0, np.abs(ref), 1.0)
-    t = np.where(np.isfinite(t), t, ref)
-    t = np.where((t * np.conj(ref)).real < 0, -t, t)
-    i = np.repeat(np.arange(chord.size), k)                    # segment of every new point
-    s = (np.arange(i.size) - np.repeat(np.cumsum(k) - k, k)) / np.repeat(k, k)
-    p0, p1, m0, m1 = pts[i], pts[i + 1], t[i] * L[i], t[i + 1] * L[i]
-    h00, h10, h01, h11 = 2 * s**3 - 3 * s**2 + 1, s**3 - 2 * s**2 + s, -2 * s**3 + 3 * s**2, s**3 - s**2
-    return np.concatenate([h00 * p0 + h10 * m0 + h01 * p1 + h11 * m1, pts[-1:]])
-
-
 def _inside(inner, outer) -> bool:
     if outer is None:
         return False
@@ -592,7 +504,6 @@ def trace_streamlines(elements: Sequence[FlowElement], xlim, ylim, density: floa
     if f.domain is None:
         return StreamlineSet(separation=d)
     return f.result(arrow_density, (x0 + 0.5 * d, y0 + 0.5 * d, x1 - x0 - d, y1 - y0 - d))
-
 
 
 def _columns(traj) -> list[np.ndarray]:

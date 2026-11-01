@@ -1,7 +1,7 @@
 """
 streamline_layer.py — the streamlines with their direction arrows, computed in the background.
 
-Streamlines come from a StreamlineCache (physics/streamlines.py): lines already computed never move,
+Streamlines come from a StreamlineCache (physics/streamlines/): lines already computed never move,
 a margin around the view is computed in advance (panning shows lines that are already there), and
 zooming changes the line spacing in steps of 2.
 

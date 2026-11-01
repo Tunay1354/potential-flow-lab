@@ -361,6 +361,9 @@ GUI / Qt
   The assignment text and his notes are in the session's scratchpad `reference/` only (not in the repo; the
   book PDF must not go in). Dead code removed: scene_is_valid, element_from_dict / from_dict, with_defaults,
   ImageSystem.levels. User guide now states the wall / sector-flow interaction rules (the assignment asks for it).
+  Package 3 done (engine): disabled COARSE_LEVELS feature + test-only fade_pieces removed; output checked bit for
+  bit before / after on 186 pictures (scratchpad check/engine_snapshot.py + engine_compare.py: use them again for
+  any engine change; keep a copy of the old source with `git archive` and SRC=… instead of git stash).
 - **Next**: his Windows check of 20.7H (fast zoom in / out to the limits with GPU on, wheel at the limit, Fit), of 20.7D–F, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
   remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
 - Then, in this order (all planned, "as if time were unlimited"):

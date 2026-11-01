@@ -9,34 +9,13 @@ from .. import kernel
 from .common import FADE_LEVELS, TAPER_RATIO
 
 
-# ---------------------------------------------------------------------- fading ends (for drawing)
-def fade_pieces(lines: list[np.ndarray], tapers: list[tuple[bool, bool]], d: float,
-                levels: int = FADE_LEVELS) -> list[np.ndarray]:
-    """Cut the lines into pieces for drawing with fading ends.
-
-    Returns `levels + 1` arrays of (x, y) points, pieces separated by a NaN row:
-      [0]      the full-opacity part of every line,
-      [k ≥ 1]  the k-th step of the fading ends (counted from the full part outwards);
-               draw it with opacity (levels + 1 − k) / (levels + 1).
-    A cut end (taper flag True) fades over TAPER_RATIO·d (at most half of a line); other ends,
-    e.g. at the view border, a wall or a singular point, stay fully opaque."""
-    gap = np.array([[np.nan, np.nan]])
-    out = []
-    for parts in fade_piece_lists(lines, tapers, d, levels):
-        out.append(np.vstack([x for p in parts for x in (p, gap)]) if parts else np.zeros((0, 2)))
-    return out
-
-
-def fade_piece_lists(lines: list[np.ndarray], tapers: list[tuple[bool, bool]], d: float,
-                     levels: int = FADE_LEVELS) -> list[list[np.ndarray]]:
-    """Like fade_pieces, but every opacity level is a list of separate (N, 2) pieces."""
-    return [parts for parts, _boxes in fade_piece_boxes(lines, tapers, d, levels)]
-
-
 def fade_piece_boxes(lines: list[np.ndarray], tapers: list[tuple[bool, bool]], d: float,
                      levels: int = FADE_LEVELS) -> list[tuple[list[np.ndarray], np.ndarray]]:
-    """Per opacity level: (pieces, their bounding boxes (n, 4) = x0, x1, y0, y1) — for drawing only
-    what is near the view."""
+    """The lines cut into pieces for drawing with fading ends: per opacity level (levels + 1 of them)
+    (pieces, their bounding boxes (n, 4) = x0, x1, y0, y1). Level 0 is the full-opacity part of every line,
+    level k ≥ 1 the k-th step of the fading ends (drawn with opacity (levels + 1 − k) / (levels + 1)).
+    A cut end (taper flag True) fades over TAPER_RATIO·d (at most half of a line); other ends, e.g. at the
+    view border, a wall or a singular point, stay fully opaque."""
     if kernel.HAVE_NUMBA and lines:
         xy = np.ascontiguousarray(np.concatenate(lines), dtype=float).reshape(-1, 2)
         offs = np.concatenate([[0], np.cumsum([len(ln) for ln in lines])]).astype(np.int64)

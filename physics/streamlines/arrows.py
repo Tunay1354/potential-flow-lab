@@ -11,7 +11,6 @@ from .. import kernel
 from .common import ARROW_SPACING_RATIO, TAPER_RATIO
 
 
-# ---------------------------------------------------------------------- arrows
 def _place_arrows(lines: list[np.ndarray], tapers: list[tuple[bool, bool]], d: float,
                   arrow_density: float, box) -> list[tuple[float, float, float]]:
     """Direction arrows spread evenly over the PICTURE (not a fixed number per line).

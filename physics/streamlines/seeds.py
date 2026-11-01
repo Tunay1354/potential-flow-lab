@@ -13,7 +13,6 @@ from ..field import complex_velocity, fluid_mask
 from .common import _c128
 
 
-# ---------------------------------------------------------------------- seeds
 def _neighbour_seeds(seg: np.ndarray, d: float) -> list[complex]:
     """Points at distance d on both sides of a line, every d along it (alternating sides)."""
     if kernel.HAVE_NUMBA:

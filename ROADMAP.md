@@ -785,6 +785,15 @@ bırakıldı (kullanıcı kararı).
       elementlerle ilişkisi. Ölü kod silindi: `scene_is_valid`, `element_from_dict` / `from_dict`, `with_defaults`,
       `ImageSystem.levels`, kullanılmayan import; testler programın gerçek yolunu kullanıyor (sahne dosyası kaydet →
       aç) ve sınıf varsayılanlarının PARAMS varsayılanlarıyla aynı olduğunu da kontrol ediyor.
+    - ✅ **21.3 Hesap motoru** (1 Kasım; `kernel, warmup, parallel, streamlines/*`, satır satır): 26 Ekim'den beri
+      kapalı duran "kaba seviyenin çizgilerini ince seviyede tutma" özelliği (`COARSE_LEVELS`, `set_base`,
+      `_yield_to_fresh_base`, `_refine`, ~110 satır, kaynaklı sahnelerde boşluk bıraktığı için hiç açılmadı) ve sadece
+      testlerin kullandığı `fade_pieces` / `fade_piece_lists` silindi; `streamlines/__init__` sadece kullanılan şeyleri
+      dışarı veriyor; eski dosya adlarına atıflar, Numba önbelleğinin yeri (exe'de %LOCALAPPDATA%\numba) açıklamada.
+      Kontrol: değişiklikten önce / sonra 21 preset + 12 rastgele sahne × 5 görünüm (kaydırma, yakın, uzak, çok yakın)
+      = 186 görüntüde çizgiler, uç solmaları, oklar, stagnation point'ler, dividing streamline'lar **birebir aynı**
+      (tek çekirdek, 3 çekirdek; Numba'sız yol 42 görüntüde aynı). Süre aynı (~25–29 s, ölçüm farkı içinde).
+      Hızlandırma fırsatı aranmadı / gerek görülmedi: motor derlenmiş ve çok çekirdekli.
 22. ☐ **Görsel ve metin son kontrolü** (kullanıcı ile): programdaki tüm yazılar (menüler, paneller, dialog'lar,
     tooltip'ler, uyarı mesajları, lejantlar, durum çubuğu) tek bir listede + ekran görüntüsü galerisi; kullanıcı
     beğenmediklerini işaretler / yenisini yazar, ben değiştiririm. Açık kararlar burada: dividing streamline

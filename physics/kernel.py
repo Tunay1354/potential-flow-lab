@@ -1,7 +1,7 @@
 """
 kernel.py — compiled (Numba) velocity field and streamline integrator.
 
-The NumPy code in field.py / streamlines.py works on whole arrays; for tracing streamlines that
+The NumPy code in field.py / streamlines/ works on whole arrays; for tracing streamlines that
 means thousands of small NumPy calls, which is slow and keeps Python's global interpreter lock
 (GIL) busy, so the window stutters while a background thread computes. Here the same mathematics
 is compiled to machine code with Numba:
@@ -14,11 +14,12 @@ is compiled to machine code with Numba:
     (RK4 on the unit direction field, same stop conditions), and releases the GIL (nogil).
 
 If Numba is not installed, or a scene contains an element without kernel terms, `compile_scene`
-returns None and streamlines.py uses its NumPy path. Set the environment variable
-PFL_NO_NUMBA=1 to force the NumPy path (for comparison).
+returns None and streamlines/ uses its NumPy path. Set the environment variable PFL_NO_NUMBA=1 to
+force the NumPy path (for comparison).
 
-The first call compiles the functions (a few seconds); the machine code is cached on disk
-(__pycache__), so later starts are fast.
+The first start compiles the functions (the loading screen, physics/warmup.py); the machine code is cached
+on disk — next to the source in __pycache__, in the exe in the user's cache folder (Windows:
+%LOCALAPPDATA%\numba) — so later starts only load it.
 """
 from __future__ import annotations
 
@@ -287,7 +288,7 @@ def trace_batch(seeds, sign, F, R, W, sing, r_sing, h, n_max, v_min, max_turn_co
 
     Returns pts (all points of all lines, one after the other), offsets (B + 1: line j is
     pts[offsets[j]:offsets[j + 1]], starting with its seed), closed, near_end, left_box (B,).
-    Stop rules (identical to the NumPy tracer in streamlines.py):
+    Stop rules (identical to the NumPy tracer, streamlines/level.py):
       the step is NOT taken when the new point is not finite / not in the fluid / closer than
       r_sing to a singular point / slower than v_min / turns more than allowed / makes no progress /
       crosses a plate, or lies in a cell of another line (then near_end = True);
@@ -371,7 +372,7 @@ def _grown(a, n):
 # ---------------------------------------------------------------------- Jobard–Lefer bookkeeping
 # Rasters over the computed region (cell size d/4): "is there a line within radius r?". A bool raster
 # for the seed test; an owner raster (2, ny, nx) of line ids for the stop test (see _OwnerRaster in
-# streamlines.py, which falls back to the same operations in NumPy when Numba is missing).
+# streamlines/rasters.py, which falls back to the same operations in NumPy when Numba is missing).
 @njit(**QUICK)
 def _cell_index(v, origin, c, n):
     """Cell of coordinate v, clipped to 0 … n − 1 (like int() + clip in NumPy; not finite -> 0)."""
@@ -448,7 +449,7 @@ def owner_stamp(a, z, radius, owner, x0, y0, c):
 
 @njit(**QUICK)
 def neighbour_seeds(seg, d):
-    """Points at distance d on both sides of a line, every d along it (see streamlines.py)."""
+    """Points at distance d on both sides of a line, every d along it (see streamlines/seeds.py)."""
     m = seg.size
     s = np.empty(m, np.float64)
     s[0] = 0.0
@@ -554,7 +555,7 @@ def _interp(x, s, f, lo, hi):
 @njit(**QUICK)
 def fade_cut(xy, offs, cut0, cut1, d, levels, taper_ratio):
     """Lines (points xy, line i = xy[offs[i]:offs[i + 1]]) cut into pieces for drawing with fading ends
-    (see streamlines.fade_piece_lists). Returns the points of all pieces (one after the other),
+    (see streamlines/drawing.py). Returns the points of all pieces (one after the other),
     offsets (pieces + 1), the opacity level of every piece and its bounding box (x0, x1, y0, y1)."""
     nl = offs.size - 1
     P = nl * (1 + 2 * levels)
@@ -766,7 +767,6 @@ def label_regions(free):
                 continue
             n += 1
             labels[j0, i0] = n
-            top = 0
             stack[0] = j0 * cols + i0
             top = 1
             while top > 0:

@@ -3,11 +3,10 @@ common.py — the parameters of the streamline engine and the data it hands out 
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import itertools
+from dataclasses import dataclass, field
 
 import numpy as np
-
 
 BASE_LINES_ACROSS = 26          # ~ number of line spacings across the view at density 1
 STOP_RATIO = 0.4                # a line stops at STOP_RATIO·d from another line
@@ -57,7 +56,6 @@ class _Line:
     @property
     def taper(self) -> tuple[bool, bool]:
         return self.start == "near", self.end == "near"
-
 
 
 def _c128(z) -> np.ndarray:

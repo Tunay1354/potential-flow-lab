@@ -20,8 +20,7 @@ with a disk of radius STOP_RATIO·d (stop test) and SEED_RATIO·d (seed test).
 Interactive use (the plot): StreamlineField keeps its lines. When the visible region grows
 (pan / zoom out) the old lines stay exactly where they are: lines that ended at the old region border
 are continued, and only the new area gets new seeds. StreamlineCache keeps one field per spacing
-level d = 2^−L (the level changes only after a clear zoom). Optionally a finer level can start from
-the lines of the coarser one (COARSE_LEVELS).
+level d = 2^−L (the level changes only after a clear zoom).
 
 The velocity always comes from the analytic superposition, never from a picture, so the streamlines
 are exact up to the integration error.
@@ -32,16 +31,10 @@ are exact up to the integration error.
     seeds.py    where lines start          rasters.py  distance to the lines drawn so far
     arrows.py   direction arrows           drawing.py  fading line ends for the plot
 """
-from .arrows import _place_arrows
 from .cache import StreamlineCache
-from .common import (ARROW_SPACING_RATIO, BASE_LINES_ACROSS, FADE_LEVELS, MIN_LENGTH_RATIO, SEED_RATIO,
-                     STOP_RATIO, TAPER_RATIO, Cancelled, StreamlineSet)
-from .drawing import fade_piece_boxes, fade_piece_lists, fade_pieces
+from .common import FADE_LEVELS, STOP_RATIO, TAPER_RATIO, Cancelled, StreamlineSet
+from .drawing import fade_piece_boxes
 from .level import StreamlineField, trace_streamlines, view_spacing
-from .rasters import _OwnerRaster, _Raster
-from .seeds import _neighbour_seeds
 
 __all__ = ["StreamlineSet", "StreamlineField", "StreamlineCache", "Cancelled", "trace_streamlines", "view_spacing",
-           "fade_pieces", "fade_piece_lists", "fade_piece_boxes", "STOP_RATIO", "SEED_RATIO", "TAPER_RATIO",
-           "FADE_LEVELS", "MIN_LENGTH_RATIO", "ARROW_SPACING_RATIO", "BASE_LINES_ACROSS",
-           "_Raster", "_OwnerRaster", "_neighbour_seeds", "_place_arrows"]
+           "fade_piece_boxes", "FADE_LEVELS", "STOP_RATIO", "TAPER_RATIO"]

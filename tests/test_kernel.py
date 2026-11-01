@@ -93,7 +93,7 @@ def _numpy_path(monkeypatch):
 
 
 def test_compiled_rasters_equal_the_numpy_ones(monkeypatch):
-    from physics.streamlines import _OwnerRaster, _Raster
+    from physics.streamlines.rasters import _OwnerRaster, _Raster
     rng = np.random.default_rng(3)
     pts = rng.uniform(-1, 5, 400) + 1j * rng.uniform(-1, 4, 400)
     rasters = []
@@ -109,7 +109,8 @@ def test_compiled_rasters_equal_the_numpy_ones(monkeypatch):
 
 
 def test_compiled_neighbour_seeds_and_arrows_equal_the_numpy_ones(monkeypatch):
-    from physics.streamlines import _neighbour_seeds, _place_arrows
+    from physics.streamlines.arrows import _place_arrows
+    from physics.streamlines.seeds import _neighbour_seeds
     els, view = SCENES["lifting cylinder"]
     s = trace_streamlines(els, *view)
     seg = s.lines[3][:, 0] + 1j * s.lines[3][:, 1]

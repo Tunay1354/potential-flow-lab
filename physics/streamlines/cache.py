@@ -21,18 +21,12 @@ class StreamlineCache:
 
     * Line spacing comes in levels d = 2^−L. The level follows the zoom with some hysteresis, so a
       small zoom does not change the picture; within a level the lines never move.
-    * Optionally (COARSE_LEVELS > 0) a level starts from all lines of the next coarser level and fills
-      the gaps (multi-level Jobard–Lefer), so when the level changes, half of the lines stay.
     * update(view) fills the visible region first, then a margin around it (overscan), so panning
       shows lines that already exist.
     """
     LEVEL_HYSTERESIS = 0.65            # change level when the ideal level is this far away (in levels)
     OVERSCAN = 0.5                     # margin computed around the view, as a fraction of its size
     TRIGGER = 0.15                     # ... computed again when less than this margin is left
-    # How many coarser levels a level is built from (0 = every level on its own). With > 0 zooming
-    # in keeps the coarser lines in place, but those lines end where the COARSER spacing makes them
-    # end, which leaves gaps in spreading flows (e.g. around a source) -> off for now.
-    COARSE_LEVELS = 0
     MAX_DOMAIN_FACTOR = 40.0           # start again when a level grew this much larger than the view
     FEATURES_ZOOM = 2.5                # stagnation points searched again after zooming in this much
 
@@ -99,7 +93,7 @@ class StreamlineCache:
             f = self.fields.get(L)
             if f is not None and f.contains(region):
                 continue
-            self._extend(L, region, 0, cancelled)
+            self._extend(L, region, cancelled)
             changed = True
             if region is visible and progress is not None:
                 progress(self._with_features(self.fields[L].result(arrow_density)))
@@ -161,12 +155,8 @@ class StreamlineCache:
         for f in self.fields.values():                   # fields that exist get the new ones too
             f.special_seeds = _merge_seeds(f.special_seeds, self._seeds, 0.25 * f.d)
 
-    def _extend(self, L, region, depth, cancelled):
+    def _extend(self, L, region, cancelled):
         d = 2.0 ** -L
-        x0, x1, y0, y1 = region
-        use_coarse = depth < self.COARSE_LEVELS and 2.0 * d < max(x1 - x0, y1 - y0) / 6.0
-        if use_coarse:
-            self._extend(L - 1, region, depth + 1, cancelled)
         f = self.fields.get(L)
         if f is None:
             # each level finds its own "too slow = stagnation point" speed from its first region: a speed
@@ -174,8 +164,6 @@ class StreamlineCache:
             # out (speed ∝ 1/r fell below the threshold of the first, small view; his report of 31 Oct)
             f = self.fields[L] = StreamlineField(self.elements, d, None, self.use_kernel)
             f.special_seeds = getattr(self, "_seeds", np.zeros(0, complex)).copy()
-        if use_coarse and (L - 1) in self.fields:
-            f.set_base(self.fields[L - 1].all_lines)
         f.extend(region, cancelled=cancelled)
         self.v_min = f.v_min                        # (of the level in use: for readers of the cache)
 
