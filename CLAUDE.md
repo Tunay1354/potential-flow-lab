@@ -172,6 +172,11 @@ GUI / Qt
   Test GL things also with QT_SCALE_FACTOR=1.25 on Xvfb.
 - **Thick lines far zoomed in with the GPU**: Qt's GL paint engine limits the inverse scale of cosmetic pens (> ~1e4 px per item unit) → items keep view-sized local coordinates (`ScaledCurve`, `PaperGridItem`). Any new line item on the plot: use ScaledCurve, not pg.PlotCurveItem.
 - **Lines cut off far zoomed out**: one stagnation-speed threshold for all cache levels → per level.
+- **Fans at full speed / no lines at far zoom (1 Nov)**: probes round stagnation points traced with a tiny step across
+  3× a huge view (18–66 s) → `_probe_region`; far in, Solid bodies traced across the whole body box with the view's
+  step and sampled 11 M barrier points in the GUI thread → `_trace_staged`, `_clip_segments`. Wheel at a zoom limit slid
+  the view (pyqtgraph cuts round the asked range's middle) → own clamp in `PlotViewBox.scaleBy`. Old-level jobs
+  were never cancelled → level-based cancel in `StreamlineLayer`.
 - Particle trails stayed on an empty page (last steps redrawn every frame) → no step without flow + clear.
 - **Exceptions in Qt slots / paint events** go to `sys.excepthook` → `app/errors.py` logs them and shows one
   window per distinct error (no floods). Background threads (QThreadPool) never touch widgets; results and
@@ -326,7 +331,14 @@ GUI / Qt
   `canvas.ZOOM_RANGE` = 1e4 × Fit size (`update_zoom_limits`, `setLimits`; program-set views widen them),
   `zoom_limit` signal once per arrival → `_zoom_limit` flash + beaver `zoom_limit_in/out` (REMARK_CHANCE 0.5);
   (4) `panels.ViewSpinBox` (±1e12, decimals from the view width, 1.5e-05 form). Tests: `tests/test_zoom.py`.
-- **Next**: his Windows check of 20.7D–F, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
+- **1 Nov, 20.7H (zoom: fans / no lines / slide at the limit / slow Fit)** — continued by the first account again. Four
+  causes, see ROADMAP 20.7H and §7. Rules from it: (1) probe lines (`trace_origin` etc.) are traced with their own
+  small step — never across a box that grows with the view: `_probe_region` caps it far out, `_trace_staged` stages it
+  far in (single stage = old behaviour in normal views); (2) `PlotViewBox.scaleBy` clamps zoom to the limits itself;
+  (3) the streamline job is cancelled when the newest view needs another spacing level; (4) `draw_barriers` samples
+  only inside the grid. Measure with a fast-wheel script (offscreen MainWindow, `vb.wheelEvent` with a fake event,
+  `--all` layers) — not only the physics functions: the Solid bodies / field layers run in the GUI thread.
+- **Next**: his Windows check of 20.7H (fast zoom in / out to the limits with GPU on, wheel at the limit, Fit), of 20.7D–F, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
   remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
 - Then, in this order (all planned, "as if time were unlimited"):
   21 code cleanup without behaviour change (dead / duplicate code, names, docstrings, pyflakes, long files) →

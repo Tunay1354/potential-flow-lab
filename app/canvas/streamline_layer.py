@@ -82,6 +82,8 @@ class StreamlineLayer(PlotLayer):
         self._first_job = True                    # the very first job may compile the kernel
         self._preview_wanted = False              # live drag: a newer element position waits
         self._preview_shown = False               # live drag: the drawn lines belong to the dragged scene
+        self._job_level = None                    # spacing level of the running job (None: no job)
+        self._wanted_level = None                 # spacing level the newest view needs
         self.preview_ms = []                      # computation time of every preview drawn (measurements)
         self._pool = QThreadPool(plot)            # Qt objects owned by the plot widget (deleted with it)
         self._pool.setMaxThreadCount(1)
@@ -172,7 +174,9 @@ class StreamlineLayer(PlotLayer):
             return
         if self.busy:
             self.pending = True                   # computed when the running job is finished
-            return
+            if self._job_level is not None:       # (zoomed on to another spacing level: the running job
+                self._wanted_level = self.cache._choose_level(self.canvas.view(), self._job_level)
+            return                                #  is given up, see _start_job)
         self._start_job()
 
     def _start_job(self):
@@ -183,9 +187,12 @@ class StreamlineLayer(PlotLayer):
         gen, cache, view = self.generation, self.cache, self.canvas.view()
         arrows = self._arrow_density()
         force, self._force = self._force, False
+        level = self._job_level = self._wanted_level = cache._choose_level(view, cache.level)
 
         def cancelled():
-            return gen != self.generation
+            # a newer scene, or the view has gone on to another spacing level meanwhile (a fast wheel
+            # zoom): lines of a level nobody looks at any more would only delay the ones of the newest view
+            return gen != self.generation or (self.pending and self._wanted_level != level)
 
         def work():
             t0 = time.perf_counter()
@@ -211,6 +218,7 @@ class StreamlineLayer(PlotLayer):
 
     def _on_result(self, gen, payload, ms):
         self.busy = False
+        self._job_level = None
         current = gen == self.generation
         if current and isinstance(payload, tuple) and payload[0] is not None:
             self._draw(*payload, ms)

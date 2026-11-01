@@ -85,11 +85,12 @@ class StreamlineField:
         """Fill `region` = (x0, x1, y0, y1) with lines. Returns False if it was filled already."""
         if self.contains(region) and not len(seeds):
             return False
-        old_domain = self.domain
+        old_domain, old_special = self.domain, self.special_seeds
         try:
             return self._extend(region, seeds, cancelled)
         except Cancelled:
             self.domain = old_domain          # the new area is not complete: fill it again next time
+            self.special_seeds = old_special  # (with its first seeds: those already used are refused then)
             raise
 
     def _extend(self, region, seeds, cancelled) -> bool:

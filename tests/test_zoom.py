@@ -54,6 +54,165 @@ def test_wheel_stops_at_the_zoom_limits_and_says_so(win, qapp):  # noqa: F811
     assert widths(w)[0] == pytest.approx(first[0], rel=0.02)
 
 
+def test_wheel_at_a_limit_does_not_move_the_view(win, qapp):  # noqa: F811
+    """His report of 1 Nov: turning the wheel on at a limit slid the view sideways (pyqtgraph cut the range round
+    the middle of the asked one, which lies towards the mouse) and every notch started a new computation."""
+    from physics.elements import Doublet, Uniform
+    w = win
+    w.model.reset([Uniform(), Doublet(mu=1.0)])
+    w.canvas.fit_view()
+    qapp.processEvents()
+    for delta in (240, -240):
+        wheel(qapp, w, 200, delta)                                    # to the limit (and well past it)
+        before = w.canvas.view()
+        changes = []
+        w.canvas.view_changed.connect(lambda *a: changes.append(a))
+        wheel(qapp, w, 40, delta)
+        w.canvas.view_changed.disconnect()
+        after = w.canvas.view()
+        assert after == before                                        # not a hair: no new view, no computation
+        assert changes == []
+        wheel(qapp, w, 1, -delta)                                     # the other way it zooms as usual
+        assert widths(w)[0] != pytest.approx(after[0][1] - after[0][0], rel=1e-3)
+
+
+def test_zoom_reaches_the_limit_exactly_about_the_mouse(win, qapp):  # noqa: F811
+    """A notch that would pass the limit is cut so the view ends exactly at the limit, zoomed about the mouse."""
+    from physics.elements import Uniform
+    w = win
+    w.model.reset([Uniform()])
+    w.canvas.fit_view()
+    qapp.processEvents()
+    vb = w.canvas.vb
+    lo = w.canvas._limits[0]
+    (x0, x1), (y0, y1) = w.canvas.view()
+    centre = (x0 + 0.3 * (x1 - x0), y0 + 0.6 * (y1 - y0))
+    vb.scaleBy((1e-9, 1e-9), centre)                                  # far past the limit in one step
+    (a0, a1), (b0, b1) = w.canvas.view()
+    assert min(a1 - a0, b1 - b0) == pytest.approx(lo, rel=1e-6)
+    # the point under the mouse stayed where it was (same place in the view, as a fraction)
+    assert (centre[0] - a0) / (a1 - a0) == pytest.approx(0.3, abs=0.02)
+    assert (centre[1] - b0) / (b1 - b0) == pytest.approx(0.6, abs=0.02)
+
+
+def test_far_views_find_stagnation_points_quickly():
+    """Zoomed far out, the probes round the stagnation points were traced across a box 3× the view with their own
+    small step: 18–66 s for one view of the lifting cylinder (his fans at full speed). Now a region at most
+    PROBE_REGION_SCENES × the scene; the same points as in a normal view."""
+    import time
+
+    from physics.elements import Doublet, Uniform, Vortex
+    from physics.stagnation import find_stagnation_points
+    els = [Uniform(V=1.0), Doublet(mu=2 * np.pi), Vortex(Gamma=-6.0)]           # lifting cylinder, a = 1
+    near = find_stagnation_points(els, (-3, 3, -2, 2))
+    t = time.perf_counter()
+    far = find_stagnation_points(els, (-12000, 12000, -8000, 8000))
+    assert time.perf_counter() - t < 8.0                                         # (was 18 s on this server)
+    assert sorted((round(p.x, 6), round(p.y, 6), p.kind) for p in far) == \
+        sorted((round(p.x, 6), round(p.y, 6), p.kind) for p in near)
+
+
+def test_probe_region_only_for_views_far_larger_than_the_scene():
+    from physics.elements import Doublet, Uniform
+    from physics.stagnation import PROBE_REGION_SCENES, _probe_region
+    els = [Uniform(), Doublet(mu=1.0, x0=2.0, y0=1.0)]
+    normal = (-5.0, 5.0, -3.0, 3.0)
+    assert _probe_region(els, [], normal) == normal
+    far = _probe_region(els, [], (-1e5, 1e5, -7e4, 7e4))
+    assert far[1] - far[0] < 1e5 and far[0] < 2.0 < far[1] and far[2] < 1.0 < far[3]
+    assert far[1] - far[0] <= PROBE_REGION_SCENES * 20.0
+
+
+def test_staged_tracing_gives_the_same_origins_zoomed_in():
+    """Zoomed far in, lines are traced in growing stages (each 8× the box and the step) instead of across the
+    whole far-field box with the view's tiny step: the same answers, far faster."""
+    import time
+
+    from physics import stagnation
+    from physics.elements import Doublet, Source, Uniform, Vortex
+    from physics.stagnation import trace_ends
+    rng = np.random.default_rng(3)
+    unknown = total = 0
+    for els in ([Uniform(V=1.0), Doublet(mu=2 * np.pi), Vortex(Gamma=-6.0)],
+                [Uniform(V=1.0), Source(m=3.0, x0=-1.0), Source(m=-3.0, x0=1.0)],
+                [Uniform(V=1.0, alpha=10.0), Source(m=2.0)]):
+        for c in (1.02 + 0.1j, -1.3 + 0.05j, 0.2 + 1.05j, 1.6 + 0.0j):
+            w = 2e-3
+            region = (c.real - w, c.real + w, c.imag - w, c.imag + w)
+            seeds = c + w * (rng.random(12) - 0.5 + 1j * (rng.random(12) - 0.5))
+            got = {}
+            for name, growth in (("single", 1e300), ("staged", 8.0)):
+                old = stagnation.STAGE_GROWTH
+                stagnation.STAGE_GROWTH = growth
+                try:
+                    t = time.perf_counter()
+                    got[name] = trace_ends(els, seeds, region, w, -1.0)
+                    got[name + "_s"] = time.perf_counter() - t
+                finally:
+                    stagnation.STAGE_GROWTH = old
+            # where both know the answer it is the same; a line passing a stagnation point closer than the
+            # coarser stages resolve may end there ("stopped" = unknown: it does not vote in body_map)
+            a, b = got["single"][0], got["staged"][0]
+            known = (a != stagnation.STOPPED) & (b != stagnation.STOPPED)
+            assert np.array_equal(a[known], b[known])
+            assert np.array_equal(got["single"][1][known], got["staged"][1][known])
+            unknown += int(np.count_nonzero(b == stagnation.STOPPED) - np.count_nonzero(a == stagnation.STOPPED))
+            total += a.size
+    assert unknown <= 0.05 * total
+
+
+def test_body_barriers_sample_only_inside_the_grid():
+    """Lines of the whole scene seen far zoomed in: segments thousands of cells long, sampled cell by cell —
+    11 million samples froze the window. Only the part inside the grid is sampled now; the same cells."""
+    import time
+
+    from physics.bodies import draw_barriers
+
+    def reference(lines, box, shape):            # the old way: every sample of every segment
+        x0, x1, y0, y1 = box
+        rows, cols = shape
+        out = np.zeros(shape, bool)
+        for xy in lines:
+            px, py = (xy[:, 0] - x0) * cols / (x1 - x0), (xy[:, 1] - y0) * rows / (y1 - y0)
+            seg = np.hypot(np.diff(px), np.diff(py))
+            n = np.where(np.isfinite(seg), np.ceil(seg / 0.35), 0).astype(np.int64)
+            t = np.concatenate([np.arange(k) / k for k in n if k > 0])
+            idx = np.repeat(np.arange(seg.size), n)
+            qx = np.concatenate([px[idx] + t * (px[idx + 1] - px[idx]), px[-1:]])
+            qy = np.concatenate([py[idx] + t * (py[idx + 1] - py[idx]), py[-1:]])
+            ok = np.isfinite(qx) & np.isfinite(qy)
+            i, j = np.floor(qx[ok]).astype(np.int64), np.floor(qy[ok]).astype(np.int64)
+            inside = (i >= 0) & (i < cols) & (j >= 0) & (j < rows)
+            out[j[inside], i[inside]] = True
+        return out
+
+    rng = np.random.default_rng(5)
+    for _ in range(300):
+        shape = (int(rng.integers(5, 80)), int(rng.integers(5, 100)))
+        lines = [rng.normal(0.5, 10 ** rng.uniform(-1, 1.3), size=(int(rng.integers(2, 25)), 2)) for _ in range(3)]
+        assert np.array_equal(draw_barriers(lines, (-1.0, 2.0, -0.5, 1.5), shape),
+                              reference(lines, (-1.0, 2.0, -0.5, 1.5), shape))
+    huge = [np.array([[-1e4, -6.9e3 + 0.3], [1e4, 7e3], [0.5, 0.35], [3e4, -2e4]])]
+    t = time.perf_counter()
+    cells = draw_barriers(huge, (0, 1, 0, 0.7), (280, 400))
+    assert time.perf_counter() - t < 0.5                                         # (was 8.7 s)
+    assert cells.sum() > 100
+
+
+def test_fast_zoom_gives_up_the_job_of_a_level_left_behind(win, qapp):  # noqa: F811
+    """While a job computes the lines of one spacing level, a view that needs another level cancels it (the newest
+    view is computed next instead of after the old one)."""
+    w = win
+    layer = w.canvas.streamlines
+    layer._job_level, layer._wanted_level, layer.busy = 3, None, True
+    try:
+        (x0, x1), (y0, y1) = w.canvas.view()
+        layer.request()
+        assert layer.pending and layer._wanted_level == layer.cache._choose_level(w.canvas.view(), 3)
+    finally:
+        layer.busy, layer.pending, layer._job_level = False, False, None
+
+
 def test_views_set_by_the_program_are_never_cut(win, qapp):  # noqa: F811
     from physics.elements import Uniform
     w = win

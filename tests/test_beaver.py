@@ -263,10 +263,10 @@ def test_speech_bubble_types_and_goes_away(win, qapp):
 def test_he_reacts_to_saving_and_verification(win, qapp, tmp_path):
     b = win.beaver
     run(qapp, win, 0.2)
-    b.bubble.clear()
-    b.waiting = None
     win.current_path = None
-    win.model.add(Source(m=1.0, x0=2.0))
+    win.model.add(Source(m=1.0, x0=2.0))      # (may draw a random remark: "A source! …", 35 %) …
+    b.bubble.clear()                          # … which would make "Saved!" wait: flaky before
+    b.waiting = None
     assert win._write(str(tmp_path / "s.pflow"))
     from app.beaver.lines import LINES
     assert b.bubble.text in LINES["saved"]

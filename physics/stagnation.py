@@ -348,16 +348,14 @@ def _trace_raw(els, z, region, scale, sign):
     if z.size == 0:
         return out, which, loops
     x0, x1, y0, y1 = region
-    tracer = _tracer(els, scale or max(x1 - x0, y1 - y0))
-    lines, closed, left = tracer.free_trace(z, sign, _far_field_box(region, els))
-    left, closed = np.asarray(left, bool), np.asarray(closed, bool)
+    scale = scale or max(x1 - x0, y1 - y0)
+    lines, closed, left, r_sing = _trace_staged(els, z, sign, region, scale)
     out[left] = FAR
     out[~left & closed] = LOOP
     owner = [(i, p) for i, e in enumerate(els) if e.TYPE in MASS_TYPES for p in e.singular_points()]
     if not owner:
         return out, which, loops
     mass = np.array([p for _i, p in owner], dtype=complex)
-    reach = 4.0 * tracer.r_sing                         # lines stop r_sing before a singular point
     for k in np.nonzero(~left)[0]:
         ln = lines[k]
         if closed[k]:
@@ -369,10 +367,62 @@ def _trace_raw(els, z, region, scale, sign):
         else:
             end = ln[-1] if len(ln) else z[k]
             d = np.abs(mass - end)
-            if np.min(d) < reach:
+            if np.min(d) < 4.0 * r_sing[k]:              # lines stop r_sing before a singular point
                 out[k] = BODY
                 which[k] = owner[int(np.argmin(d))][0]
     return out, which, loops
+
+
+STAGE_GROWTH = 8.0      # staged tracing: each stage's box (and step) this many times the one before
+
+
+def _trace_staged(els, z, sign, region, scale):
+    """free_trace of the points z inside the far-field box of `region` (_far_field_box): (lines, closed,
+    left, r_sing of the tracer each line ended with). Normally one trace at `scale`. Zoomed far into a
+    scene the far-field box (it holds every body: bodies_box) is thousands of view sizes wide, and a line
+    traced across it with the view's tiny step took millions of steps (the Solid bodies layer froze the
+    window for seconds at every zoom step; his report of 1 Nov). Then the lines are traced in stages: in 3×
+    the region at `scale`, those that leave it go on from where they left in a box STAGE_GROWTH× larger
+    with a STAGE_GROWTH× larger step, and so on until the far-field box. A closed line is the loop of the
+    stage it closed in (it came back to where that stage began)."""
+    x0, x1, y0, y1 = region
+    L = max(x1 - x0, y1 - y0)
+    far = _far_field_box(region, els)
+    box = (x0 - L, x1 + L, y0 - L, y1 + L)
+    n = z.size
+    lines = [np.zeros(0, complex) for _ in range(n)]
+    closed = np.zeros(n, bool)
+    left = np.zeros(n, bool)
+    r_sing = np.zeros(n)
+    todo, starts, s = np.arange(n), z.copy(), scale
+    v_min = None
+    while True:
+        last = _box_size(far) <= STAGE_GROWTH * _box_size(box) * (1.0 + 1e-12)
+        if last:
+            box = far
+        tracer = _tracer(els, s)
+        if v_min is None:                  # "too slow = stopped" as for one trace across the far-field box
+            from .streamlines.level import _stagnation_speed
+            v_min = _stagnation_speed(tracer.els, tracer.flows, far) or 0.0
+        tracer.v_min = v_min
+        got, shut, out = tracer.free_trace(starts, sign, box)
+        shut, out = np.asarray(shut, bool), np.asarray(out, bool)
+        for j, k in enumerate(todo):
+            lines[k] = got[j] if shut[j] else np.concatenate([lines[k], got[j]])
+            closed[k], r_sing[k] = shut[j], tracer.r_sing
+        go_on = out & ~shut
+        if last or not go_on.any():
+            left[todo[go_on]] = True
+            return lines, closed, left, r_sing
+        starts = np.array([got[j][-1] if len(got[j]) else starts[j] for j in np.nonzero(go_on)[0]], complex)
+        todo = todo[go_on]
+        cx, cy, h = 0.5 * (box[0] + box[1]), 0.5 * (box[2] + box[3]), 0.5 * STAGE_GROWTH * _box_size(box)
+        box = (max(cx - h, far[0]), min(cx + h, far[1]), max(cy - h, far[2]), min(cy + h, far[3]))
+        s *= STAGE_GROWTH
+
+
+def _box_size(b):
+    return max(b[1] - b[0], b[3] - b[2])
 
 
 # ---------------------------------------------------------------------- the flow at a singular point
@@ -558,9 +608,32 @@ def _probe_scale(r, L):
     return min(L, 20.0 * r)
 
 
+PROBE_REGION_SCENES = 20.0      # probes: a region at most this many times the scene's own size
+
+
+def _probe_region(els, points, region):
+    """The region whose far-field box (3× it) decides "from the free stream" for probe lines. Normally the
+    view's region; zoomed far out (the view ≫ the scene: its singular points, stagnation points and body
+    boxes) a square PROBE_REGION_SCENES × the scene's size round it — the same answer as a view of that
+    size, but the probes are traced with their own small step, and across a box 3× a view 10³–10⁴× the
+    scene they took millions of steps (his report of 1 Nov: fans at full speed, no lines for a minute)."""
+    zs = [complex(s) for s in singular_points(els)] + [complex(getattr(p, "z", p)) for p in points]
+    if not zs:
+        return region
+    xs, ys = [z.real for z in zs], [z.imag for z in zs]
+    box = _union((min(xs), max(xs), min(ys), max(ys)), bodies_box(els))
+    size = max(box[1] - box[0], box[3] - box[2])
+    x0, x1, y0, y1 = region
+    if not size > 0 or max(x1 - x0, y1 - y0) <= PROBE_REGION_SCENES * size:
+        return region
+    cx, cy, h = 0.5 * (box[0] + box[1]), 0.5 * (box[2] + box[3]), 0.5 * PROBE_REGION_SCENES * size
+    return (cx - h, cx + h, cy - h, cy + h)
+
+
 def _classify_bodies(els, points, region, L):
     sing = [complex(s) for s in singular_points(els)]
     zs = [p.z for p in points]
+    region = _probe_region(els, zs, region)
     out = []
     for p in points:
         if p.kind == "vertex":
@@ -699,6 +772,7 @@ def flow_features(elements, region, dividing: bool = True, scale: float | None =
     has_stream = has_free_stream(els)
     tracer = _tracer(els, L)
     box = (x0, x1, y0, y1)
+    probe_region = _probe_region(els, zs, region)
     for k, p in enumerate(points):
         r = _probe_radius(p.z, zs, sing, L)
         starts, signs = [], []
@@ -719,7 +793,7 @@ def flow_features(elements, region, dividing: bool = True, scale: float | None =
             # one side and is kept.
             u = (starts - p.z) / r
             probes = np.concatenate([starts, starts + 0.3 * r * 1j * u, starts - 0.3 * r * 1j * u])
-            origin = trace_origin(els, probes, region, _probe_scale(r, L)).reshape(3, -1)
+            origin = trace_origin(els, probes, probe_region, _probe_scale(r, L)).reshape(3, -1)
             keep = ((origin == FAR) | (origin == LOOP) | (origin == OPEN)).any(axis=0)
         else:
             keep = np.ones(starts.size, bool)

@@ -49,6 +49,30 @@ class PlotViewBox(pg.ViewBox):
             return
         super().mouseDragEvent(ev, axis)
 
+    def scaleBy(self, s=None, center=None, x=None, y=None):
+        """Zoom (wheel, right-drag) about `center`, but never past the zoom limits: the factor is cut so
+        the view reaches the limit exactly, and at the limit a further notch does nothing. (pyqtgraph cut
+        the range itself round the middle of the asked range — which lies towards the mouse — so every
+        notch at a limit moved the view sideways and started a new computation; his report of 1 Nov.)"""
+        if s is not None:
+            x, y = s[0], s[1]
+        k = y if y is not None else x
+        if k is None or not np.isfinite(k) or k <= 0:
+            return
+        (x0, x1), (y0, y1) = self.viewRange()
+        widths = [w for w in (x1 - x0, y1 - y0) if np.isfinite(w) and w > 0]
+        (lo_x, hi_x), (lo_y, hi_y) = self.state["limits"]["xRange"], self.state["limits"]["yRange"]
+        lo = max([v for v in (lo_x, lo_y) if v is not None] or [0.0])
+        hi = min([v for v in (hi_x, hi_y) if v is not None] or [np.inf])
+        if widths:
+            k_min = max(lo / w for w in widths) * (1.0 + 1e-9)      # (a hair inside: no cut by pyqtgraph)
+            k_max = min(hi / w for w in widths) * (1.0 - 1e-9)
+            if k_min <= k_max:
+                k = min(max(k, k_min), k_max)
+                if abs(k - 1.0) < 1e-6:
+                    return                                          # at the limit: nothing to do
+        super().scaleBy(None, center, x=k, y=k)
+
 
 class PlotInteraction(QObject):
     """Mouse modes, Move-mode dragging and palette drops of one PlotCanvas."""

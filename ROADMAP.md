@@ -720,6 +720,42 @@ bırakıldı (kullanıcı kararı).
         (binde biri görünür, 2–8), çok büyük / küçükte `1.5e-05` biçimi, yazarken de (virgül de olur)
         (`panels.ViewSpinBox`). Testler: `tests/test_zoom.py` (10 test).
       - Full test sırasında bulunan eski bir hata: Newton'un bir başlangıç noktası tam bir vortex'in merkezine düşünce (merkeze simetrik görünüm) derlenmiş kernel sıfıra bölüyordu → tekil noktadaki başlangıç noktası atlanır (`kernel._at_singularity`; test: `test_stagnation`).
+    - ✅ **20.7H Uzak / yakın zoom'da fanlar, çizilmeyen çizgiler, sınırda kayma, Fit** (1 Kasım, kullanıcının
+      raporu: hızlı zoom'da sınıra gelince fanlar çalışıyor, çizgiler çok geç geliyor; GPU'da daha kötü; sınırda
+      tekerlek ekranı kaydırıyor; sınırdan Fit'e basınca yine yavaş). Ölçüm (`lifting cylinder`, hızlı tekerlek,
+      bu 2 çekirdekli sunucu) dört ayrı kök neden gösterdi:
+      - **Kök neden 1 — uzak zoom'da tek hesap 18–66 s**: stagnation point'in cisim içinde mi olduğunu anlamak için
+        etrafına atılan test çizgileri kendi küçük adımıyla, görünümün 3 katı kutuda (8 000 genişlikte 24 000)
+        izleniyordu → milyonlarca adım. Artık bu kutu görünüm sahneden çok büyükse sahnenin (tekil noktalar,
+        stagnation point'ler, cisim kutuları) 20 katıyla sınırlı (`stagnation._probe_region`,
+        `PROBE_REGION_SCENES`); normal görünümlerde hiçbir şey değişmiyor. 8 000 genişlik 18.2 → 0.5 s, 20 000
+        23.5 → 0.5 s. Tüm preset'lerde 15 zoom adımı dışa / içe: en kötü tek hesap 1.6 s (önce 66 s).
+      - **Kök neden 2 — sınırda kayma**: sınırdayken tekerlek hâlâ zoom istiyordu; pyqtgraph aralığı istenen
+        aralığın ortasına göre (fareye doğru kaymış) kesiyordu → her tık görünümü yana itip yeni hesap başlatıyordu.
+        `PlotViewBox.scaleBy` artık katsayıyı sınıra tam varacak kadar kesiyor (farenin altındaki nokta yerinde),
+        sınırda bir tık hiçbir şey yapmıyor. 30 fazla tık: kayma 1.25 görünüm → 0, hesap 27 → 0.
+      - **Kök neden 3 — hızlı zoom'da geç çizgiler**: arka plandaki hesap sadece sahne değişince iptal oluyordu;
+        artık bakılmayan bir aralık seviyesinin hesabı, en yeni görünüm başka seviye isteyince bırakılıyor
+        (`StreamlineLayer._job_level / _wanted_level`; yarım kalan alan `extend` içinde geri alınıyor, ilk
+        tohumlar da). Zoom in'de iş sayısı 72 → 17, hızlı zoom bitince çizgiler hemen orada.
+      - **Kök neden 4 — tüm katmanlar açıkken arayüz 1–3.6 s donuyordu** (Solid bodies, GUI thread'inde):
+        (a) yakın zoom'da sahnenin dividing streamline'larının binlerce hücre uzunluğundaki parçaları hücre hücre
+        örnekleniyordu (11 milyon örnek) → artık sadece ızgaranın içine düşen kısım, birebir aynı hücreler
+        (`bodies._clip_segments`, Liang–Barsky; 3000 rastgele denemede fark 0; uzun çizgi 8.7 s → 2 ms);
+        (b) yakın zoom'da akışkanın nereden geldiği görünümün küçücük adımıyla tüm cismin kutusunda izleniyordu →
+        aşamalı izleme (`stagnation._trace_staged`: 3× bölge, sonra her aşama 8× kutu ve 8× adım; "çok yavaş"
+        eşiği tek izlemedeki gibi tüm kutudan). Normal görünümlerde tek aşama = eskisi. Kontrol: 21 preset +
+        25 rastgele sahnede 30×, 300×, 3000× yakın 276 görünümde cisim haritası eskisiyle **birebir aynı**,
+        süre 60.5 → 1.9 s.
+      - Sonuç (her katman açık, hızlı tekerlekle sınıra kadar): zoom out 21.0 → 7.4 s, en uzun donma 2.4 → 0.5 s;
+        zoom in 18.9 → 7.1 s, 3.6 → 0.4 s; sınırdan Fit 4.1 → 0.8 s. Varsayılan katmanlarla Fit 0.1–0.2 s.
+        GPU modu (bu sunucuda yazılım OpenGL) aynı davranış. Kalan: φ / |V| / Solid bodies hâlâ GUI thread'inde
+        hesaplanıyor (bu sunucuda ~0.3–0.5 s bir adım) → istenirse arka plana alınabilir.
+      - Testler (`tests/test_zoom.py`, +8): sınırda tekerlek görünümü kıpırdatmıyor, sınıra fare etrafında tam
+        varış, uzak görünümde stagnation point'ler hızlı ve aynı, probe bölgesi kuralı, aşamalı izleme = tek
+        izleme (bilinen her noktada), bariyer örneklemesi = eskisi, seviye değişince iş bırakma.
+        Ayrıca: `test_he_reacts_to_saving_and_verification` bazen düşüyordu (source eklemek %35 ihtimalle kunduzun
+        "A source!" yorumunu çıkarıyor, "Saved!" onun arkasında bekliyordu) → balon eklemeden sonra temizleniyor.
 21. ☐ **Kod düzenleme (son sürüm öncesi)**: davranış değişmeden — ölü / tekrar eden kod, isimler, docstring'ler,
     dosya yapısı, uyarılar (pyflakes), çok uzun dosyaların bölünmesi, testlerin süresi, README klasör tablosu.
     Ölçüt: tüm testler + verification aynı sonuç

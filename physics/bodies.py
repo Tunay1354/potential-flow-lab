@@ -58,12 +58,26 @@ def draw_barriers(lines, box, shape) -> np.ndarray:
         if len(xy) < 2:
             continue
         px, py = (xy[:, 0] - x0) * sx, (xy[:, 1] - y0) * sy
-        seg = np.hypot(np.diff(px), np.diff(py))
+        dx, dy = np.diff(px), np.diff(py)
+        seg = np.hypot(dx, dy)
         n = np.where(np.isfinite(seg), np.ceil(seg / 0.35), 0).astype(np.int64)   # samples < a cell apart
         if not n.sum():
             continue
-        t = np.concatenate([np.arange(k) / k for k in n if k > 0])
-        idx = np.repeat(np.arange(seg.size), n)
+        # samples k/n (k = 0 … n−1) of every segment, but only those of the part inside the grid: zoomed far
+        # in, a line of the whole scene has segments thousands of cells long, mostly outside (11 million
+        # samples froze the window for seconds; his report of 1 Nov). Same samples as before inside the grid.
+        t0, t1 = _clip_segments(px[:-1], py[:-1], dx, dy, cols, rows, margin=2.0)
+        use = (n > 0) & (t0 <= t1)
+        if not use.any():
+            continue
+        segs = np.nonzero(use)[0]
+        k0 = np.floor(t0[segs] * n[segs]).astype(np.int64).clip(0, None)
+        k1 = np.minimum(np.ceil(t1[segs] * n[segs]).astype(np.int64), n[segs] - 1)
+        counts = np.maximum(k1 - k0 + 1, 0)
+        idx = np.repeat(segs, counts)
+        first = np.repeat(np.cumsum(counts) - counts, counts)
+        k = np.repeat(k0, counts) + (np.arange(idx.size) - first)
+        t = k / n[idx]
         qx = np.concatenate([px[idx] + t * (px[idx + 1] - px[idx]), px[-1:]])
         qy = np.concatenate([py[idx] + t * (py[idx + 1] - py[idx]), py[-1:]])
         ok = np.isfinite(qx) & np.isfinite(qy)
@@ -71,6 +85,25 @@ def draw_barriers(lines, box, shape) -> np.ndarray:
         inside = (i >= 0) & (i < cols) & (j >= 0) & (j < rows)
         out[j[inside], i[inside]] = True
     return out
+
+
+def _clip_segments(px, py, dx, dy, cols, rows, margin):
+    """Parameter range [t0, t1] of each segment p + t·d (0 ≤ t ≤ 1) inside the cell box
+    [−margin, cols + margin] × [−margin, rows + margin] (Liang–Barsky); t0 > t1: outside."""
+    t0 = np.zeros(px.size)
+    t1 = np.ones(px.size)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        for p, d, hi in ((px, dx, cols), (py, dy, rows)):
+            a, b = (-margin - p) / d, (hi + margin - p) / d
+            flat = d == 0
+            inside = (p >= -margin) & (p <= hi + margin)
+            lo_t = np.where(flat, np.where(inside, -np.inf, np.inf), np.minimum(a, b))
+            hi_t = np.where(flat, np.where(inside, np.inf, -np.inf), np.maximum(a, b))
+            t0 = np.maximum(t0, lo_t)
+            t1 = np.minimum(t1, hi_t)
+    bad = ~(np.isfinite(px) & np.isfinite(py) & np.isfinite(dx) & np.isfinite(dy))
+    t1[bad] = -1.0
+    return t0, t1
 
 
 def _label(free):
