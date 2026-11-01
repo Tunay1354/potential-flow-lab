@@ -162,7 +162,7 @@ class StreamlineCache:
         if f is None:
             # each level finds its own "too slow = stagnation point" speed from its first region: a speed
             # threshold kept from another zoom stopped the lines of a vortex / source far out after zooming
-            # out (speed ∝ 1/r fell below the threshold of the first, small view; his report of 31 Oct)
+            # out (speed ∝ 1/r fell below the threshold of the first, small view)
             f = self.fields[L] = StreamlineField(self.elements, d, None, self.use_kernel)
             f.special_seeds = getattr(self, "_seeds", np.zeros(0, complex)).copy()
         f.extend(region, cancelled=cancelled)

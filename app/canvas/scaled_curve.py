@@ -3,8 +3,8 @@ scaled_curve.py — a plot curve whose points are kept in a local, view-sized co
 
 Why: the graphics card's painter (Qt's OpenGL paint engine) strokes a line in the item's own coordinates and
 limits how much those may be magnified: beyond about 10 000 screen pixels per coordinate unit a 1.4 px line
-became 14 px, then hundreds (his report of 31 Oct: zoomed far in with GPU on, the streamlines grew thick, then
-the whole plot turned blue; the processor's painter has no such limit). So the curve stores its points as
+became 14 px, then hundreds (zoomed far in with the graphics card on, the streamlines grew thick, then the whole
+plot turned blue; the processor's painter has no such limit). So the curve stores its points as
 (x − cx) / s, (y − cy) / s and carries the transform x = cx + s·x', y = cy + s·y' itself: whatever the zoom,
 one local unit is about one screen pixel. The painted picture is the same; xy() gives the data points
 (getData() the local ones, which pyqtgraph draws).

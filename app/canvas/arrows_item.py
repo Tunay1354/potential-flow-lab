@@ -35,9 +35,6 @@ class ArrowsItem(pg.GraphicsObject):
         self._brush = pg.mkBrush(color)
         self.update()
 
-    def count(self) -> int:
-        return int(self._x.size)
-
     # ------------------------------------------------------------------ QGraphicsItem
     def _update_bounds(self):
         if self._x.size == 0:

@@ -30,11 +30,11 @@ from .gl_viewport import PlotGLViewport, PlotView
 from .grid_item import PaperGridItem
 from .interaction import DRAG_OPACITY, MOUSE_MODES, PlotInteraction, PlotViewBox
 from .particle_layer import ParticleLayer
-from .surface_layer import SurfaceLayer
 from .pulse_layer import PulseLayer
 from .settings import PlotSettings
 from .stagnation_layer import StagnationLayer
 from .streamline_layer import StreamlineLayer
+from .surface_layer import SurfaceLayer
 
 LIVE_DRAG_DEFAULT = True          # "Live update while dragging" until the user changes it
 # zoom limits, relative to the scene's size (the width "Fit" shows): this many times smaller / larger. Potential
@@ -64,9 +64,9 @@ LAYERS = (
 
 # Qt keeps the item pictures of set_static_cache in its pixmap cache, 10 MB by default. One picture of a
 # plot-sized item is ~4–12 MB (125 % screen: 1250 × 640 device px × 4 bytes); with a few layers on, the
-# pictures did not fit, Qt threw them away and drew every item again in EVERY animation frame (measured: plot
-# frame 21–29 ms instead of 4–5 ms, the owner's 23 fps with φ lines + |V| bands). The limit is only a ceiling:
-# memory is used by the pictures that exist.
+# pictures did not fit, Qt threw them away and drew every item again in EVERY animation frame (plot frame
+# 21–29 ms instead of 4–5 ms: 23 fps with φ lines + |V| bands). The limit is only a ceiling: memory is used
+# by the pictures that exist.
 PIXMAP_CACHE_PICTURES = 40                     # plot-sized pictures that fit (layers × a margin)
 PIXMAP_CACHE_MIN_KB, PIXMAP_CACHE_MAX_KB = 128 * 1024, 1024 * 1024
 
@@ -171,7 +171,6 @@ class PlotCanvas(QWidget):
                                 lambda: self.layers["equipotential"] and self.fields.schedule(force=True)]
         self.interaction = PlotInteraction(self)
 
-        self.bar.message.connect(self.message)
         self.bar.btn_fit.clicked.connect(self.fit_view)
         self.bar.mode_selected.connect(self.set_mode)
         self.bar.view_mode_selected.connect(self.set_view_mode)
@@ -277,11 +276,6 @@ class PlotCanvas(QWidget):
         if self.paused and not self.animated:
             self.set_paused(False)
         self.view_mode_changed.emit(mode)
-
-    def set_animated(self, on: bool):
-        """Static, or the particle animation (if no animation runs yet)."""
-        if bool(on) != self.animated:
-            self.set_view_mode("particles" if on else "static")
 
     @property
     def paused(self) -> bool:
@@ -456,12 +450,17 @@ class PlotCanvas(QWidget):
         self.set_view(*self.fit_range())
 
     # ------------------------------------------------------------------ zoom limits
-    def zoom_limits(self, include=None) -> tuple[float, float]:
-        """(smallest, largest) view width allowed: ZOOM_RANGE times smaller / larger than the scene's Fit
-        view, widened so that the current view (and `include`, a view about to be set) always fit."""
+    def scene_zoom_limits(self) -> tuple[float, float]:
+        """(smallest, largest) view width for the user's zoom: ZOOM_RANGE times smaller / larger than the
+        scene's Fit view."""
         (fx0, fx1), (fy0, fy1) = self.fit_range()
         size = max(fx1 - fx0, fy1 - fy0)
-        lo, hi = size / ZOOM_RANGE, size * ZOOM_RANGE
+        return size / ZOOM_RANGE, size * ZOOM_RANGE
+
+    def zoom_limits(self, include=None) -> tuple[float, float]:
+        """The scene's zoom limits, widened so that the current view (and `include`, a view about to be
+        set) always fit."""
+        lo, hi = self.scene_zoom_limits()
         views = [(self.view(), 1.0)] if getattr(self, "vb", None) is not None else []
         if include is not None:
             views.append((include, INCLUDE_ROOM))
@@ -481,9 +480,7 @@ class PlotCanvas(QWidget):
         again from the scene (a view widened by a file stays reachable only while it is shown)."""
         (x0, x1), (y0, y1) = self.view()
         w_small, w_big = min(x1 - x0, y1 - y0), max(x1 - x0, y1 - y0)
-        (fx0, fx1), (fy0, fy1) = self.fit_range()
-        size = max(fx1 - fx0, fy1 - fy0)
-        lo, hi = size / ZOOM_RANGE, size * ZOOM_RANGE
+        lo, hi = self.scene_zoom_limits()
         side = "in" if w_small <= lo * ZOOM_LIMIT_TOL else "out" if w_big >= hi / ZOOM_LIMIT_TOL else None
         if side is not None and side != self._at_limit:      # (once per arrival, not at every wheel notch)
             self.zoom_limit.emit(side)

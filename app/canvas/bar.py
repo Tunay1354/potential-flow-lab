@@ -13,7 +13,6 @@ from ..icons import make_tool_icon
 class CanvasBar(QWidget):
     """Bar above the plot: view mode (Static · Particles · Pulses), mouse mode (Select · Move · Pan), Fit view,
     Export."""
-    message = Signal(str)
     mode_selected = Signal(str)               # "select", "move" or "pan" (clicked by the user)
     view_mode_selected = Signal(str)          # "static", "particles" or "pulses" (clicked by the user)
 

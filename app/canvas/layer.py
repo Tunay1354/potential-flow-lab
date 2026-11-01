@@ -112,8 +112,7 @@ def set_box_text(label: pg.TextItem, theme: dict, html: str, padding: str = "2px
 def drop_picture(item):
     """While animating, an item is kept as a picture (DeviceCoordinateCache). Qt's own invalidation on new
     data was not enough: after dragging an element in the Pulses view, parts of an older picture of the
-    streamlines stayed on the screen (the owner's screenshot, 29 Oct; reproduced: one line item of the
-    old drag position). Switching the cache off and on again throws the picture away for sure."""
+    streamlines stayed on the screen. Switching the cache off and on again throws the picture away for sure."""
     from PySide6.QtWidgets import QGraphicsItem
     mode = item.cacheMode()
     if mode != QGraphicsItem.NoCache:

@@ -815,6 +815,15 @@ bırakıldı (kullanıcı kararı).
       "Phase 2c", "2b" kalıntıları, tekrarlanan duvar normal-hız kodu tek fonksiyonda (`_largest_vn`), anlamsız
       değişken adları (a_, b_, hh, s_), `scene_file`'daki gereksiz yeniden atama. Kontrol: tablonun 75 sayısı (analitik,
       sayısal, tolerans) önce / sonra **birebir aynı**.
+    - ✅ **21.6 Plot 1** (1 Kasım; `app/canvas/` canvas, layer, interaction, bar, settings, legend, grid, scaled_curve,
+      arrows, streamline / stagnation / field / element layer'ları, contours; `geometry.py`, `scene.py`): kullanılmayan
+      `CanvasBar.message` sinyali, `ArrowsItem.count()`, sadece testlerin kullandığı `PlotCanvas.set_animated`
+      (testler `set_view_mode("particles")`) silindi; zoom sınırı hesabı tek yerde (`scene_zoom_limits`); palette →
+      plot sürükleme formatındaki eski isim ("potential-flow") → "application/x-pflow-element"; yanlış / eski
+      açıklamalar (dosya listesi, "ileride surface renkleri", "açılıştaki sahne", "his report of …" gibi tarih
+      notları — fizik dosyalarındakiler de) düzeltildi. Kontrol: 21 preset × 3 katman seti (varsayılan; φ + |V| +
+      dividing; Cp + Solid bodies + Surface pressure) × açık / koyu tema = 126 plot görüntüsü önce / sonra
+      **piksel piksel aynı** (scratchpad check/plot_snapshot.py).
 22. ☐ **Görsel ve metin son kontrolü** (kullanıcı ile): programdaki tüm yazılar (menüler, paneller, dialog'lar,
     tooltip'ler, uyarı mesajları, lejantlar, durum çubuğu) tek bir listede + ekran görüntüsü galerisi; kullanıcı
     beğenmediklerini işaretler / yenisini yazar, ben değiştiririm. Açık kararlar burada: dividing streamline

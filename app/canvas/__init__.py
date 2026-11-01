@@ -3,15 +3,20 @@ canvas — the plot card of the main window.
 
     canvas.py            PlotCanvas: bar + plot + title block; shared state; passes events to the layers
     layer.py             PlotLayer: the interface every layer implements (+ small drawing helpers)
-    streamline_layer.py  streamlines and arrows, computed in a background thread
+    streamline_layer.py  streamlines and arrows, computed in a background thread (arrows_item.py)
     stagnation_layer.py  stagnation points and dividing streamlines
     field_layer.py       equipotential lines, |V| and Cp color bands (contours.py, legend.py)
     element_layer.py     element symbols, walls, selection glow, picking
-    animation_layer.py   what the animated views share; particle_layer.py (particles with trails),
-                         pulse_layer.py (pulses along the streamlines)
     body_layer.py        "Solid bodies": the inside of cylinders / Rankine bodies filled (physics/bodies.py)
+    surface_layer.py     "Surface pressure": Cp drawn on body surfaces and walls (physics/surface.py)
+    animation_layer.py   what the animated views share; particle_layer.py (particles with trails),
+                         pulse_layer.py (pulses along the streamlines); gl_animation.py draws them with
+                         the graphics card
+    gl_viewport.py       the plot's OpenGL viewport (graphics card on) and the frame counter
+    scaled_curve.py      a curve item that stays thin at any zoom (also on the graphics card)
+    grid_item.py         the background grid, drawn in screen pixels
     interaction.py       mouse modes, dragging elements, dropping palette elements
-    settings.py          PlotSettings (saved with the scene)
+    settings.py          PlotSettings (saved with the scene) and the sliders of Plot settings
     bar.py               the bar above the plot
 """
 from .bar import CanvasBar

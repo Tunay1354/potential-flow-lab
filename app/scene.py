@@ -1,5 +1,5 @@
 """
-scene.py — the scene shown at start-up and the preset scenes (Presets menu).
+scene.py — the preset scenes (Presets menu) and the lifting cylinder the tests start with.
 
 Presets are ordinary scene files (.pflow, same format as File → Save) in the folder `presets/`:
     presets/<group folder>/<file>.pflow
@@ -19,7 +19,8 @@ from .paths import PRESETS_DIR
 
 
 def starter_scene():
-    """Lifting cylinder of the course notes: V∞ = 1, μ = 1 (a = 1), clockwise circulation 2."""
+    """Lifting cylinder of the course notes: V∞ = 1, μ = 1 (a = 1), clockwise circulation 2 (the program
+    itself starts empty; most GUI tests start with this scene, see tests/conftest.py)."""
     return [Uniform(V=1.0, alpha=0.0), Doublet(mu=1.0), Vortex(Gamma=-2.0)]
 
 

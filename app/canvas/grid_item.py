@@ -2,8 +2,8 @@
 grid_item.py — the plot's background grid, drawn in screen pixels.
 
 pyqtgraph's GridItem draws its lines in data units; the graphics card's painter magnifies a line's width with
-the zoom beyond ~10 000 px per unit (see scaled_curve.py), so far zoomed in with GPU on the grid became wide
-grey bands (his report of 31 Oct). This one computes the same lines (pyqtgraph's spacing and fading rule) and
+the zoom beyond ~10 000 px per unit (see scaled_curve.py), so far zoomed in with the graphics card on the
+grid became wide grey bands. This one computes the same lines (pyqtgraph's spacing and fading rule) and
 draws them with the screen's own transform: always 1 px, whatever the zoom.
 """
 from __future__ import annotations

@@ -17,7 +17,7 @@ a sector flow's cut) are left out: grid cells where φ jumps much more than the 
 
 `update(...)` works without a canvas (tests); in the plot, `refresh()` calls it with the canvas state.
 """
-import math
+import logging
 
 import numpy as np
 import pyqtgraph as pg
@@ -168,7 +168,6 @@ class FieldLayer(PlotLayer):
         try:
             self.update(cv.elements, cv.view(), cv.layers, s.field_quality, s.cp_reference, s.density)
         except Exception as exc:                     # never let a field layer break the window
-            import logging
             logging.getLogger("pflab").exception("field layers could not be drawn")
             self.hide_all()
             cv.message.emit(f"Field layers could not be drawn: {exc}")
@@ -240,8 +239,8 @@ class FieldLayer(PlotLayer):
         if np.isfinite(typical):                        # lines would crowd into a dark blot:
             (x0, x1), (y0, y1) = view
             h = max(x[1] - x[0], y[1] - y[0])
-            for s_, r in crowd_circles(elements, CROWD_SPEED * typical, 1.5 * h, 0.5 * max(x1 - x0, y1 - y0)):
-                phi[np.abs(f.grid.Z - s_) < r] = np.nan     # a clean circle round a singular point
+            for point, r in crowd_circles(elements, CROWD_SPEED * typical, 1.5 * h, 0.5 * max(x1 - x0, y1 - y0)):
+                phi[np.abs(f.grid.Z - point) < r] = np.nan  # a clean circle round a singular point
             phi[speed > EXTREME_SPEED * CROWD_SPEED * typical] = np.nan
         bodies = getattr(self.canvas, "bodies", None)
         if bodies is not None and bodies.map is not None:

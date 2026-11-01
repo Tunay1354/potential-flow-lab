@@ -5,7 +5,7 @@ size; the beaver's zoom jokes; the name Flowy."""
 import numpy as np
 import pytest
 
-from tests.test_beaver import DT, win  # noqa: F401  (the window fixture with the beaver stepped by hand)
+from tests.test_beaver import win  # noqa: F401  (the window fixture with the beaver stepped by hand)
 
 
 def wheel(qapp, w, n, delta):

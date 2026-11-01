@@ -19,7 +19,7 @@ from ..theme import MARKERS
 from .layer import set_box_text
 
 MOUSE_MODES = ("select", "move", "pan")
-ELEMENT_MIME = "application/x-potential-flow-element"     # drag from the element palette to the plot
+ELEMENT_MIME = "application/x-pflow-element"              # drag from the element palette to the plot
 DRAG_OPACITY = 0.3                                         # layers that fade while an element is dragged
 
 
@@ -53,7 +53,7 @@ class PlotViewBox(pg.ViewBox):
         """Zoom (wheel, right-drag) about `center`, but never past the zoom limits: the factor is cut so
         the view reaches the limit exactly, and at the limit a further notch does nothing. (pyqtgraph cut
         the range itself round the middle of the asked range — which lies towards the mouse — so every
-        notch at a limit moved the view sideways and started a new computation; his report of 1 Nov.)"""
+        notch at a limit would move the view sideways and start a new computation.)"""
         if s is not None:
             x, y = s[0], s[1]
         k = y if y is not None else x

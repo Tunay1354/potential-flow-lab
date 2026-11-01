@@ -1,6 +1,6 @@
 """
 contours.py — contour lines and filled contour bands on a grid, and the color scales of the field
-layers (|V| and Cp). No plot items here (also used for exported figures and, later, surface colors).
+layers (|V| and Cp). No plot items here: field_layer.py makes them.
 
 Uses contourpy when installed (smooth vector contours); otherwise a NumPy marching-squares fallback for
 the lines (and the caller draws the bands as a pixel image).

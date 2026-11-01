@@ -174,7 +174,7 @@ def _trace_staged(els, z, sign, region, scale):
     left, r_sing of the tracer each line ended with). Normally one trace at `scale`. Zoomed far into a
     scene the far-field box (it holds every body: bodies_box) is thousands of view sizes wide, and a line
     traced across it with the view's tiny step took millions of steps (the Solid bodies layer froze the
-    window for seconds at every zoom step; his report of 1 Nov). Then the lines are traced in stages: in 3×
+    window for seconds at every zoom step). Then the lines are traced in stages: in 3×
     the region at `scale`, those that leave it go on from where they left in a box STAGE_GROWTH× larger
     with a STAGE_GROWTH× larger step, and so on until the far-field box. A closed line is the loop of the
     stage it closed in (it came back to where that stage began)."""

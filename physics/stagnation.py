@@ -258,7 +258,7 @@ def _probe_region(els, points, region):
     view's region; zoomed far out (the view ≫ the scene: its singular points, stagnation points and body
     boxes) a square PROBE_REGION_SCENES × the scene's size round it — the same answer as a view of that
     size, but the probes are traced with their own small step, and across a box 3× a view 10³–10⁴× the
-    scene they took millions of steps (his report of 1 Nov: fans at full speed, no lines for a minute)."""
+    scene they took millions of steps (fans at full speed, no lines for a minute)."""
     zs = [complex(s) for s in singular_points(els)] + [complex(getattr(p, "z", p)) for p in points]
     if not zs:
         return region

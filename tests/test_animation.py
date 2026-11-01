@@ -163,7 +163,7 @@ def test_animated_button_starts_particles_over_faint_streamlines(win, qapp):
 def test_space_pauses_and_continues(win, qapp):
     cv = win.canvas
     assert not win.act_pause.isEnabled()                              # nothing to pause in Static mode
-    cv.set_animated(True)
+    cv.set_view_mode("particles")
     _frames(qapp, 4)
     win.act_pause.trigger()
     assert cv.particles.paused and win.act_pause.isChecked()
@@ -178,7 +178,7 @@ def test_space_pauses_and_continues(win, qapp):
 
 def test_color_map_layer_takes_the_legend_place(win, qapp):
     cv = win.canvas
-    cv.set_animated(True)
+    cv.set_view_mode("particles")
     win.settings_panel.layer_boxes["speed"].setChecked(True)
     _frames(qapp, 3)
     assert cv.fields.legend.isVisible() and not cv.particles.legend.isVisible()
@@ -198,7 +198,7 @@ def test_animation_settings_are_saved_with_the_scene(win, qapp, tmp_path):
     assert win.open_scene(path)
     assert (cv.settings.particles, cv.settings.anim_speed, cv.settings.trail) == (800, 8, 0)
     assert sp.sliders["particles"].value() == 800 and sp.sliders["trail"].value() == 0
-    cv.set_animated(True)
+    cv.set_view_mode("particles")
     assert cv.particles.particles.pos.size == 800
 
 
@@ -206,7 +206,7 @@ def test_export_while_animating_draws_the_items_and_keeps_animating(win, qapp, t
     from PySide6.QtWidgets import QGraphicsItem
     from app.export import render_figure
     cv = win.canvas
-    cv.set_animated(True)
+    cv.set_view_mode("particles")
     _frames(qapp, 4)
     render_figure(cv, str(tmp_path / "a.png"), "png", 2)
     assert (tmp_path / "a.png").exists()
@@ -216,7 +216,7 @@ def test_export_while_animating_draws_the_items_and_keeps_animating(win, qapp, t
 
 def test_particles_follow_a_dragged_element(win, qapp):
     cv = win.canvas
-    cv.set_animated(True)
+    cv.set_view_mode("particles")
     _frames(qapp, 2)
     flows_before = list(cv.particles.particles.flows)
     from PySide6.QtCore import QPointF
@@ -351,7 +351,7 @@ def test_older_files_with_an_animation_style_open_without_a_warning():
 def test_animation_rests_while_the_window_is_minimized(win, qapp):
     from app.canvas.animation_layer import FRAME_MS, HIDDEN_MS
     cv = win.canvas
-    cv.set_animated(True)
+    cv.set_view_mode("particles")
     _frames(qapp, 3)
     win.showMinimized()
     qapp.processEvents()

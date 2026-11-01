@@ -372,6 +372,9 @@ GUI / Qt
   Package 5 done (verification + model): all 5 assignment cases present; the table writes the course's clockwise
   circulation as Γ_cw ("L′ = ρ V∞ Γ_cw"), the program keeps Γ > 0 ccw; `_cylinder_rows` no longer raises on a doublet
   turned against the flow (returns no rows); 75 verification numbers bit for bit the same (check/verify_snapshot.py).
+  Package 6 done (plot 1): dead CanvasBar.message / ArrowsItem.count / PlotCanvas.set_animated removed,
+  `scene_zoom_limits`, ELEMENT_MIME "application/x-pflow-element"; 126 plot pictures pixel for pixel the same
+  (check/plot_snapshot.py: presets × 3 layer sets × 2 themes, offscreen; use it again for plot changes).
 - **Next**: his Windows check of 20.7H (fast zoom in / out to the limits with GPU on, wheel at the limit, Fit), of 20.7D–F, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
   remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
 - Then, in this order (all planned, "as if time were unlimited"):

@@ -65,7 +65,7 @@ def draw_barriers(lines, box, shape) -> np.ndarray:
             continue
         # samples k/n (k = 0 … n−1) of every segment, but only those of the part inside the grid: zoomed far
         # in, a line of the whole scene has segments thousands of cells long, mostly outside (11 million
-        # samples froze the window for seconds; his report of 1 Nov). Same samples as before inside the grid.
+        # samples froze the window for seconds). Same samples as before inside the grid.
         t0, t1 = _clip_segments(px[:-1], py[:-1], dx, dy, cols, rows, margin=2.0)
         use = (n > 0) & (t0 <= t1)
         if not use.any():
