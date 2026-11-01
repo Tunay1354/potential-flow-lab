@@ -13,12 +13,12 @@ import math
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Qt, Signal
+from PySide6.QtCore import QObject, QThreadPool, QTimer, Qt, Signal
 
 from physics.surface import body_surfaces, wall_surfaces
 
 from .contours import nice_step, ramp
-from .layer import PlotLayer
+from .layer import BackgroundJob, PlotLayer
 from .legend import ColorLegend
 from .scaled_curve import ScaledCurve
 
@@ -29,16 +29,6 @@ WALL_DELAY_MS = 120
 
 class _Done(QObject):
     done = Signal(int, object)           # generation, list of Surface / exception
-
-
-class _Job(QRunnable):
-    def __init__(self, fn):
-        super().__init__()
-        self.fn = fn
-        self.setAutoDelete(True)
-
-    def run(self):
-        self.fn()
 
 
 def cp_scale(values) -> float:
@@ -165,7 +155,7 @@ class SurfaceLayer(PlotLayer):
             self._done.done.emit(gen, result)
 
         if self.background:
-            self._pool.start(_Job(work))
+            self._pool.start(BackgroundJob(work))
         else:
             work()
         self.redraw()

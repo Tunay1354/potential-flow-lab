@@ -315,6 +315,33 @@ def test_pulses_pause_and_follow_new_streamlines(win, qapp):
     np.testing.assert_allclose(np.median(ang), 20.0, atol=1.0)               # pieces along the new flow
 
 
+def test_pulses_never_cut_the_lines_of_another_zoom_into_millions_of_pieces(win, qapp, monkeypatch):
+    """GPU or not, Pulses + zoomed far out + Fit crashed the program: the lines of the far view, still drawn
+    until the new ones came, were cut at the Fit view's pixel size — 279 million pieces, tens of GB. Only lines
+    near the view are cut, and never more than MAX_PIECES: such lines wait for the new ones."""
+    import app.canvas.pulse_layer as pl
+    cv = win.canvas
+    cv.set_view((-2e4, 2e4), (-1.5e4, 1.5e4))
+    cv.recompute()                                                      # the lines of the far view
+    cv.set_view_mode("pulses")
+    _frames(qapp, 3)
+    counts = []
+    real = pl.travel_times
+    monkeypatch.setattr(pl, "travel_times", lambda lines, *a: counts.append(pl._piece_count(lines, a[1]))
+                        or real(lines, *a))
+    cv.streamlines.background = True
+    far = cv.pulses.result
+    cv.set_view((-4.0, 4.0), (-3.0, 3.0))                               # "Fit": the far lines still drawn
+    assert cv.pulses.result is far
+    cv.pulses.advance(1 / 60)
+    assert all(n <= pl.MAX_PIECES for n in counts)
+    assert pl._piece_count(far.lines, 2.0 * 8.0 / 1000) > pl.MAX_PIECES      # (it would have been far more)
+    cv.streamlines.background = False
+    cv.recompute()                                                      # the new lines: pulses again
+    cv.pulses.advance(1 / 60)
+    assert cv.pulses._px is not None and len(cv.pulses._px[0]) > 100
+
+
 def test_pulses_without_numba(win, qapp, monkeypatch):
     cv = win.canvas
     monkeypatch.setattr(kernel, "HAVE_NUMBA", False)

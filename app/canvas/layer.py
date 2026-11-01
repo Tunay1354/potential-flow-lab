@@ -19,6 +19,7 @@ Layers whose fades_while_dragging() is True have their items() drawn faintly whi
 dragged (they show the old position until it is released).
 """
 import pyqtgraph as pg
+from PySide6.QtCore import QRunnable
 from PySide6.QtGui import QColor
 
 from ..chrome import font
@@ -79,6 +80,19 @@ class PlotLayer:
 
     def shutdown(self):
         pass
+
+
+class BackgroundJob(QRunnable):
+    """A function run by a QThreadPool (the layers' background computations). It never touches widgets:
+    its results go back to the GUI thread through a signal."""
+
+    def __init__(self, fn):
+        super().__init__()
+        self.fn = fn
+        self.setAutoDelete(True)
+
+    def run(self):
+        self.fn()
 
 
 # ---------------------------------------------------------------------- small drawing helpers

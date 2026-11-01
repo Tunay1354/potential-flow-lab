@@ -14,6 +14,7 @@ pulses only after a zoom / pan); while the window is minimized or hidden the tim
 look every HIDDEN_MS. Exports draw the picture again at their own resolution (set_export_scale,
 advance).
 """
+import logging
 import math
 import time
 
@@ -266,7 +267,7 @@ class AnimatedLayer(PlotLayer):
         if kernel.HAVE_NUMBA:
             rows = np.frombuffer(image.bits(), np.uint8).reshape(image.height(), image.bytesPerLine() // 4, 4)
             kernel.draw_segments_parallel(rows, ax, ay, bx, by, band, self._palette, 0.5 * width_px * dpr,
-                                 alpha, keep_max)
+                                          alpha, keep_max)
             return
         painter = QPainter(image)                         # without Numba: Qt draws them (slower)
         painter.setRenderHint(QPainter.Antialiasing, True)
@@ -416,7 +417,6 @@ class AnimatedLayer(PlotLayer):
                     anim.segments(t, self._palette, radius, pulse=(phase, length), keep_max=True)
             anim.present(t, self._corners_on_viewport(), viewport)
         except Exception:                                 # noqa: BLE001 - the processor takes over
-            import logging
             logging.getLogger("pflab").exception("animation on the graphics card failed: the processor draws it")
             self.gpu_broken = True
             self._view_key = None

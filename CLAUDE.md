@@ -179,6 +179,9 @@ GUI / Qt
   the view (pyqtgraph cuts round the asked range's middle) → own clamp in `PlotViewBox.scaleBy`. Old-level jobs
   were never cancelled → level-based cancel in `StreamlineLayer`.
 - Particle trails stayed on an empty page (last steps redrawn every frame) → no step without flow + clear.
+- **Pulses + zoom far + Fit crashed** (1 Nov, also without GPU): the drawn lines still belonged to the old view and
+  were cut into pieces of the new view's 2 px → hundreds of millions → `pulse_layer`: only lines near the view, at
+  most MAX_PIECES. Anything cut / sampled "per pixel" must be bounded by the view, never by the scene / old lines.
 - **Exceptions in Qt slots / paint events** go to `sys.excepthook` → `app/errors.py` logs them and shows one
   window per distinct error (no floods). Background threads (QThreadPool) never touch widgets; results and
   errors come back through signals.
@@ -375,6 +378,9 @@ GUI / Qt
   Package 6 done (plot 1): dead CanvasBar.message / ArrowsItem.count / PlotCanvas.set_animated removed,
   `scene_zoom_limits`, ELEMENT_MIME "application/x-pflow-element"; 126 plot pictures pixel for pixel the same
   (check/plot_snapshot.py: presets × 3 layer sets × 2 themes, offscreen; use it again for plot changes).
+  Package 7 done (plot 2): **the Pulses crash fixed** (zoom far + Fit: the old view's lines cut at the new pixel
+  size = 279 million pieces, tens of GB); pulse_layer cuts only lines near the view, at most MAX_PIECES (else
+  waits for the new lines); `layer.BackgroundJob` shared; pulse pieces bit for bit the same (check/pulse_snapshot.py).
 - **Next**: his Windows check of 20.7H (fast zoom in / out to the limits with GPU on, wheel at the limit, Fit), of 20.7D–F, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
   remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
 - Then, in this order (all planned, "as if time were unlimited"):

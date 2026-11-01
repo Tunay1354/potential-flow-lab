@@ -26,6 +26,7 @@ from .scaled_curve import ScaledCurve
 DELAY_MS = 90                   # after a zoom / pan
 HATCH_ALPHA = 0.18
 EDGE_PX = 2.0
+JOIN_PX = 14                    # a surface piece ending this close to a stagnation point is drawn up to it
 
 
 class BodyLayer(PlotLayer):
@@ -43,6 +44,7 @@ class BodyLayer(PlotLayer):
         self.lines = None                      # dividing streamlines of the drawn scene (None: none yet)
         self._inner = []                       # branches into bodies (borders only, see set_result)
         self._scene_lines, self._hint = None, None   # the whole scene's (coarser) and its body map
+        self._result = None                    # the streamline result the lines came from
         self.changed = []                      # callbacks: the bodies changed (particles)
         self._timer = QTimer(plot)
         self._timer.setSingleShot(True)
@@ -180,9 +182,6 @@ class BodyLayer(PlotLayer):
         for xy in pieces + _bridges(pieces, join):
             out += [xy, np.full((1, 2), np.nan)]
         return np.vstack(out) if out else np.zeros((0, 2))
-
-
-JOIN_PX = 14              # a surface piece ending this close to a stagnation point is drawn up to it
 
 
 def _to_stagnation(xy, stag, reach):

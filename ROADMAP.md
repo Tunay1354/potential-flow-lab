@@ -824,6 +824,17 @@ bırakıldı (kullanıcı kararı).
       notları — fizik dosyalarındakiler de) düzeltildi. Kontrol: 21 preset × 3 katman seti (varsayılan; φ + |V| +
       dividing; Cp + Solid bodies + Surface pressure) × açık / koyu tema = 126 plot görüntüsü önce / sonra
       **piksel piksel aynı** (scratchpad check/plot_snapshot.py).
+    - ✅ **21.7 Plot 2** (1 Kasım; `animation_layer, particle_layer, pulse_layer, gl_animation, gl_viewport, body_layer,
+      surface_layer`): **Hata (onun bildirdiği çökme): Pulses + aşırı zoom in / out + Fit → program çöküyordu.**
+      Sebep (burada yeniden üretildi): Pulses çizilen streamline'ları ~2 piksellik parçalara böler; Fit'ten hemen
+      sonra çizilen çizgiler hâlâ uzak görünüşündü ve yeni görünüşün piksel boyuyla bölününce 279 milyon parça
+      (onlarca GB) çıktı. GPU'ya özel değil (GPU'da log'da traceback yoktu). Düzeltme: sadece görünüşün yakınından
+      (görünüş + her yanda bir görünüş boyu) geçen çizgiler bölünüyor; yine de MAX_PIECES (3 milyon; normalde
+      ≤ ~300 000) aşılırsa o çizgiler başka bir zoom'undur — yenileri gelene kadar pulse çizilmez (kesirli bir an).
+      Yeni test. Kontrol: 21 preset × 3 görünüşte pulse parçaları önce / sonra **birebir aynı**; çökme senaryosu
+      (hızlı tekerle iki sınıra, sonra Fit; GPU'lu ve GPU'suz) artık en çok ~85 000 parça, ~500 MB. Temizlik: iki
+      kopya arka plan iş sınıfı → `layer.BackgroundJob`; `body_layer`'da sınıfın altındaki sabit yukarı, başlatılmamış
+      `_result`; tarih notları; `logging` içeriden başa. 126 plot görüntüsü yine piksel piksel aynı.
 22. ☐ **Görsel ve metin son kontrolü** (kullanıcı ile): programdaki tüm yazılar (menüler, paneller, dialog'lar,
     tooltip'ler, uyarı mesajları, lejantlar, durum çubuğu) tek bir listede + ekran görüntüsü galerisi; kullanıcı
     beğenmediklerini işaretler / yenisini yazar, ben değiştiririm. Açık kararlar burada: dividing streamline

@@ -383,7 +383,7 @@ class GLAnimation:
         """The picture onto the plot (inside the plot's paint). corners_px: where its (x0, y0), (x1, y0),
         (x0, y1), (x1, y1) are on the viewport, in its logical pixels (PlotGLViewport coordinates). (Not the
         painter's transform: on the graphics card at 125 % it already contains the screen scale, and the
-        picture came out 1.25× too large, off to the lower right — his screenshot, 29 Oct.)"""
+        picture came out 1.25× too large, off to the lower right.)"""
         if t.fbo is None:
             return
         dpr = viewport.devicePixelRatioF()

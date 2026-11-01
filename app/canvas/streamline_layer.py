@@ -22,14 +22,14 @@ import time
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Signal
+from PySide6.QtCore import QObject, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QColor
 
 from physics.streamlines import FADE_LEVELS, Cancelled, StreamlineCache, fade_piece_boxes
 
 from ..theme import LAYOUT
 from .arrows_item import ArrowsItem
-from .layer import PlotLayer
+from .layer import BackgroundJob, PlotLayer
 from .scaled_curve import ScaledCurve
 
 
@@ -38,16 +38,6 @@ class _ResultSignal(QObject):
     done = Signal(int, object, float)        # generation, (StreamlineSet, level) / None / exception, ms
     partial = Signal(int, object)            # generation, (StreamlineSet, level) of the visible part
     preview = Signal(int, object, float)     # generation, StreamlineSet of a dragged scene / None / exc., ms
-
-
-class _Job(QRunnable):
-    def __init__(self, fn):
-        super().__init__()
-        self.fn = fn
-        self.setAutoDelete(True)
-
-    def run(self):
-        self.fn()
 
 
 ANIMATED_ALPHA = (0.35, 0.45)                 # streamline opacity under the animation (particles, pulses)
@@ -206,7 +196,7 @@ class StreamlineLayer(PlotLayer):
                 result = exc
             self._results.done.emit(gen, result, (time.perf_counter() - t0) * 1000.0)
 
-        self._pool.start(_Job(work))
+        self._pool.start(BackgroundJob(work))
 
     def _first_job_slow(self):
         if self.busy and self.drawn_domain is None:
@@ -253,7 +243,7 @@ class StreamlineLayer(PlotLayer):
             self._results.preview.emit(gen, result, (time.perf_counter() - t0) * 1000.0)
 
         if self.background:
-            self._pool.start(_Job(work))
+            self._pool.start(BackgroundJob(work))
         else:
             work()
 
