@@ -1,5 +1,5 @@
 """
-surface_panel.py — the "Surface pressure" side panel (Paket S): Cp along one surface (a body surface
+surface_panel.py — the "Surface pressure" side panel: Cp along one surface (a body surface
 or a wall) as a graph, and for a closed body the force from the pressure integral with the
 Kutta–Joukowski / d'Alembert values next to it.
 
@@ -11,9 +11,11 @@ Cp = 1 − (2 sin θ − Γ/(2πaV∞))² is drawn too (dashed).
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QSettings, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QGraphicsView, QHBoxLayout, QLabel,
                                QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget)
 
+from physics.field import reference_speed
 from physics.surface import cylinder_cp, free_stream_angle, pressure_force, rotate_to_theta0
 
 from .chrome import button_font, font, themed_combo
@@ -387,7 +389,6 @@ class SurfacePanel(QScrollArea):
 def _fill_viewport(view, color):
     """The view's own pixels in the plot color, also the last device pixel column at a fractional
     display scale (125 %), which the view's background drawing can leave out."""
-    from PySide6.QtGui import QColor, QPalette
     vp = view.viewport()
     pal = vp.palette()
     pal.setColor(QPalette.Window, QColor(color))
@@ -397,7 +398,6 @@ def _fill_viewport(view, color):
 
 
 def _scene_v_inf(elements):
-    from physics.field import reference_speed
     return reference_speed(elements)
 
 

@@ -7,6 +7,9 @@ import math
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap, QPolygonF
 
+from .chrome import logo_pixmap
+from .element_specs import SPEC_BY_KEY
+
 
 def _arrow_head(p: QPainter, tip: QPointF, angle_rad: float, size: float, color: QColor, half: float = 0.45):
     """Filled triangular arrow head pointing in direction angle_rad (screen coords); `half` = half opening angle."""
@@ -123,13 +126,11 @@ def make_element_icon(key: str, theme: dict, size: int = 96, sign: int = 1) -> Q
 
 
 def _color_key(key: str) -> str:
-    from .element_specs import SPEC_BY_KEY
     return SPEC_BY_KEY[key].color_key if key in SPEC_BY_KEY else f"el_{key}"
 
 
 def make_app_icon(theme: dict, size: int = 128) -> QIcon:
     """Program icon: the logo of the header (paper tile, streamlines around a cylinder)."""
-    from .chrome import logo_pixmap
     icon = QIcon()
     for s in (16, 32, 48, size, 256):
         icon.addPixmap(logo_pixmap(theme, s))

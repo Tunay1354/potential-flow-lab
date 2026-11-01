@@ -1,6 +1,6 @@
 """
-header.py — the wooden header: the logo, the plank with the program name and the open file, and the
-ruler that carries the menus (and, later, the beaver).
+header.py — the wooden header: the logo, the plank with the program name, the open file and the GPU box,
+and the ruler that carries the menus (the beaver sits on it, right of Help).
 """
 import math
 
@@ -138,7 +138,7 @@ class Plank(QWidget):
 
 class Ruler(QWidget):
     """The rail under the plank: a ruler with mm / cm ticks that carries the menus.
-    `beaver_perch` is the free space right of Help where the mascot will hang later."""
+    `beaver_perch` is the free space right of Help where the beaver sits (app/beaver)."""
 
     def __init__(self, parent=None):
         super().__init__(parent)

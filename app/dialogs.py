@@ -16,7 +16,7 @@ validator(values) -> list of (severity, text) is called on every change; it show
 would do to the scene (e.g. "source is behind the wall"). If there are errors the Apply button
 becomes "Apply anyway": the user can still apply (to build a scene step by step), but knowingly.
 """
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QObject, Qt
 from PySide6.QtWidgets import (QButtonGroup, QComboBox, QDialog, QDoubleSpinBox, QFormLayout, QHBoxLayout,
                                QLabel, QPushButton, QRadioButton, QVBoxLayout, QWidget)
 
@@ -25,13 +25,12 @@ from .element_specs import ElementSpec
 from .icons import make_element_icon
 
 
-
 def dispose(dialog):
     """Free a dialog once its values have been read (a dialog kept as a child of the window would live
     as long as the window). Not with WA_DeleteOnClose: Qt deletes such a dialog before exec() returns."""
-    from PySide6.QtCore import QObject
     if isinstance(dialog, QObject):
         dialog.deleteLater()
+
 
 class _RadioPair(QWidget):
     """Two mutually exclusive radio buttons; one of them is always selected."""

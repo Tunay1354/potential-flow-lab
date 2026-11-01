@@ -2,9 +2,9 @@
 palette.py — the element palette beside the plot: one button per element type (click = Add dialog,
 drag onto the plot = add it there); dragged by its heading to the other side of the plot.
 """
-from PySide6.QtCore import QPoint, QPointF, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QPainter, QPen
-from PySide6.QtWidgets import QLabel, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtCore import QEvent, QMimeData, QPoint, QPointF, QRectF, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QDrag, QPainter, QPen
+from PySide6.QtWidgets import QApplication, QLabel, QToolButton, QVBoxLayout, QWidget
 
 from ..theme import LAYOUT
 from .cards import frame_lines
@@ -72,14 +72,12 @@ class ElementPalette(QWidget):
 
     # dragging an element type out of the palette (onto the plot) ----------------------------
     def eventFilter(self, obj, event):
-        from PySide6.QtCore import QEvent
         if isinstance(obj, QToolButton) and obj.property("element_key"):
             et = event.type()
             if et == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
                 obj._press_pos = event.position().toPoint()
             elif et == QEvent.MouseMove and event.buttons() & Qt.LeftButton:
                 start = getattr(obj, "_press_pos", None)
-                from PySide6.QtWidgets import QApplication
                 if start is not None and (event.position().toPoint() - start).manhattanLength() \
                         >= QApplication.startDragDistance():
                     obj._press_pos = None
@@ -90,9 +88,8 @@ class ElementPalette(QWidget):
         return super().eventFilter(obj, event)
 
     def _start_element_drag(self, button):
-        from PySide6.QtCore import QMimeData
-        from PySide6.QtGui import QDrag
-        from ..canvas import ELEMENT_MIME
+        from ..canvas import ELEMENT_MIME          # (here: chrome is imported by the loading screen, before
+                                                   #  the plot's heavy modules)
         key = button.property("element_key")
         mime = QMimeData()
         mime.setData(ELEMENT_MIME, key.encode())

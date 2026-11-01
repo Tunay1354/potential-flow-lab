@@ -160,6 +160,7 @@ Physics / numerics
 GUI / Qt
 - View jumping ~40×/s at some window sizes (axis label width ↔ aspect lock) → axis text space only grows.
 - 125 % display scale: a doubled dark line at the plot's right edge → plot background cache off (`CacheNone`).
+  With the GPU the same line came back (an OpenGL frame keeps nothing) → `PlotView.drawBackground` fills it all.
 - Plot settings panel overflowing when a note made a label long → notes on their own line.
 - Surface panel: graph jumped on hover, ring jumped between curves → fixed ranges, nearest point on screen.
 - **Animation slow with several layers (23 fps, 26–29 ms per frame)**: the items cached as pictures while
@@ -384,6 +385,9 @@ GUI / Qt
   waits for the new lines); `layer.BackgroundJob` shared; pulse pieces bit for bit the same (check/pulse_snapshot.py).
   Package 8 done (main window): restored scene (after a crash) now keeps to the slider limits
   (`_apply_view_and_settings`, as Open); `_limit_particles` alias gone; setup_application only from app.startup.
+  Package 9 done (panels / theme / chrome): GPU right-edge line → `PlotView.drawBackground` fills the whole GL frame
+  first (not reproducible on Xvfb: ask him to check on Windows); in-function imports moved up except chrome →
+  canvas (chrome is loaded by the loading screen: keep it free of pyqtgraph / physics); `plot_grid` colour removed.
 - **Next**: his Windows check of 20.7H (fast zoom in / out to the limits with GPU on, wheel at the limit, Fit), of 20.7D–F, then his Windows check of 20.3d / 20.4 (fps in Pulses / Particles at 144, many particles); then item 20's
   remaining measurements (Solid bodies, Surface pressure, export) from his benchmark files, then 21 …
 - Then, in this order (all planned, "as if time were unlimited"):

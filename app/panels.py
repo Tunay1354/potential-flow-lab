@@ -1,20 +1,21 @@
 """
-panels.py — right-side panels: Elements list and Plot settings.
+panels.py — the side panels Elements (the list of elements, ElementsPanel) and Plot settings (SettingsPanel),
+with their parts: the wrapped list rows (ElementRowDelegate), the sliders that reach further with the graphics
+card (LimitSlider) and the view range boxes (ViewSpinBox).
 """
 import math
 
-from PySide6.QtCore import QEvent, QModelIndex, QObject, QRect, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFontMetrics, QKeySequence, QPainter, QShortcut, QValidator
+from PySide6.QtCore import QEvent, QModelIndex, QObject, QRect, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QFontMetrics, QKeySequence, QPainter, QRegion, QShortcut, QValidator
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout,
                                QGroupBox, QHBoxLayout, QHeaderView, QLabel, QPushButton, QScrollArea, QSlider,
-                               QStyle, QStyledItemDelegate, QStyleOptionViewItem, QTreeWidget, QTreeWidgetItem,
-                               QVBoxLayout, QWidget)
+                               QStyle, QStyledItemDelegate, QStyleOptionSlider, QStyleOptionViewItem, QTreeWidget,
+                               QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from .canvas import LAYERS
 from .canvas.settings import SLIDERS, PlotSettings, slider
 from .chrome import button_font, themed_combo
 from .icons import make_element_icon
-
 
 NEEDS_V_REF = ("cp", "surface")      # layers that show Cp: a note under them when there is no V∞
 
@@ -277,6 +278,9 @@ class ElementsPanel(QWidget):
             self._later(self.delete_requested, self.current_row())
 
 
+MARK_W, MARK_H = 3.0, 14.0                  # px: the processor's-limit mark on a LimitSlider
+
+
 class LimitSlider(QSlider):
     """A Plot settings slider that may reach further with the graphics card: the bar keeps its length, a short
     vertical mark shows where the processor's limit (`mark`) is."""
@@ -291,7 +295,6 @@ class LimitSlider(QSlider):
         self.update()
 
     def _rects(self):
-        from PySide6.QtWidgets import QStyle, QStyleOptionSlider
         opt = QStyleOptionSlider()
         self.initStyleOption(opt)
         st = self.style()
@@ -300,7 +303,6 @@ class LimitSlider(QSlider):
 
     def mark_x(self) -> float | None:
         """Where the mark is (widget px), None when it is not shown (no higher limit)."""
-        from PySide6.QtWidgets import QStyle
         if self.mark is None or self.mark >= self.maximum():
             return None
         groove, handle = self._rects()
@@ -313,8 +315,6 @@ class LimitSlider(QSlider):
         x = self.mark_x()
         if x is None:
             return
-        from PySide6.QtCore import QRectF
-        from PySide6.QtGui import QRegion
         dpr = self.devicePixelRatioF() or 1.0
         snap = lambda v: round(v * dpr) / dpr                    # noqa: E731 - whole screen pixels: every mark alike
         w, h = max(snap(MARK_W), 2.0 / dpr), snap(MARK_H)
@@ -325,9 +325,6 @@ class LimitSlider(QSlider):
         p.setClipRegion(QRegion(self.rect()).subtracted(QRegion(handle)))   # (under the handle, never over it)
         p.fillRect(r, QColor(self.mark_color))
         p.end()
-
-
-MARK_W, MARK_H = 3.0, 14.0                  # px: the processor's-limit mark on a LimitSlider
 
 
 def view_number(v: float, width: float, parts: float = 1000.0) -> str:

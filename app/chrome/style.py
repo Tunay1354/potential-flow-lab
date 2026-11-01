@@ -4,9 +4,11 @@ style.py — bundled fonts, colors and small Qt styling helpers shared by the wh
 """
 import glob
 import os
+import sys
 
 from PySide6.QtCore import QRectF
 from PySide6.QtGui import QColor, QFont, QFontDatabase
+from PySide6.QtWidgets import QComboBox, QStyledItemDelegate
 
 from ..paths import ASSETS_DIR
 from ..theme import FONT, first_family
@@ -57,8 +59,6 @@ def button_font() -> QFont:
 def themed_combo(combo):
     """Drop-down list whose items follow the style sheet (padding, hover color); Fusion's default
     menu-like delegate would ignore it."""
-    from PySide6.QtWidgets import QStyledItemDelegate
-    from PySide6.QtWidgets import QComboBox
     combo.setItemDelegate(QStyledItemDelegate(combo))
     # the field may be narrower than its longest item (the open list still shows the whole text)
     combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
@@ -76,7 +76,6 @@ def device_line_rect(widget) -> QRectF:
 def tint_title_bar(window, theme: dict):
     """Windows 11: color the window's title bar in the header wood (otherwise Windows uses its own
     accent color, e.g. purple). Does nothing on other systems or older Windows versions."""
-    import sys
     if sys.platform != "win32":
         return
     try:

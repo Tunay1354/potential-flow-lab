@@ -5,9 +5,12 @@ To revise the look of the program, change values in this file only:
   * LIGHT / DARK  -> colors ("drafting paper" theme: wooden header, ruler menu rail, paper panels)
   * FONT          -> font families and sizes (the fonts themselves are in assets/fonts, SIL OFL)
   * LAYOUT        -> sizes of the header, panels, icons, window, etc.
-Nothing else in the code contains hard-coded colors or sizes.
+  * MARKERS       -> the element symbols on the plot
+No other file has colors of its own; small paddings and spacings stay next to the widgets they belong to.
 """
 import os
+
+from PySide6.QtGui import QFontDatabase
 
 from app_info import APP_NAME
 
@@ -54,7 +57,6 @@ LIGHT = {
     "status_bg":    "#E5DCC7",
     # plot
     "plot_bg":      "#FBF7EC",
-    "plot_grid":    "#E7E0D0",
     "plot_axis":    "#3A3326",
     "streamline":   "#23395F",
     "dividing_streamline": "#211A12",
@@ -112,7 +114,6 @@ DARK = {
     "ruler_edge":   "#5E4D3C",
     "status_bg":    "#14110E",
     "plot_bg":      "#1D1915",
-    "plot_grid":    "#2E2822",
     "plot_axis":    "#CFC3AE",
     "streamline":   "#9EC6EA",
     "dividing_streamline": "#F3EAD9",
@@ -148,7 +149,7 @@ FONT = {
     "menu_size_pt": 11.5,            # File / Edit ... on the ruler (shown in capitals)
     "heading_size_pt": 9.5,          # panel headings (capitals, wide letter spacing)
     "button_size_pt": 10,            # tool buttons above the plot (capitals)
-    "title_size_pt": 14,             # "FLOWY" on the plank
+    "title_size_pt": 14,             # the program name on the plank (capitals)
     "plot_label_size_pt": 10,
 }
 
@@ -200,7 +201,6 @@ MARKERS = {
 
 def first_family(key: str) -> str:
     """First installed family of FONT[key] (after the bundled fonts were loaded)."""
-    from PySide6.QtGui import QFontDatabase
     have = set(QFontDatabase.families())
     for fam in FONT[key]:
         if fam in have:
@@ -210,7 +210,7 @@ def first_family(key: str) -> str:
 
 def build_stylesheet(t: dict) -> str:
     """Qt stylesheet generated from the palette `t`. Capitals and letter spacing (which style sheets
-    cannot do) are set on the fonts in chrome.py."""
+    cannot do) are set on the fonts (chrome/style.py)."""
     mono, head = first_family("mono"), first_family("heading")
     chevron = os.path.join(ASSETS_DIR, "icons", t["chevron_icon"]).replace("\\", "/")
     return f"""

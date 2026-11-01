@@ -844,6 +844,18 @@ bırakıldı (kullanıcı kararı).
       `setup_application` yeniden dışa verme kalktı (herkes `app.startup`'tan alıyor), çelişen / eski yorumlar
       ("ileride kunduz", "no floating" + "nested"), tarih notu, tekrarlanan logger, fonksiyon içi import'lar,
       import sırası, ayar yolunun eski hali (`IZTECH` → `IZTECH\<APP_NAME>`).
+    - ✅ **21.9 Paneller / theme / chrome** (1 Kasım; `panels, theme, chrome/*, surface_panel, gpu_panel,
+      conventions_dialog, dialogs, element_specs, icons`): **Hata (onun bildirdiği): GPU açıkken plot'un sağ
+      kenarında kalın bir iç çizgi.** Muhtemel sebep: bir OpenGL karesi öncekinden hiçbir şey tutmaz ve 125 %'te
+      sahnenin arka planı (mantıksal piksel) son cihaz piksel sütununu boş bırakabilir; yumuşatma onu orada ne varsa
+      onunla karıştırır → çerçevenin yanında koyu bir sütun (işlemci görünümünde aynı şey `autoFillBackground` ile
+      çözülmüştü). Düzeltme: `PlotView.drawBackground` GPU'dayken önce bütün kareyi plot rengiyle doldurur. Burada
+      (Xvfb + yazılımsal OpenGL, QT_SCALE_FACTOR 1.25, birkaç pencere genişliği) çizgi zaten görünmüyordu → Windows'ta
+      onun denemesi gerek. Temizlik: "Paket S", "kunduz ileride" gibi eski notlar, kullanılmayan renk `plot_grid`,
+      7 dosyada fonksiyon içi import'lar başa (chrome → canvas importu bilerek içeride: chrome açılış ekranında
+      yüklenir, açılış ekranı hâlâ pyqtgraph / physics / numba yüklemeden açılıyor — kontrol edildi), sınıfın
+      altındaki sabit, boş satırlar. Kontrol: pencerenin tamamı açık / koyu temada önce / sonra aynı (sadece durum
+      çubuğundaki ms sayısı farklı), 126 plot görüntüsü piksel piksel aynı.
 22. ☐ **Görsel ve metin son kontrolü** (kullanıcı ile): programdaki tüm yazılar (menüler, paneller, dialog'lar,
     tooltip'ler, uyarı mesajları, lejantlar, durum çubuğu) tek bir listede + ekran görüntüsü galerisi; kullanıcı
     beğenmediklerini işaretler / yenisini yazar, ben değiştiririm. Açık kararlar burada: dividing streamline

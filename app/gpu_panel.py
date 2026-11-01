@@ -15,12 +15,13 @@ from __future__ import annotations
 import html
 import time
 
-from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QFormLayout, QFrame, QHBoxLayout, QLabel, QPushButton,
                                QVBoxLayout)
 
 from . import gpu
+from .hardware import vendor_of
 from .chrome import button_font, font, heading_font, themed_combo
 
 REFRESH_MS = 500
@@ -151,14 +152,11 @@ class GpuPanel(QFrame):
         self.update()
 
     def card_rect(self):
-        from PySide6.QtCore import QRectF
         return QRectF(FRAME / 2, NOTCH + FRAME / 2, self.width() - SHADOW - FRAME, self.height() - NOTCH - SHADOW - FRAME)
 
     def paintEvent(self, e):
         if self.theme is None:
             return
-        from PySide6.QtCore import QPointF
-        from PySide6.QtGui import QPainterPath
         t = self.theme
         ink, paper = QColor(t["ink"]), QColor(t["panel_bg"])
         shadow = QColor(t["ink"])
@@ -280,6 +278,5 @@ class GpuPanel(QFrame):
 
 def short_name(name: str) -> str:
     """"NVIDIA GeForce RTX 3050 Ti Laptop GPU" -> "NVIDIA"; the vendor is the short name on a button."""
-    from .hardware import vendor_of
     v = vendor_of(name)
     return {"nvidia": "NVIDIA", "amd": "AMD", "intel": "Intel"}.get(v, name)

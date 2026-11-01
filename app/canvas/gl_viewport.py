@@ -17,8 +17,8 @@ import time
 from collections import deque
 
 import pyqtgraph as pg
-from PySide6.QtCore import Signal
-from PySide6.QtGui import QOpenGLContext, QSurfaceFormat
+from PySide6.QtCore import QRectF, Signal
+from PySide6.QtGui import QOpenGLContext, QPainter, QSurfaceFormat
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
 log = logging.getLogger("pflab")
@@ -140,6 +140,20 @@ class PlotView(pg.PlotWidget):
     def __init__(self, *args, **kwargs):
         self.meter = FrameMeter()
         super().__init__(*args, **kwargs)
+
+    def drawBackground(self, p, rect):
+        """With the graphics card: every pixel of the frame filled first. An OpenGL frame keeps nothing of
+        the last one, and at a fractional display scale (125 %) the scene's background (logical pixels) can
+        leave the last device pixel column out — the smoothing then blends it with whatever is there, a dark
+        line beside the plot's right frame. (The processor's viewport fills itself: autoFillBackground.)"""
+        vp = self.viewport()
+        if isinstance(vp, QOpenGLWidget):
+            p.save()
+            p.resetTransform()
+            p.setRenderHint(QPainter.Antialiasing, False)
+            p.fillRect(QRectF(0, 0, vp.width() + 2, vp.height() + 2), self.backgroundBrush())
+            p.restore()
+        super().drawBackground(p, rect)
 
     def paintEvent(self, ev):
         t = time.perf_counter()
