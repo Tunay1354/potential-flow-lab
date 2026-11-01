@@ -21,3 +21,6 @@ Thumbs.db
 
 # python main.py --verify (default output folder)
 /verification/
+
+# python scripts/random_test.py (results)
+/random_test_results/

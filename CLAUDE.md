@@ -239,10 +239,12 @@ GUI / Qt
   22 text and visual review **with him** (every UI string in one list + screenshot gallery; he marks what to
   change; open decisions: dividing-streamline colour, element colours, icons, the beaver's name and his side /
   swimming poses) →
-  23 exhaustive random test with the final code (hundreds–thousands of random scenes in several views: no
-  exceptions, V = 0 at stagnation points, ψ constant along lines, no crossing lines, zoom-independent bodies, forces
-  vs Kutta–Joukowski / d'Alembert, save → reopen, exports, particles stay in the fluid; random GUI actions incl.
-  undo / redo and recovery; every bug found becomes a permanent test) →
+  23 exhaustive random test with the final code — `scripts/random_test.py` (23.1, 2 Nov): physics checks on random
+  and extreme scenes in 4 views (no exceptions, V = 0 at stagnation points, lines along V, ψ constant, no crossings,
+  zoom-independent bodies, forces vs Kutta–Joukowski / d'Alembert, save → reopen, particles stay in the fluid) +
+  random window actions (undo-all / redo-all exact, exports, error log and excepthook watched). He runs it on Windows
+  and sends `random_test_results/<run>/`; `--replay file.pflow` repeats one failing scene. Still missing: recovery
+  from autosave. Every bug found → fix + permanent test; final run after 22 →
   24 packaging — **he chose both A (zip: Flowy\Flowy.exe + _internal\) and C (Inno Setup installer: Start menu,
   .pflow association, uninstaller)**, version 1.0, GitHub Releases, test on a PC without Python, SmartScreen note
   ("More info → Run anyway"). To do there: bundle imageio-ffmpeg's ffmpeg binary in the spec; Numba's cache goes to

@@ -901,7 +901,7 @@ bırakıldı (kullanıcı kararı).
     tooltip'ler, uyarı mesajları, lejantlar, durum çubuğu) tek bir listede + ekran görüntüsü galerisi; kullanıcı
     beğenmediklerini işaretler / yenisini yazar, ben değiştiririm. Açık kararlar burada: dividing streamline
     rengi, element renkleri, ikonlar, kunduz görünümü
-23. ☐ **Kapsamlı rastgele test** (en son kodla): yüzlerce–binlerce rastgele sahne (tüm element tipleri, duvarlar,
+23. ▶ **Kapsamlı rastgele test** (en son kodla): yüzlerce–binlerce rastgele sahne (tüm element tipleri, duvarlar,
     köşeler, kanal, sector flow, uç değerler, üst üste / çok yakın elementler), her biri birkaç zoom / pan'de:
     hata (exception) yok; stagnation point'lerde gerçekten V = 0; streamline'lar boyunca ψ sabit, çizgiler
     kesişmiyor; cisim dolgusu zoom'dan bağımsız; yüzey Cp'si ve kuvvet (Kutta–Joukowski / d'Alembert ile kıyas
@@ -909,6 +909,26 @@ bırakıldı (kullanıcı kararı).
     kullanıcı işlemleri (ekle, sürükle, sil, undo / redo, katmanlar, tema, preset): çökme yok, undo'dan sonra
     sahne birebir aynı; otomatik kayıttan geri getirme de. Bulunan her hata düzeltilir ve o sahne kalıcı teste
     eklenir; test temiz çıkana kadar baştan
+    - ✅ **23.1 Test scripti** (2 Kasım; `scripts/random_test.py`, programın kodu değişmedi): PART 1 fizik — 5 tür
+      rastgele sahne (free, classic, walls, sector, edge = uç değerler / üst üste elementler / gizli / kalabalık), her
+      biri 4 view'da (Fit, 50× yakın, 100× uzak, pan); check'ler: no-crash, stagnation (|V|/V_typ < 1e-5), tangent
+      (çizgi ile V arası < 3°), psi (source / sector'süz sahnelerde ψ değişimi < çizgi aralığının %2'si), crossing,
+      bodies-zoom (Fit ile 4× yakın arasında < %2 fark, kenar pikselleri hariç), forces (kapalı, yalnız cisim: KJ ve
+      D′ = 0, %1), save-open (aynı elementler + bit bit aynı çizgiler), particles (akışkan dışında / cisim içinde
+      < %0.5, haritanın 3 pikselinden derinde). PART 2 pencere (offscreen) — rastgele aksiyonlar (ekle / düzenle /
+      taşı / gizle / sil, preset, clear, layer, view mode + kareler, zoom limitlere kadar, Fit, pan, tema, slider,
+      kunduz, export PNG / SVG / CSV, kaydet / aç); her aksiyondan sonra error log + sys.excepthook boş mu, her seride
+      undo-all = başlangıç ve redo-all = son sahne. Hatalı her sahne `failures/` altında .pflow + .txt;
+      `--replay` ile tek sahne tekrar. Sonuç klasörü `random_test_results/<tarih-saat>/` (.gitignore'da).
+      Ayrıca **slow**: bir sahne > 120 s (bitmeyen sahne çalışırken `failures/RUNNING-slow.*` olarak yazılır) ve pencere
+      bir aksiyondan 30 s sonra hâlâ hesaplıyor (sonra bitmesi beklenir, toplam süre yazılır; yoksa her sonraki aksiyon da
+      yavaş görünüyordu). Script'in kendi kontrolü: kasıtlı hata (Qt slot'unda exception + log ERROR) ikisi de
+      yakalandı. Burada ilk denemeler: ~110 sahne, ~300 pencere aksiyonu; yanlış alarmlar düzeltildi (particle: harita
+      kenar pikselleri → 3 piksel tolerans; görüntünün neredeyse tamamı cismin içindeyse yeni particle 16 denemede
+      akışkan bulamıyor → izin (1 − f)^16'ya göre). **İlk gerçek bulgu:** üç duvar rastgele açılarla + bir source
+      (sahne kontrolü zaten ✖ "an image falls inside the fluid" diyor) → 185 364 image → pencere streamline'ları
+      8–10+ dk hesaplıyor (bir düzenlemeden sonra 10 dk'da da bitmedi), o sırada kapatmak da bekliyor. Düzeltme kullanıcıya soruldu (henüz kod değişmedi). Kalan: kullanıcının Windows'ta tam koşusu (25 dk+), bulunan
+      her hata → düzeltme + kalıcı test; otomatik kayıttan geri getirme henüz scriptte değil; son koşu 22'den sonra
 24. ☐ **Faz 5 — Paketleme** (seçim: A zip + C Inno Setup kurulum dosyası, ikisi birden): Python gerektirmeyen Windows 10/11 exe (zip içinde klasör), sürüm 1.0, GitHub
     Releases, kurulum dosyası (Inno Setup), Numba önbelleği, .pflow'a çift tıklayınca açılma, (isteğe bağlı)
     komut satırı için konsol exe'si; exe'de Help → Run verification 102 / 102, Python kurulu olmayan temiz bir

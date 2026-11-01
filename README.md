@@ -73,6 +73,9 @@ Hata (dosya yok, bilinmeyen katman…) → çıkış kodu 2; `--verify`'da tutma
 
 - `python scripts/benchmark.py --full --out benchmarks/<isim>.json`: programın her şeyinin hızı (açılış, hesaplar,
   çizim, pan / zoom, animasyon, sınırlar, export), sonra bir de ekran kartıyla; ~8–10 dk, ayarlarına dokunmaz.
+- `python scripts/random_test.py [--minutes 25] [--quick] [--seed N]`: kapsamlı rastgele test (ROADMAP 23) —
+  rastgele / uç sahnelerde fizik check'leri ve pencerede rastgele işlemler; sonuç `random_test_results/<tarih-saat>/`
+  (`summary.md`, hatalı sahneler `failures/` altında .pflow olarak; `--replay DOSYA` tek sahneyi tekrar dener).
 - `python scripts/streamline_quality.py` (çizgi kalitesi), `python scripts/smoothness.py` (pan / zoom akıcılığı).
 - Exe (ROADMAP 24): `pyinstaller packaging/build_exe.spec` → `dist/Flowy/` (adı `app_info.py`'den).
 
