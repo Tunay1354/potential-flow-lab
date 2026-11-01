@@ -1,9 +1,13 @@
 """
-verification.py — the physics checked against the analytic solutions of the course: a table of
-(case, quantity, analytic value, numerical value, |error|) for the report (scripts/verify_physics.py,
-the command line `--verify`) and for the tests (tests/test_verification.py). The velocity formulas
-are exact to round-off; physics/program_checks.py adds what the program computes numerically (drawn
-streamlines, stagnation point search, body surfaces, surface pressure), each with its own tolerance.
+verification.py — the velocity formulas checked against the analytic solutions of the course.
+
+verification_checks() gives a table of (case, quantity, analytic value, numerical value, |error|) for the
+verification report (`--verify`, Help → Run verification) and the tests. These comparisons are exact up to
+round-off. physics/program_checks.py adds what the program computes numerically (drawn streamlines,
+stagnation point search, body surfaces, surface pressure), each with its own tolerance.
+
+Sign convention: Γ > 0 is counter-clockwise (as in the program); the course's lifting cylinder uses the
+clockwise circulation Γ_cw = −Γ, so its lift is L′ = ρ V∞ Γ_cw.
 """
 from __future__ import annotations
 
@@ -38,12 +42,16 @@ class Check:
         return bool(self.error < self.tolerance)
 
 
-def _max_vn(els, wall, half=8.0, n=801):
-    """Largest normal velocity on a wall (should be 0)."""
-    t = np.linspace(-half, half, n)
-    z = wall.point + t * wall.direction
+def _largest_vn(els, z, normal) -> float:
+    """Largest |V·n| at the points z for the unit normal `normal` (0 on a wall)."""
     uu, vv = velocity(els, z.real, z.imag)
-    return float(np.max(np.abs(((uu + 1j * vv) * np.conj(wall.normal)).real)))
+    return float(np.max(np.abs(((uu + 1j * vv) * np.conj(normal)).real)))
+
+
+def _max_vn(els, wall, half=8.0, n=801):
+    """Largest normal velocity at n points along a wall, |t| ≤ half from its point (should be 0)."""
+    t = np.linspace(-half, half, n)
+    return _largest_vn(els, wall.point + t * wall.direction, wall.normal)
 
 
 # How each comparison is made (shown under a check in Help → Run verification and in the HTML report).
@@ -80,12 +88,13 @@ HOW = {
                  "(velocity from the elements); force F = −∮ (p − p∞) n ds summed around the circle; L′ is its "
                  "component across the free stream, D′ along it (ρ = 1.225 kg/m³).",
     "lifting stag": "Theory: uniform + doublet + a vortex Γ at the center: on r = a, V_r = 0 and "
-                    "V_θ = −2V∞ sin θ + Γ/(2πa). V_θ = 0 where sin θ = Γ/(4πV∞a) (Γ counter-clockwise > 0; here "
-                    "Γ_cw = 2 clockwise, Γ = −2: the stagnation points move down).\n"
+                    "V_θ = −2V∞ sin θ + Γ/(2πa). V_θ = 0 where sin θ = Γ/(4πV∞a) = −Γ_cw/(4πV∞a) (Γ "
+                    "counter-clockwise > 0; here Γ_cw = 2 clockwise, Γ = −2: the stagnation points move down).\n"
                     "Program: |V| at that point from the elements — zero if the formula and the program agree. "
                     + _SAME_CODE,
-    "kutta": "Theory: Kutta–Joukowski: the lift per unit span on any closed body with circulation is L′ = ρ V∞ Γ "
-             "(clockwise Γ gives lift up); the drag is still zero.\n"
+    "kutta": "Theory: Kutta–Joukowski: the lift per unit span on any closed body with circulation is "
+             "L′ = −ρ V∞ Γ = ρ V∞ Γ_cw (Γ counter-clockwise > 0; a clockwise circulation Γ_cw = −Γ > 0 gives "
+             "lift up); the drag is still zero.\n"
              "Program: the same pressure integral as for d'Alembert — Bernoulli at 4096 points of r = a, "
              "F = −∮ (p − p∞) n ds — now with the vortex in the scene (ρ = 1.225 kg/m³, V∞ = 1, Γ_cw = 2: "
              "L′ = 2.45 N/m).",
@@ -127,8 +136,8 @@ HOW = {
 
 
 def verification_checks() -> list[Check]:
-    """All comparisons (uniform flow, source / sink / vortex, cylinder with and without circulation,
-    symmetry walls and the method of images, sector flows)."""
+    """All comparisons: uniform flow, source / sink / vortex, cylinder with and without circulation,
+    symmetry walls and the method of images, sector flows."""
     rows = []
 
     def add(case, quantity, analytic, numeric, how):
@@ -158,29 +167,28 @@ def verification_checks() -> list[Check]:
 
     # 3) Cylinder -------------------------------------------------------------------------
     V, A, rho = 1.0, 1.0, 1.225
-    cyl = [Uniform(V=V), Doublet(mu=V * A**2)]
+    cyl = [Uniform(V=V), Doublet(mu=V * A**2)]                  # μ = V∞a²: the cylinder r = a
     th = np.radians(90.0)
     z = A * np.exp(1j * th)
     vr, vt = polar_components(cyl, z)
-    add("Cylinder (U + doublet)", "V_r on r = a", 0.0, float(vr), "cylinder")
-    add("Cylinder (U + doublet)", "V_θ at θ = 90°", -2 * V, float(vt), "cylinder")
+    add("Cylinder (uniform + doublet)", "V_r on r = a", 0.0, float(vr), "cylinder")
+    add("Cylinder (uniform + doublet)", "V_θ at θ = 90°", -2 * V, float(vt), "cylinder")
     u, v = velocity(cyl, z.real, z.imag)
-    add("Cylinder (U + doublet)", "Cp at θ = 90°", -3.0, float(1 - (u**2 + v**2) / V**2), "cylinder")
+    add("Cylinder (uniform + doublet)", "Cp at θ = 90°", -3.0, float(1 - (u**2 + v**2) / V**2), "cylinder")
     u, v = velocity(cyl, A, 0.0)
-    add("Cylinder (U + doublet)", "|V| at θ = 0 (stag.)", 0.0, float(np.hypot(u, v)), "cylinder")
+    add("Cylinder (uniform + doublet)", "|V| at θ = 0 (stag.)", 0.0, float(np.hypot(u, v)), "cylinder")
     L, D = surface_forces(cyl, 0j, A, rho)
-    add("Cylinder (U + doublet)", "L' (d'Alembert)", 0.0, L, "dalembert")
-    add("Cylinder (U + doublet)", "D' (d'Alembert)", 0.0, D, "dalembert")
+    add("Cylinder (uniform + doublet)", "L′ (d'Alembert)", 0.0, L, "dalembert")
+    add("Cylinder (uniform + doublet)", "D′ (d'Alembert)", 0.0, D, "dalembert")
 
-    G = 2.0                                     # clockwise circulation (course example)
-    lcyl = cyl + [Vortex(Gamma=-G)]
-    s = -G / (4 * np.pi * V * A)
-    ts = np.arcsin(s)
+    gamma_cw = 2.0                              # clockwise circulation (course example): Γ = −2
+    lcyl = cyl + [Vortex(Gamma=-gamma_cw)]
+    ts = np.arcsin(-gamma_cw / (4 * np.pi * V * A))
     u, v = velocity(lcyl, A * np.cos(ts), A * np.sin(ts))
-    add("Lifting cylinder, Γ_cw = 2", "|V| at sinθ = −Γ/(4πVa)", 0.0, float(np.hypot(u, v)), "lifting stag")
+    add("Lifting cylinder, Γ_cw = 2", "|V| at sin θ = −Γ_cw/(4πV∞a)", 0.0, float(np.hypot(u, v)), "lifting stag")
     L, D = surface_forces(lcyl, 0j, A, rho)
-    add("Lifting cylinder, Γ_cw = 2", "L' = ρ V∞ Γ", rho * V * G, L, "kutta")
-    add("Lifting cylinder, Γ_cw = 2", "D'", 0.0, D, "kutta")
+    add("Lifting cylinder, Γ_cw = 2", "L′ = ρ V∞ Γ_cw", rho * V * gamma_cw, L, "kutta")
+    add("Lifting cylinder, Γ_cw = 2", "D′", 0.0, D, "kutta")
 
     # 4) Symmetry walls (method of images) ---------------------------------------------------
     wall = SymmetryWall(xw=0.0, yw=-1.0, theta_w=0.0)
@@ -190,20 +198,20 @@ def verification_checks() -> list[Check]:
     tilted = SymmetryWall(xw=0.5, yw=-0.5, theta_w=35.0)
     scene = [tilted, Uniform(V=1.0, alpha=35.0), Source(m=1.0, x0=0.0, y0=1.0), Vortex(Gamma=-1.0, x0=1.0, y0=2.0)]
     add("Wall θ_w = 35°, mixed scene", "max |V·n| on wall", 0.0, _max_vn(scene, tilted), "wall")
-    G, hh = 1.0, 0.8
-    u, v = velocity([SymmetryWall(yw=0.0), Vortex(Gamma=G, y0=hh)], 0.0, 0.0)
-    add("Vortex Γ = 1 at h = 0.8 above wall", "u on wall below vortex", G / (np.pi * hh), float(u), "vortex wall")
-    m_, hh = 1.0, 0.8
-    u, v = velocity([SymmetryWall(yw=0.0), Source(m=m_, y0=hh)], hh, 0.0)
-    add("Source m = 1 at h = 0.8 above wall", "u on wall at x = h", m_ / (2 * np.pi * hh), float(u), "source wall")
-    a_, b_ = SymmetryWall(yw=0.0, side=0), SymmetryWall(theta_w=90.0, side=1)
-    corner = [a_, b_, Source(m=1.0, x0=1.0, y0=1.0)]
+    gamma, h = 1.0, 0.8
+    u, v = velocity([SymmetryWall(yw=0.0), Vortex(Gamma=gamma, y0=h)], 0.0, 0.0)
+    add("Vortex Γ = 1 at h = 0.8 above wall", "u on wall below vortex", gamma / (np.pi * h), float(u), "vortex wall")
+    m = 1.0
+    u, v = velocity([SymmetryWall(yw=0.0), Source(m=m, y0=h)], h, 0.0)
+    add("Source m = 1 at h = 0.8 above wall", "u on wall at x = h", m / (2 * np.pi * h), float(u), "source wall")
+    floor, upright = SymmetryWall(yw=0.0, side=0), SymmetryWall(theta_w=90.0, side=1)
+    corner = [floor, upright, Source(m=1.0, x0=1.0, y0=1.0)]
     add("90° corner + source (3 images)", "max |V·n| on both walls", 0.0,
-        max(_max_vn(corner, a_), _max_vn(corner, b_)), "corner")
-    ca, cb = SymmetryWall(yw=0.0, side=0), SymmetryWall(yw=2.0, side=1)
-    channel = [ca, cb, Source(m=1.0, y0=0.7)]
+        max(_max_vn(corner, floor), _max_vn(corner, upright)), "corner")
+    lower, upper = SymmetryWall(yw=0.0, side=0), SymmetryWall(yw=2.0, side=1)
+    channel = [lower, upper, Source(m=1.0, y0=0.7)]
     add("Channel H = 2 + source (∞ images)", "max |V·n| on both walls", 0.0,
-        max(_max_vn(channel, ca, half=30), _max_vn(channel, cb, half=30)), "channel")
+        max(_max_vn(channel, lower, half=30), _max_vn(channel, upper, half=30)), "channel")
     u, v = velocity(channel, 80.0, 1.0)
     add("Channel H = 2 + source (∞ images)", "u far downstream = m/(2H)", 0.25, float(u), "channel")
 
@@ -213,23 +221,20 @@ def verification_checks() -> list[Check]:
     add("Sector β = 90° (n = 2), V = 1", "u = 2Vx at (1.5, 0.5)", 3.0, float(u), "sector")
     add("Sector β = 90° (n = 2), V = 1", "v = −2Vy at (1.5, 0.5)", -1.0, float(v), "sector")
     for beta in (30.0, 270.0):
-        s_ = SectorFlow(V=1.0, x0=0.5, y0=-0.5, theta1=20.0, theta2=20.0 + beta)
-        z = s_.z0 + np.linspace(0.05, 4.0, 200) * np.exp(1j * np.radians(20.0 + beta))
-        F_ = complex_potential([s_], z)
+        sector = SectorFlow(V=1.0, x0=0.5, y0=-0.5, theta1=20.0, theta2=20.0 + beta)
+        z = sector.z0 + np.linspace(0.05, 4.0, 200) * np.exp(1j * np.radians(20.0 + beta))
+        F = complex_potential([sector], z)
         add(f"Sector β = {beta:.0f}° (n = {180 / beta:.4g})", "max |ψ| / max |F| on 2nd wall", 0.0,
-            float(np.max(np.abs(F_.imag)) / np.max(np.abs(F_))), "sector psi")
-    r_ = 0.81
-    s_ = SectorFlow(V=2.0, theta1=0.0, theta2=360.0)
-    u, v = velocity([s_], r_ * np.cos(1.0), r_ * np.sin(1.0))
-    add("Plate tip β = 360° (n = 1/2), V = 2", "|V| = (V/2) r^(−1/2), r = 0.81", 1.0 / np.sqrt(r_),
+            float(np.max(np.abs(F.imag)) / np.max(np.abs(F))), "sector psi")
+    r = 0.81
+    u, v = velocity([SectorFlow(V=2.0, theta1=0.0, theta2=360.0)], r * np.cos(1.0), r * np.sin(1.0))
+    add("Plate tip β = 360° (n = 1/2), V = 2", "|V| = (V/2) r^(−1/2), r = 0.81", 1.0 / np.sqrt(r),
         float(np.hypot(u, v)), "plate tip")
-    s_ = SectorFlow(V=1.0)
-    both = [s_, Source(m=1.0, x0=1.0, y0=1.0)]
+    both = [SectorFlow(V=1.0), Source(m=1.0, x0=1.0, y0=1.0)]
     worst = 0.0
-    for ang in (0.0, 90.0):
-        z = np.linspace(0.05, 6.0, 400) * np.exp(1j * np.radians(ang))
-        uu, vv = velocity(both, z.real, z.imag)
-        worst = max(worst, float(np.max(np.abs(((uu + 1j * vv) * np.conj(1j * np.exp(1j * np.radians(ang)))).real))))
+    for ang in (0.0, 90.0):                     # the two sides of the sector; the normal is 90° from each side
+        side = np.exp(1j * np.radians(ang))
+        worst = max(worst, _largest_vn(both, np.linspace(0.05, 6.0, 400) * side, 1j * side))
     add("Sector β = 90° + source (3 images)", "max |V·n| on both walls", 0.0, worst, "sector source")
     return rows
 

@@ -42,15 +42,15 @@ from typing import Callable
 from app_info import APP_NAME, APP_VERSION
 from physics import ELEMENT_TYPES, FlowElement
 
-from .plot_settings import SETTING_TYPES, ZERO_ALLOWED
+from .plot_settings import SETTING_TYPES as SETTINGS, ZERO_ALLOWED
 
 FORMAT = "pflow-scene"
 OLD_FORMATS = ("potential-flow-lab-scene",)      # still opened
 VERSION = 1
 EXTENSION = ".pflow"
 
-# plot settings stored with a scene: name -> type, and those that may be 0 (the others must be > 0)
-SETTINGS, ZERO_ALLOWED = SETTING_TYPES, ZERO_ALLOWED
+# SETTINGS: the plot settings stored with a scene (name -> type); ZERO_ALLOWED: those that may be 0
+# (the others must be > 0). Both come from plot_settings.PlotSettings.
 IGNORED = {"anim_style"}            # older settings, now not saved (no warning when a file has them)
 
 # MIGRATIONS[n] converts the dict of a version-n file into version n + 1

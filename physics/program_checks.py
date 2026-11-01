@@ -1,5 +1,5 @@
 """
-program_checks.py — what the PROGRAM computes, checked against the theory (Paket V, `--verify`):
+program_checks.py — what the PROGRAM computes, checked against the theory (verification report, `--verify`):
 
   scene_checks(title, elements, view)   the checks that fit a scene, chosen by what it contains:
       uniform flow only       the drawn streamlines are straight lines at the angle α
@@ -9,7 +9,7 @@ program_checks.py — what the PROGRAM computes, checked against the theory (Pak
                               is the circle r = a; Cp on it; lift and drag from the pressure integral
                               against Kutta–Joukowski and d'Alembert
       source above a wall     no flow through the wall; the stagnation point on the wall under the source
-  accuracy_checks()       the numerical methods on their own: ψ constant along the drawn streamlines,
+  accuracy_checks()                     the numerical methods on their own: ψ constant along the drawn streamlines,
                           the stagnation point search, body shapes from the surfaces, lift for several Γ
 
 Each row has its own tolerance: the streamlines are integrated (RK4) and the surfaces are traced, so
@@ -144,7 +144,7 @@ def scene_checks(title, elements, view) -> list[Check]:
 
     if kinds == ["uniform"]:
         (u,) = els
-        _res, lines = _lines(els, view)
+        _, lines = _lines(els, view)
         seg = np.concatenate([np.diff(z) for z in lines])
         ang = np.degrees(np.angle(seg[np.abs(seg) > 0])) - u.alpha
         ang = (ang + 90.0) % 180.0 - 90.0                         # a line drawn either way round
@@ -155,7 +155,7 @@ def scene_checks(title, elements, view) -> list[Check]:
             np.mean((vel * np.exp(-1j * np.radians(u.alpha))).real / np.abs(vel)), 1e-9, "uniform dir")
     elif kinds == ["source"]:
         (s,) = els
-        _res, lines = _lines(els, view)
+        _, lines = _lines(els, view)
         worst = 0.0
         for z in lines:
             mid = 0.5 * (z[1:] + z[:-1])
@@ -173,7 +173,7 @@ def scene_checks(title, elements, view) -> list[Check]:
             float(np.mean(radial)), 1e-9, "radial sign")
     elif kinds == ["vortex"]:
         (v,) = els
-        _res, lines = _lines(els, view)
+        _, lines = _lines(els, view)
         dev = max(float(np.ptp(np.abs(z - v.z0)) / np.mean(np.abs(z - v.z0))) for z in lines)
         add("drawn streamlines are circles: largest (r_max − r_min)/r", 0.0, dev, 1e-4, "circles")
         z = np.concatenate(lines)
@@ -192,7 +192,7 @@ def scene_checks(title, elements, view) -> list[Check]:
         add("no flow through the wall: max |V·n| on the wall (2001 points)", 0.0,
             float(np.max(np.abs((vel * np.conj(w.normal)).real))), 1e-9, "wall vn")
         foot = w.point + ((s.z0 - w.point) * np.conj(w.direction)).real * w.direction
-        res, _lines_ = _lines(els, view)
+        res, _ = _lines(els, view)
         found = [p.z for p in res.stagnation]
         add("stagnation point on the wall under the source: distance to it [m]", 0.0,
             min(abs(p - foot) for p in found) if found else np.inf, 1e-8, "wall stag")
@@ -209,7 +209,8 @@ def _cylinder_rows(title, els, view) -> list[Check]:
     d = next(e for e in els if e.TYPE == "doublet")
     vortices = [e for e in els if e.TYPE == "vortex"]
     gamma = vortices[0].Gamma if vortices else 0.0
-    if vortices and abs(vortices[0].z0 - d.z0) > 1e-12:
+    turned = (d.delta - u.alpha + 180.0) % 360.0 - 180.0         # doublet axis against the free stream
+    if (vortices and abs(vortices[0].z0 - d.z0) > 1e-12) or abs(turned) > 1e-9 or d.mu <= 0 or u.V <= 0:
         return rows                                    # not a (lifting) cylinder
     V, a = u.V, float(np.sqrt(d.mu / u.V))
     alpha = np.radians(u.alpha)
@@ -217,11 +218,14 @@ def _cylinder_rows(title, els, view) -> list[Check]:
     if abs(s) <= 1.0:
         th = np.arcsin(s)
         exact = [d.z0 + a * np.exp(1j * (alpha + th)), d.z0 + a * np.exp(1j * (alpha + np.pi - th))]
-        res, _lines_ = _lines(els, view)
+        res, _ = _lines(els, view)
         found = [p.z for p in res.stagnation]
         err = max(min(abs(p - q) for q in found) for p in exact) if found else np.inf
         add(f"stagnation points found at sin θ = Γ/(4πV∞a) = {s:.4f}: largest distance [m]", 0.0, err, 1e-8, "cyl stag")
-    (surf,) = [b for b in body_surfaces(els) if b.closed]
+    closed = [b for b in body_surfaces(els) if b.closed]
+    if len(closed) != 1:
+        return rows
+    surf = closed[0]
     if abs(gamma) <= 4.0 * np.pi * V * a:
         add("body surface traced by the program is r = a: max |r − a| [m]", 0.0,
             float(np.max(np.abs(np.abs(surf.z - d.z0) - a))), 2e-3, "cyl r")

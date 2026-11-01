@@ -1,9 +1,10 @@
 """
-diagnostics.py — numerical measurements on a flow (used by tests, the
-verification report, and later by GUI tools such as a circulation probe).
+diagnostics.py — measurements on a flow for the verification table (verification.py) and the tests:
+polar velocity components, flux and circulation around a circle, pressure force on a circular body.
 
-All contour integrals are taken on a circle of radius R around `center`,
-sampled uniformly in θ (for smooth periodic integrands this is spectrally accurate).
+The integrals are taken on a circle of radius R around `center`, sampled uniformly in θ (for smooth
+periodic integrands this is exact up to round-off). The elements are used as given: the images of
+walls are not added here.
 """
 from __future__ import annotations
 

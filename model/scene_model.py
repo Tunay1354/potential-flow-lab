@@ -8,8 +8,8 @@ modified in place: a command replaces an element object by a new one, which make
 Listeners (e.g. the main window) are called after every change with the index of the element
 that should be selected afterwards (or None).
 
-Merging: consecutive commands that say so (e.g. the many small moves while dragging an element
-in Phase 2c) are merged into ONE undo step.
+Merging: consecutive commands that say so (e.g. the many small moves while an element is dragged
+on the plot) are merged into ONE undo step.
 """
 from __future__ import annotations
 
@@ -63,10 +63,7 @@ class RemoveElement(Command):
 
     def do(self, elements):
         self.element = elements.pop(self.index)
-        if not self._text:
-            self.text = f"Delete {self.element.NAME.lower()}"
-        else:
-            self.text = self._text
+        self.text = self._text or f"Delete {self.element.NAME.lower()}"
         return min(self.index, len(elements) - 1) if elements else None
 
     def undo(self, elements):
@@ -180,7 +177,7 @@ class SceneModel:
     def redo_text(self) -> str:
         return self._redo[-1].text if self._redo else ""
 
-    # ------------------------------------------------------------------ saved / modified (File menu, 2b)
+    # ------------------------------------------------------------------ saved / modified (File menu)
     def mark_modified(self):
         """Unsaved, whatever the history says (a scene carried over a restart that was not saved)."""
         self._clean_id = -1

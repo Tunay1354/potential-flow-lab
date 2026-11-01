@@ -70,7 +70,7 @@ def test_lifting_cylinder_surface_velocity_and_stagnation(gamma_cw):
 
 @pytest.mark.parametrize("gamma_cw", [1.0, 2.5])
 def test_kutta_joukowski(gamma_cw):
-    """Pressure integration gives L' = ρ∞ V∞ Γ and D' = 0."""
+    """Pressure integration gives L′ = ρ V∞ Γ_cw (clockwise circulation) and D′ = 0."""
     rho = 1.225
     lift, drag = surface_forces(cylinder(gamma_cw), 0j, A, rho=rho)
     assert lift == pytest.approx(rho * V * gamma_cw, rel=1e-10)

@@ -300,7 +300,7 @@ ve `--gpu`'lu iki çalıştırma karşılaştırılır (paint / interact / anim 
 | `physics/warmup.py` | Numba çekirdeklerini arka planda önceden derler / yükler |
 | `physics/particles.py` | Animasyon fiziği: tracer particle'lar, streamline boyunca yolculuk süresi (pulse'lar) |
 | `physics/kernel.py` | Numba ile derlenmiş hız alanı ve integrator (aynı matematik, ~10× hızlı, arayüzü bekletmez) |
-| `physics/diagnostics.py` | Flux, circulation, yüzey kuvvetleri (L′, D′) ölçümleri |
+| `physics/diagnostics.py` | Doğrulama tablosu için ölçümler: V_r / V_θ, flux, circulation, silindirde basınç kuvveti (L′, D′) |
 | `physics/verification.py` | Analitik çözümlerle karşılaştırma tablosu (rapor, testler, `--verify`) |
 | `physics/program_checks.py` | Programın sayısal sonuçlarının kontrolü: çizilen streamline'lar, durma noktası araması, izlenen yüzeyler, Cp, basınç integrali (`--verify`) |
 | `tests/` | Otomatik doğrulama testleri (`pytest`) |

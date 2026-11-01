@@ -805,6 +805,16 @@ bırakıldı (kullanıcı kararı).
       doğru. Kontrol: önce / sonra 21 preset + 14 rastgele sahne × 5 görünüm (normal, yakın, uzak, 50× yakın, 300× uzak)
       = 1155 kalem (stagnation point'ler, dividing / inner çizgiler, cisim haritaları, duvar ve cisim yüzeyleri, Cp,
       kuvvetler, particles, pulse süreleri) **birebir aynı**; streamline motorunun 186 görüntüsü de aynı.
+    - ✅ **21.5 Doğrulama + model** (1 Kasım; `verification, program_checks, diagnostics, model/*`): ödevin 5 minimum
+      verification case'i tek tek ödev metniyle karşılaştırıldı — hepsi var (α = 0° / 45° uniform, source / sink /
+      vortex işaretleri, silindir + lifting cylinder, duvarda V·n = 0, kaydet → aç = aynı liste ve aynı streamline'lar).
+      İşaret dili tek: programda Γ > 0 ccw; dersin örneği clockwise Γ_cw ile yazıldığı için tablo artık "L′ = ρ V∞ Γ_cw"
+      ve "sin θ = −Γ_cw/(4πV∞a)" diyor (önce "Γ" yazıyordu, ccw Γ ile karışıyordu); L' → L′, "U + doublet" → "uniform
+      + doublet". Hata: `program_checks._cylinder_rows` eksenini akışa çevirmemiş bir doublet'te (δ ≠ α) kapalı cisim
+      bulamayınca ValueError atıyordu → böyle sahneler "silindir değil" sayılıyor (yeni test). Temizlik: "Paket V",
+      "Phase 2c", "2b" kalıntıları, tekrarlanan duvar normal-hız kodu tek fonksiyonda (`_largest_vn`), anlamsız
+      değişken adları (a_, b_, hh, s_), `scene_file`'daki gereksiz yeniden atama. Kontrol: tablonun 75 sayısı (analitik,
+      sayısal, tolerans) önce / sonra **birebir aynı**.
 22. ☐ **Görsel ve metin son kontrolü** (kullanıcı ile): programdaki tüm yazılar (menüler, paneller, dialog'lar,
     tooltip'ler, uyarı mesajları, lejantlar, durum çubuğu) tek bir listede + ekran görüntüsü galerisi; kullanıcı
     beğenmediklerini işaretler / yenisini yazar, ben değiştiririm. Açık kararlar burada: dividing streamline
