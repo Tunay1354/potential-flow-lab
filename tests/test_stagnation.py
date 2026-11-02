@@ -193,3 +193,19 @@ def test_newton_seed_exactly_on_a_free_vortex_is_no_crash():
         on = 1 if els[-1].TYPE == "source" else 0
         assert z.shape == seeds.shape and np.isnan(z[on])
     assert find_stagnation_points([Vortex(Gamma=6.0)], (-3.4558823529411766, 3.4558823529411766, -2.0, 2.0)) == []
+
+
+def test_closed_channel_far_zoomed_out_keeps_its_points_and_no_noise():
+    """Found by scripts/random_test.py on his PC: far down a channel closed at one end the flow dies out like
+    e^(−πx/H). Zoomed out 10× the view's median speed was ~0, so no point was found at all; 100× there were
+    8 false points in the rounding noise of the dead flow. Now the same 4 points at every zoom."""
+    W = SymmetryWall
+    els = [W(xw=-0.910979, yw=-1.561937, theta_w=-30.252308, side=0),
+           W(xw=0.910979, yw=1.561937, theta_w=-30.252308, side=1),
+           W(xw=-2.547992, yw=1.486083, theta_w=59.747692, side=1),
+           Doublet(mu=0.857930, x0=0.843207, y0=0.650283, delta=-30.252308)]
+    found = []
+    for half in (40.0, 400.0, 4000.0):
+        pts = find_stagnation_points(els, (-half, half, -half, half), scale=2 * half)
+        found.append(sorted((round(p.x, 4), round(p.y, 4)) for p in pts))
+    assert len(found[0]) == 4 and found[0] == found[1] == found[2]

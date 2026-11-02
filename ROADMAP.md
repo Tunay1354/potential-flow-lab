@@ -979,6 +979,21 @@ bırakıldı (kullanıcı kararı).
       maskeler aynı. Yeni testler: dikdörtgen 0° / 90° / 27° (V·n < 1e-11, kernel = NumPy), ucu kapalı kanal, kutuda
       Σm kuralı, `_cot_sums` = stable_cot toplamı, kernel ψ = NumPy ψ (tüm kernel sahneleri); random_test'in walls
       türüne ucu kapalı kanal ve döndürülmüş dikdörtgen eklendi
+    - ✅ **23.5 Kullanıcının ilk Windows koşuları** (2 Kasım; seed 1, 16 thread): --quick 96 sahne + 250 pencere
+      aksiyonu → hata yok; 25 dk 629 sahne + 2143 pencere aksiyonu → no-crash 12 589 / 0, slow 0, pencere 0; 7 failure:
+      **1 gerçek bug**: ucu kapalı kanalda (3 duvar + doublet) akış kanal boyunca e^(−πx/H) ile sönüyor → 10× uzakta
+      view'ın median hızı ~0 → `find_stagnation_points` hiç nokta bulmuyordu (v_scale None), 100× uzakta ölü akışın
+      yuvarlama gürültüsünde 8 sahte stagnation point. Düzeltme (`physics/stagnation.py`): hız ölçeği
+      max(view median, 1e-6 × sahnenin hızı) — sahnenin hızı `_scene_speed` = free stream + her singular noktanın
+      içinde durduğu akış (zoom'dan bağımsız); `_above_noise`: çevresindeki (1e-3·L halka) hız NOISE_FLOOR = 1e-12 ×
+      en yüksek düzgün hızdan küçük olan sıfırlar atılıyor. Artık 10× / 100× / 1000× aynı 4 nokta (köşe dahil).
+      360 rastgele sahne × 4 view (1440 durum) eski / yeni: stagnation point'ler birebir aynı. Kalıcı test:
+      `test_closed_channel_far_zoomed_out_keeps_its_points_and_no_noise`. **6 testin kendi yanlış alarmı**
+      (`scripts/random_test.py` düzeltildi): stagnation oranı aynı ölçeğe göre; psi artık çizginin kendi ψ
+      seviyesinden normal uzaklığı (δψ/|V|, çizgi aralığı biriminde) — eskisi δψ'yi view'ın median hızıyla
+      bölüyordu, köşelerde 100× uzakta (akış ~1e-8) %12–35, kanalda %749 sanıyordu, gerçekte ≤ %0.02; bodies-zoom
+      kenar toleransı iki haritanın da kenarına (90° köşede source'un yarım cisminin ince kuyruğu kaba haritada
+      bilerek emiliyor, yakında görünüyor). 7 sahnenin hepsi artık temiz
 24. ☐ **Faz 5 — Paketleme** (seçim: A zip + C Inno Setup kurulum dosyası, ikisi birden): Python gerektirmeyen Windows 10/11 exe (zip içinde klasör), sürüm 1.0, GitHub
     Releases, kurulum dosyası (Inno Setup), Numba önbelleği, .pflow'a çift tıklayınca açılma, (isteğe bağlı)
     komut satırı için konsol exe'si; exe'de Help → Run verification 102 / 102, Python kurulu olmayan temiz bir

@@ -40,7 +40,10 @@ PART 1 — physics (no window). Random scenes of six kinds:
     stagnation   |V| at every stagnation point found ≈ 0 (relative to the typical speed of the view)
     tangent      every drawn streamline runs along the velocity (angle between a segment and V at its middle)
     psi          ψ is constant along every drawn streamline (scenes without sources / sector flows, whose ψ has a
-                 branch cut), in units of the ψ step between two lines
+                 branch cut): how far a line strays from its own ψ level, δψ/|V|, in units of the line spacing
+                 (tangent and psi skip flow slower than 5 % of the view's speed scale, which is never below
+                 1e-6 × the flow round the elements: far out in a corner or down a closed channel the flow is
+                 ~nothing and a line's exact place there does not matter)
     crossing     no two drawn streamlines cross (away from stagnation and singular points)
     bodies-zoom  the Solid bodies map is the same in the Fit view and 4× closer (zoom-independent bodies)
     forces       a closed body alone in a uniform stream: lift = −ρV∞Γ (Kutta–Joukowski), drag = 0 (d'Alembert)
@@ -91,7 +94,7 @@ from physics.field import (active, complex_potential, complex_velocity, compute_
                            reference_speed, singular_points)
 from physics.images import resolve  # noqa: E402
 from physics.particles import Particles, travel_times  # noqa: E402
-from physics.stagnation import find_stagnation_points, flow_features  # noqa: E402
+from physics.stagnation import _scene_speed, find_stagnation_points, flow_features  # noqa: E402
 from physics.streamlines import StreamlineCache  # noqa: E402
 from physics.surface import body_surfaces, pressure_force  # noqa: E402
 
@@ -100,7 +103,7 @@ CHECKS = ("no-crash", "slow", "stagnation", "tangent", "psi", "crossing", "bodie
           "particles")
 TOL = {"stagnation": 1e-5,            # |V| / typical speed at a stagnation point
        "tangent_deg": 3.0,            # largest angle between a drawn segment and V at its middle
-       "psi": 0.02,                   # (ψ_max − ψ_min) along a line / ψ step between lines
+       "psi": 0.02,                   # largest distance of a line from its own ψ level (δψ/|V|) / line spacing
        "bodies": 0.02,                # share of sample points classified differently in the two views
        "force": 0.01,                 # |L′ − KJ| and |D′| / max(1, |V∞Γ|)
        "particles": 0.005,            # share of particles outside the fluid / inside a body
@@ -299,14 +302,16 @@ class Findings:
         self.items.append((check, view, message, detail))
 
 
-def _typical_speed(els, flows, view):
+def _typical_speed(els, flows, view, v_scene):
+    """A speed scale of the view: the median |V| of its fluid — but not below 1e-6 × the flow round the
+    elements (far down a closed channel the flow dies out like e^(−πx/H): a median there is ~1e-50)."""
     (x0, x1), (y0, y1) = view
     X, Y = np.meshgrid(np.linspace(x0, x1, 31), np.linspace(y0, y1, 21))
     z = (X + 1j * Y).ravel()
     with np.errstate(all="ignore"):
         sp = np.abs(complex_velocity(flows, z))
     ok = np.isfinite(sp) & fluid_mask(els, z)
-    return float(np.median(sp[ok])) if ok.any() else 0.0
+    return max(float(np.median(sp[ok])) if ok.any() else 0.0, 1e-6 * v_scene)
 
 
 def _guard(f, check, view, fn):
@@ -328,6 +333,7 @@ def check_scene_physics(els, rng, f: Findings, quick=False):
         _compute_only(els, rng, f, quick)
         return "invalid"
     flows = resolve(active(els))
+    v_scene = _scene_speed(active(els), flows, np.array(singular_points(els), complex))
     fit = fit_view(els)
     views = {"fit": fit, "closer": scaled(fit, 0.02, rng), "wider": scaled(fit, 100.0), "panned": panned(fit, 0.6, -0.3)}
     if quick:
@@ -340,7 +346,7 @@ def check_scene_physics(els, rng, f: Findings, quick=False):
             continue
         results[name] = res
         W = view[0][1] - view[0][0]
-        v_typ = _typical_speed(els, flows, view)
+        v_typ = _typical_speed(els, flows, view, v_scene)
         _guard(f, "flow features", name, lambda: flow_features(els, box(view), scale=W))
         _guard(f, "field grid", name, lambda: compute_field(els, view[0], view[1], 60, 40))
         _guard(f, "travel times", name, lambda: travel_times(res.lines[:40], els, 0.01 * W, 1e-3 * max(v_typ, 1e-12)))
@@ -417,7 +423,6 @@ def _check_lines(els, flows, res, view, name, v_typ, f):
     worst_angle, where = 0.0, None
     worst_psi, psi_where = 0.0, None
     has_cut = any(e.TYPE in ("source", "sector") for e in active(els))
-    psi_step = v_typ * res.separation
     for ln in res.lines:
         if len(ln) < 3:
             continue
@@ -437,16 +442,18 @@ def _check_lines(els, flows, res, view, name, v_typ, f):
         if ang.size and float(ang.max()) > worst_angle:
             k = int(np.argmax(ang))
             worst_angle, where = float(ang.max()), mid[keep][ok][k]
-        if not has_cut and psi_step > 0:
+        if not has_cut:
             zk = z[inside & _away(els, z, view, res)]
             if zk.size >= 3:
                 with np.errstate(all="ignore"):
                     psi = complex_potential(els, zk).imag
-                psi = psi[np.isfinite(psi)]
-                if psi.size >= 3:
-                    dev = float(np.ptp(psi)) / psi_step
-                    if dev > worst_psi:
-                        worst_psi, psi_where = dev, zk[0]
+                    sp = np.abs(complex_velocity(flows, zk))
+                good = np.isfinite(psi) & (sp > 0.05 * v_typ)
+                if good.sum() >= 3:                               # distance from the line's own ψ level
+                    off = np.abs(psi[good] - np.median(psi[good])) / sp[good] / res.separation
+                    k = int(np.argmax(off))
+                    if off[k] > worst_psi:
+                        worst_psi, psi_where = float(off[k]), zk[good][k]
     f.ran("tangent")
     if worst_angle > TOL["tangent_deg"]:
         f.fail("tangent", name, f"a drawn streamline is {worst_angle:.2f}° off the velocity at "
@@ -454,8 +461,8 @@ def _check_lines(els, flows, res, view, name, v_typ, f):
     if not has_cut:
         f.ran("psi")
         if worst_psi > TOL["psi"]:
-            f.fail("psi", name, f"ψ changes by {100 * worst_psi:.2f} % of the line step along a streamline near "
-                                f"({psi_where.real:.6g}, {psi_where.imag:.6g}) (tolerance {100 * TOL['psi']:g} %)")
+            f.fail("psi", name, f"a streamline strays {100 * worst_psi:.2f} % of the line spacing from its ψ level "
+                                f"at ({psi_where.real:.6g}, {psi_where.imag:.6g}) (tolerance {100 * TOL['psi']:g} %)")
 
 
 def _segments_cross(a, b, c, d):
@@ -530,11 +537,14 @@ def _check_bodies_zoom(els, res_fit, fit, rng, f):
         return
     in_a = a.contains(z) if a is not None else np.zeros(z.size, bool)
     in_b = b.contains(z) if b is not None else np.zeros(z.size, bool)
-    px = (fit[0][1] - fit[0][0]) / 240.0 * 3.0                  # 3 pixels of the coarse map: an edge
+    # within 3 pixels of the coarse map from an edge of EITHER map: an edge (a body thinner than that — the far
+    # tail of a half-body — is absorbed by the coarse map on purpose, and shows when zoomed in)
+    px = (fit[0][1] - fit[0][0]) / 240.0 * 3.0
     edge = np.zeros(z.size, bool)
-    if a is not None:
-        for dz in (px, -px, 1j * px, -1j * px):
-            edge |= a.contains(z + dz) != in_a
+    for m, inside in ((a, in_a), (b, in_b)):
+        if m is not None:
+            for dz in (px, -px, 1j * px, -1j * px):
+                edge |= m.contains(z + dz) != inside
     diff = (in_a != in_b) & ~edge
     share = float(diff.mean())
     if share > TOL["bodies"]:

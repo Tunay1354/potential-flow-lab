@@ -163,6 +163,9 @@ Physics / numerics
   form, mirrored in a wall across, repeated every 2L with `PeriodicRow.shift / count` (a few copies; kernel
   `_cot_sums`, one exp for all copies); Σm = 0 required in a closed box. Large arrays (field grids, φ lines) are
   summed by the kernel (`field._summer`, `kernel.potential_many`). Generic MAX_IMAGES = 200.
+- **Closed channel zoomed out: no stagnation points at 10×, 8 false ones at 100×** (his first random-test run):
+  the flow dies out like e^(−πx/H), the view's median speed → 0. Speed scale = max(median, 1e-6 × `_scene_speed`)
+  and `_above_noise` (NOISE_FLOOR = 1e-12) in `stagnation.py`. Random-test checks use the same scene floor.
 - **Stagnation point in a 90° walled corner** is a *triple* zero of w (w ∝ z³) → position only defined to
   (1e-16)^(1/3) ≈ 5e-6; verification tolerance 1e-5 for that reason. ψ constancy along drawn lines: 0.2–0.3 % of
   the line spacing, tolerance 1 %.

@@ -34,6 +34,8 @@ from .images import resolve
 from .origin import (BODY, FAR, LOOP, OPEN, STOPPED, bodies_box, box_union, has_free_stream, make_tracer,
                      speed_at, trace_origin)
 
+NOISE_FLOOR = 1e-12             # speeds below this × the region's highest regular speed: rounding noise
+
 
 @dataclass(frozen=True)
 class StagnationPoint:
@@ -79,10 +81,14 @@ def find_stagnation_points(elements, region, classify: bool = True, scale: float
     if not flows or x1 <= x0 or y1 <= y0:
         return []
     L = scale or max(x1 - x0, y1 - y0)
-    v_scale = _typical_speed(els, flows, region)
-    if v_scale is None:
-        return []
     sing = np.array(singular_points(els), dtype=complex)
+    v_view, v_peak = _typical_speed(els, flows, region, sing)
+    v_scene = _scene_speed(els, flows, sing)
+    # (far down a channel closed at one end the flow dies out like e^(−πx/H): there the view's median can be
+    #  ~0, and the flow round the elements sets the scale)
+    v_scale, v_peak = max(v_view, 1e-6 * v_scene), max(v_peak, v_scene)
+    if not v_scale > 0:
+        return []
 
     # starting points: a grid over the region (~16 per view size) and small rings around singular points
     m = 0.05 * L
@@ -110,6 +116,7 @@ def find_stagnation_points(elements, region, classify: bool = True, scale: float
         z = z[np.min(np.abs(z[:, None] - sing[None, :]), axis=1) > 1e-6 * L]
     z = z[_in_fluid(els, z, 1e-7 * L)]                               # zeros behind walls (images): out
     z = _unique(z, 1e-6 * L)
+    z = z[_above_noise(flows, z, v_peak, L)]
 
     vertices = [e.z0 for e in els if e.TYPE == "sector" and e.n > 1.0 + 1e-12
                 and x0 <= e.x0 <= x1 and y0 <= e.y0 <= y1]
@@ -148,16 +155,41 @@ def _own_scales(els, flows, sing, L):
     return out
 
 
-def _typical_speed(els, flows, region):
+def _typical_speed(els, flows, region, sing):
+    """(median |V|, highest |V| away from singular points) on a coarse grid of the region's fluid
+    ((0, 0) without fluid)."""
     x0, x1, y0, y1 = region
     gx, gy = np.meshgrid(np.linspace(x0, x1, 17), np.linspace(y0, y1, 17))
-    zz = gx + 1j * gy
+    zz = (gx + 1j * gy).ravel()
     with np.errstate(invalid="ignore"):
         sp = np.abs(complex_velocity(flows, zz))
-    sp = sp[fluid_mask(els, zz) & np.isfinite(sp)]
-    if sp.size == 0 or np.median(sp) == 0:
-        return None
-    return float(np.median(sp))
+    ok = fluid_mask(els, zz) & np.isfinite(sp)
+    if not ok.any():
+        return 0.0, 0.0
+    regular = ok if not sing.size else ok & (np.min(np.abs(zz[:, None] - sing[None, :]), axis=1)
+                                             > 0.02 * max(x1 - x0, y1 - y0))
+    return float(np.median(sp[ok])), float(np.max(sp[regular if regular.any() else ok]))
+
+
+def _scene_speed(els, flows, sing) -> float:
+    """The speed of the flow round the elements, whatever the view: the free stream and the flow each
+    singular point sits in (made by the others); 0 when there is neither (one vortex alone)."""
+    speeds = [abs(v) for v in (e.freestream_velocity() for e in els) if v is not None]
+    return max(speeds + [speed_at(flows, sing, p) for p in sing], default=0.0)
+
+
+def _above_noise(flows, z, v_peak, L) -> np.ndarray:
+    """False for zeros whose whole neighbourhood is slower than NOISE_FLOOR × the region's highest regular
+    speed: there the computed velocity is rounding noise with zeros of its own (far down a channel closed at
+    one end the flow dies out like e^(−πx/H): dozens of false points when zoomed out, found by the random
+    test). A real stagnation point has speed around it."""
+    if not z.size:
+        return np.ones(0, bool)
+    ring = z[:, None] + 1e-3 * L * np.exp(0.5j * np.pi * np.arange(4))
+    with np.errstate(all="ignore"):
+        near = np.abs(complex_velocity(flows, ring))
+    near[~np.isfinite(near)] = np.inf                                # (next to a singular point: keep)
+    return ~(near.max(axis=1) < NOISE_FLOOR * v_peak)
 
 
 def _newton(els, flows, z, L, box, iterations: int = 80):
