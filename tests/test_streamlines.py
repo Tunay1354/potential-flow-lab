@@ -156,7 +156,7 @@ def test_uniform_flow_lines_are_exactly_d_apart(alpha):
     np.testing.assert_allclose(gaps, s.separation, rtol=0.02)
 
 
-def _min_distance_between_lines(s, skip_ends=0.0):
+def _min_distance_between_lines(s):
     """Smallest distance between points of two DIFFERENT lines."""
     zs = [ln[:, 0] + 1j * ln[:, 1] for ln in s.lines]
     best = np.inf

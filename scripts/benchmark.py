@@ -423,7 +423,7 @@ w.model.mark_clean(); w.close()
             out = []
             for k in range(n):
                 done = []
-                conn = cv.computed.connect(lambda nn, ms: done.append(time.perf_counter()))
+                conn = cv.computed.connect(lambda _n, _ms: done.append(time.perf_counter()))
                 t = time.perf_counter()
                 action(k)
                 end = t + 20.0
