@@ -1034,7 +1034,9 @@ bırakıldı (kullanıcı kararı).
       (Numba önbelleği exe'de çalışıyor: ilk koşu 14 s, sonra 0.5 s; `--verify` 102 / 102; pencere offscreen hatasız).
       GitHub'daki ilk derleme ilk denemede geçti: Windows Server 2025, 102 / 102, pencere açıldı (yazılım OpenGL),
       zip 168 MB, derleme ~5 dk. Geçici `ci-try` dalı silinemedi (proxy izni yok): kullanıcı GitHub → Branches'tan
-      silebilir
+      silebilir. Bu sunucudan etiket pushlanamıyor (proxy bağlantıyı kesiyor) ama API ile workflow başlatılabiliyor →
+      workflow'a "release" girişi: işaretliyse `v` + APP_VERSION etiketini ve Release'i workflow kendisi oluşturuyor.
+      v1.0.0 böyle yayınlandı
 25. ☐ **Faz 3 — Rapor ve user guide**: 4–6 sayfa rapor (figürler, tablolar, doğrulama Paket V'den; sector
     kuralının açıklaması), user guide (Help → User guide, F1)
 26. ☐ **Son kontrol**: ödev metni madde madde, tüm testler, verification, exe tekrar, README, sürüm numarası

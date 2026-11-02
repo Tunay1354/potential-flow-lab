@@ -78,8 +78,8 @@ Hata (dosya yok, bilinmeyen katman…) → çıkış kodu 2; `--verify`'da tutma
   (`summary.md`, hatalı sahneler `failures/` altında .pflow olarak; `--replay DOSYA` tek sahneyi tekrar dener).
 - `python scripts/streamline_quality.py` (çizgi kalitesi), `python scripts/smoothness.py` (pan / zoom akıcılığı).
 - **Exe (Windows, ROADMAP 24):** GitHub kendi Windows bilgisayarında derler (`.github/workflows/windows-build.yml`):
-  bir sürüm etiketi (`v1.0.0`) pushlanınca zip **Releases** sayfasına konur; elle başlatmak: Actions → Windows
-  build → Run workflow (zip o çalışmanın Artifacts'ında). Derleme exe'yi de dener: pencere olmadan doğrulama
+  Actions → **Windows build** → **Run workflow** (zip o çalışmanın Artifacts'ında; "release" işaretlenirse
+  `app_info.APP_VERSION` sürümüyle — v1.0.0 — **Releases** sayfasına da konur; bir `v*` etiketi pushlamak da aynısı). Derleme exe'yi de dener: pencere olmadan doğrulama
   102 / 102, preset'ten figür, pencere açılıyor ve log'da hata yok. Kendi bilgisayarında:
   `pyinstaller --noconfirm packaging/build_exe.spec` → `dist/Flowy/` (Flowy.exe + `_internal\`; adı ve sürümü
   `app_info.py`'den, ikon logodan: `packaging/make_icon.py`).

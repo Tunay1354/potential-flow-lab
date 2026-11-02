@@ -21,7 +21,7 @@ def main(out: str) -> int:
 
     from app.chrome.header import logo_pixmap
     from app.theme import LIGHT
-    _app = QApplication.instance() or QApplication([])
+    app = QApplication.instance() or QApplication([])
     images = []
     for s in SIZES:
         buf = QBuffer()
@@ -29,6 +29,7 @@ def main(out: str) -> int:
         logo_pixmap(LIGHT, s).save(buf, "PNG")
         images.append(Image.open(io.BytesIO(bytes(buf.data()))).convert("RGBA"))
     images[-1].save(out, format="ICO", sizes=[(s, s) for s in SIZES], append_images=images[:-1])
+    app.quit()
     return 0
 
 
