@@ -50,6 +50,10 @@ LIGHT = {
     "plank_edge":   "#6E5640",
     "plank_grain_light": "#FFFFFF14",
     "plank_grain_dark":  "#3C281617",
+    "sheet_bg":     "#6E5640",   # the SHEET tag on the plank (open file): a dark pill
+    "sheet_label":  "#C4A988",
+    "sheet_text":   "#FBF7EC",
+    "sheet_dot":    "#E57368",   # unsaved changes
     "ruler":        "#E9D9BE",
     "ruler_tick":   "#5A4330",
     "ruler_text":   "#211A12",
@@ -108,6 +112,10 @@ DARK = {
     "plank_edge":   "#2A2018",
     "plank_grain_light": "#FFEBD20B",
     "plank_grain_dark":  "#00000029",
+    "sheet_bg":     "#2A2018",
+    "sheet_label":  "#D8C8B0",
+    "sheet_text":   "#F3EAD9",
+    "sheet_dot":    "#E57368",
     "ruler":        "#2F271F",
     "ruler_tick":   "#A8957C",
     "ruler_text":   "#EDE3D2",

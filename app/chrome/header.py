@@ -4,8 +4,8 @@ and the ruler that carries the menus (the beaver sits on it, right of Help).
 """
 import math
 
-from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt
+from PySide6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (QCheckBox, QHBoxLayout, QLabel, QMenuBar, QSizePolicy, QToolButton, QVBoxLayout,
                                QWidget)
 
@@ -60,9 +60,72 @@ def logo_pixmap(theme: dict, size: int, dpr: float = 1.0) -> QPixmap:
 
 
 # ---------------------------------------------------------------------------------------- header
+class SheetTag(QWidget):
+    """The open file on the plank: a dark pill "SHEET  name" — "untitled" (italic) for a scene never saved, a
+    dot at the end while there are unsaved changes."""
+
+    PILL_H, PAD, GAP, DOT_R = 26, 14, 10, 4
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.name, self.modified, self.theme = None, False, None
+        self.label_font = font("mono", 7.5, QFont.DemiBold, caps=True, spacing_pct=130)
+        self.name_font = font("mono", FONT["menu_size_pt"] + 1, QFont.DemiBold)
+        self.untitled_font = font("mono", FONT["menu_size_pt"] + 1)
+        self.untitled_font.setItalic(True)
+        self.setFixedHeight(self.PILL_H + 4)
+
+    def set_sheet(self, name: str | None, modified: bool):
+        """name = the file's name, None = never saved."""
+        self.name, self.modified = name, modified
+        self.setToolTip(("Not saved yet" if name is None else name) + (" — unsaved changes" if modified else ""))
+        self.updateGeometry()
+        self.update()
+
+    def apply_theme(self, theme):
+        self.theme = theme
+        self.update()
+
+    def _parts(self):
+        text, f = (self.name, self.name_font) if self.name is not None else ("untitled", self.untitled_font)
+        label_w = QFontMetricsF(self.label_font).horizontalAdvance("SHEET")
+        return text, f, label_w, QFontMetricsF(f).horizontalAdvance(text)
+
+    def sizeHint(self):
+        _text, _f, label_w, text_w = self._parts()
+        return QSize(int(self.PAD + label_w + self.GAP + text_w + self.GAP + 2 * self.DOT_R + self.PAD + 1),
+                     self.PILL_H + 4)
+
+    def paintEvent(self, _event):
+        if self.theme is None:
+            return
+        t = self.theme
+        text, f, label_w, text_w = self._parts()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        w, h = self.width(), self.PILL_H
+        y0 = 0.5 * (self.height() - h)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(t["sheet_bg"]))
+        p.drawRoundedRect(QRectF(0.5, y0, w - 1.0, h), h / 2, h / 2)
+        x = self.PAD
+        p.setFont(self.label_font)
+        p.setPen(QColor(t["sheet_label"]))
+        p.drawText(QRectF(x, y0, label_w + 2, h), Qt.AlignVCenter | Qt.AlignLeft, "SHEET")
+        x += label_w + self.GAP
+        p.setFont(f)
+        p.setPen(QColor(t["sheet_text"]))
+        p.drawText(QRectF(x, y0, text_w + 2, h), Qt.AlignVCenter | Qt.AlignLeft, text)
+        if self.modified:
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(t["sheet_dot"]))
+            p.drawEllipse(QPointF(x + text_w + self.GAP + self.DOT_R, y0 + 0.5 * h), self.DOT_R, self.DOT_R)
+        p.end()
+
+
 class Plank(QWidget):
-    """Wooden band: logo, program name + what it is, version, current file, the GPU box (draw with the graphics
-    card)."""
+    """Wooden band: logo, program name + what it is, the open file (SheetTag), the GPU box (draw with the
+    graphics card)."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -77,15 +140,10 @@ class Plank(QWidget):
         self.title.setFont(font("mono", FONT["title_size_pt"], QFont.DemiBold, caps=True, spacing_pct=114))
         self.subtitle = QLabel(APP_SUBTITLE.upper())
         self.subtitle.setObjectName("PlankMuted")
-        self.version = QLabel("")               # "REV 0.5.0", on the right (the beaver sits above Help)
-        self.version.setObjectName("PlankMuted")
-        self.file = QLabel("")
-        self.file.setObjectName("PlankMuted")
+        self.file = SheetTag()                  # on the right (the beaver sits above Help)
         for w in (self.logo, self.title, self.subtitle):
             lay.addWidget(w)
         lay.addStretch(1)
-        lay.addWidget(self.version)
-        lay.addSpacing(18)
         lay.addWidget(self.file)
         lay.addSpacing(18)
         self.gpu = QCheckBox("GPU")             # app/window/graphics.py
@@ -109,6 +167,7 @@ class Plank(QWidget):
     def apply_theme(self, theme):
         self.theme = theme
         self.logo.setPixmap(logo_pixmap(theme, LAYOUT["logo_px"], self.devicePixelRatioF()))
+        self.file.apply_theme(theme)
         self.update()
 
     def paintEvent(self, _event):

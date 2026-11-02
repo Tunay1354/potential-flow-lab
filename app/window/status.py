@@ -116,7 +116,8 @@ class StatusMixin:
         self.setWindowTitle(f"{LAYOUT['window_title']} — {name}{star}")
         self.setWindowFilePath(self.current_path or "")
         file = os.path.basename(self.current_path) if self.current_path else "not saved"
-        self.header.plank.file.setText(f"SHEET  {file}{star}")
+        self.header.plank.file.set_sheet(os.path.basename(self.current_path) if self.current_path else None,
+                                         self.model.is_modified)
         self.recovery.changed()                  # saved / changed: the recovery copy follows
         tb = self.canvas.title_block
         tb.set("scene", self.scene_title)

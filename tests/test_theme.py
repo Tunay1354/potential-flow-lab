@@ -43,14 +43,18 @@ def test_menus_sit_on_the_ruler_with_room_for_the_beaver(win):
     assert perch.findChildren(type(perch)) == []
 
 
-def test_header_shows_version_and_file(win, tmp_path):
+def test_header_shows_the_file_but_no_version(win, tmp_path):
+    from PySide6.QtWidgets import QLabel
     from app_info import APP_VERSION
-    assert win.header.plank.version.text() == f"REV {APP_VERSION}"
-    assert win.header.plank.file.text().startswith("SHEET  not saved")
+    tag = win.header.plank.file
+    assert tag.name is None                                   # never saved: "untitled"
+    assert not any(APP_VERSION in lb.text() for lb in win.header.plank.findChildren(QLabel))
+    win.model.add(win.elements[0].copy())
+    assert tag.modified
     path = str(tmp_path / "cyl.pflow")
     win._ask_save_path = lambda suggested: path
     assert win.save_scene_as()
-    assert win.header.plank.file.text() == "SHEET  cyl.pflow"
+    assert tag.name == "cyl.pflow" and not tag.modified
     assert win.canvas.title_block.values["file"].text() == "cyl.pflow"
 
 

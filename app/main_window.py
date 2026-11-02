@@ -76,7 +76,6 @@ class MainWindow(LayoutMixin, MenusMixin, FilesMixin, ExportMixin, StatusMixin, 
         self.header = HeaderBar(self)
         self.setMenuWidget(self.header)
         self._menu_bar = self.header.menu_bar
-        self.header.plank.version.setText(f"REV {APP_VERSION}")
 
         # central plot card on the paper, the element palette beside it
         self.canvas = PlotCanvas(self.theme, self.elements, self)

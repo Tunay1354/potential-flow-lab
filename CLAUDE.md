@@ -217,7 +217,8 @@ GUI / Qt
 ---------------------------------------------------------------------------------------------------------------
 ## 8. Current status and what comes next (keep this section up to date)
 
-- **Done: ROADMAP 1–21** (2 Nov 2026). Tests green, verification 102 / 102. The full history with measured numbers is
+- **Done: ROADMAP 1–23** (2 Nov 2026; 22 = only the header: no REV, the SHEET pill `chrome/header.SheetTag`;
+  23 = the random test, seeds 2 and 3 clean on his PC after the fixes 23.2–23.6). Tests green, verification 102 / 102. The full history with measured numbers is
   in ROADMAP (Turkish); this section keeps only what the next session needs.
 - **Item 21 = cleanup in 13 packages** (one commit each, ROADMAP 21.1–21.13; he tested between them). Behaviour
   unchanged — checked by snapshots (bit / pixel identical before / after) — except the bugs found on the way:
@@ -251,17 +252,7 @@ GUI / Qt
 - **Waiting for his Windows check**: the bug fixes above; 20.7H zoom (fast wheel to both limits with GPU, wheel
   at the limit, Fit); 144 fps in Pulses / Particles; the tour from start to end; the beaver's feel.
 - **Next, in this order**:
-  22 text and visual review **with him** (every UI string in one list + screenshot gallery; he marks what to
-  change; open decisions: dividing-streamline colour, element colours, icons, the beaver's name and his side /
-  swimming poses) →
-  23 exhaustive random test with the final code — `scripts/random_test.py` (23.1, 2 Nov): physics checks on random
-  and extreme scenes in 4 views (no exceptions, V = 0 at stagnation points, lines along V, ψ constant, no crossings,
-  zoom-independent bodies, forces vs Kutta–Joukowski / d'Alembert, save → reopen, particles stay in the fluid) +
-  random window actions (undo-all / redo-all exact, exports, error log and excepthook watched; 23.3: "chaos" scenes =
-  walls / streams / sectors at any angle, scenes with errors computed too (crash + slow only), real wheel bursts,
-  mouse pan / drag, wall storms, actions that do not wait for the computation, a live one-line status). He runs it on Windows
-  and sends `random_test_results/<run>/`; `--replay file.pflow` repeats one failing scene. Still missing: recovery
-  from autosave. Every bug found → fix + permanent test (23.2: the 3-wall image explosion); final run after 22 →
+  (22 and 23 done, see above; he may run one --quick random test on the final code) →
   24 packaging — **he chose both A (zip: Flowy\Flowy.exe + _internal\) and C (Inno Setup installer: Start menu,
   .pflow association, uninstaller)**, version 1.0, GitHub Releases, test on a PC without Python, SmartScreen note
   ("More info → Run anyway"). To do there: bundle imageio-ffmpeg's ffmpeg binary in the spec; Numba's cache goes to

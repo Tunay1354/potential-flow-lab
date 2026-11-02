@@ -897,11 +897,15 @@ bırakıldı (kullanıcı kararı).
       (§8 tarihçe yerine: yapılanların özeti, bulunan hatalar, snapshot yöntemi, alt sistemler kısaca, sıradaki işler;
       tarihçenin tamamı burada, ROADMAP'te). `requirements.txt` / `requirements-dev.txt` ayrı kaldı (çalışmak için
       gereken / geliştirme araçları; exe'yi kullananın ikisine de ihtiyacı yok).
-22. ▶ **Görsel ve metin son kontrolü** (kullanıcı ile): programdaki tüm yazılar (menüler, paneller, dialog'lar,
-    tooltip'ler, uyarı mesajları, lejantlar, durum çubuğu) tek bir listede + ekran görüntüsü galerisi; kullanıcı
-    beğenmediklerini işaretler / yenisini yazar, ben değiştiririm. Açık kararlar burada: dividing streamline
-    rengi, element renkleri, ikonlar, kunduz görünümü
-23. ▶ **Kapsamlı rastgele test** (en son kodla): yüzlerce–binlerce rastgele sahne (tüm element tipleri, duvarlar,
+22. ✅ **Görsel ve metin son kontrolü** (kullanıcı ile, 2 Kasım): kullanıcı programı kendisi gözden geçirdi; istediği
+    tek değişiklik başlıktaydı (dividing streamline / element renkleri, ikonlar, kunduz olduğu gibi kaldı):
+    - **REV 0.5.0 başlıktan kalktı** (sürüm `app_info.APP_VERSION`'da duruyor: Help → About, raporlar, log, startup).
+    - **SHEET etiketi** 3 öneriden (kâğıt etiket / başlık bloğu / koyu hap) **C — koyu hap** seçildi:
+      `chrome/header.SheetTag` — tahtanın üstünde koyu yuvarlak etiket, küçük "SHEET" + dosya adı, hiç
+      kaydedilmemiş sahnede italik "untitled", kaydedilmemiş değişiklikte `*` yerine kırmızı nokta; tooltip'te
+      tam durum. Renkler `theme.py` → `sheet_bg / sheet_label / sheet_text / sheet_dot` (light + dark). Plot'un
+      başlık bloğundaki FILE alanı aynı kaldı
+23. ✅ **Kapsamlı rastgele test** (en son kodla): yüzlerce–binlerce rastgele sahne (tüm element tipleri, duvarlar,
     köşeler, kanal, sector flow, uç değerler, üst üste / çok yakın elementler), her biri birkaç zoom / pan'de:
     hata (exception) yok; stagnation point'lerde gerçekten V = 0; streamline'lar boyunca ψ sabit, çizgiler
     kesişmiyor; cisim dolgusu zoom'dan bağımsız; yüzey Cp'si ve kuvvet (Kutta–Joukowski / d'Alembert ile kıyas
@@ -1012,6 +1016,9 @@ bırakıldı (kullanıcı kararı).
       21 preset bit bit aynı; 300 rastgele sahne × 3 view (stagnation tür / dividing / inner / yüzeyler, 1200 durum)
       eski / yeni birebir aynı. 4 kalıcı test. random_test: bir iş 120 s'yi geçerse bütün thread'lerin nerede
       olduğu `failures/STACK-….txt`'ye yazılıyor
+    - ✅ **Sonuç** (2 Kasım): düzeltmelerden sonra seed 2 (60 dk) ve seed 3 (60 dk) kullanıcının PC'sinde **0 failure** —
+      ~3200 temiz sahne: kalan bir hata varsa %95 güvenle binde birden seyrek. 22'deki değişiklik yalnız başlık
+      görünümü (hesaplara dokunmuyor): ayrı tura gerek yok, isterse son kodla bir --quick
 24. ☐ **Faz 5 — Paketleme** (seçim: A zip + C Inno Setup kurulum dosyası, ikisi birden): Python gerektirmeyen Windows 10/11 exe (zip içinde klasör), sürüm 1.0, GitHub
     Releases, kurulum dosyası (Inno Setup), Numba önbelleği, .pflow'a çift tıklayınca açılma, (isteğe bağlı)
     komut satırı için konsol exe'si; exe'de Help → Run verification 102 / 102, Python kurulu olmayan temiz bir
