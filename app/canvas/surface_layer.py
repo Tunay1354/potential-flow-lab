@@ -49,6 +49,13 @@ def cp_color_t(cp, lo: float) -> np.ndarray:
     return np.where(cp < 0, 0.5 * np.clip((cp - lo) / (0.0 - lo), 0.0, 1.0), 0.5 + 0.5 * np.clip(cp, 0.0, 1.0))
 
 
+def cp_bins(cp, lo: float) -> np.ndarray:
+    """Color bin 0 … BINS − 1 of every Cp value (NaN — a surface point on a singular point — gets bin 0
+    without a cast warning; the surfaces leave those points out)."""
+    t = np.nan_to_num(cp_color_t(cp, lo), nan=0.0)
+    return np.clip((t * BINS).astype(int), 0, BINS - 1)
+
+
 class SurfaceLayer(PlotLayer):
     FADES_WHILE_DRAGGING = True
 
@@ -210,7 +217,7 @@ class SurfaceLayer(PlotLayer):
                     z = s.z if not s.closed else np.append(s.z, s.z[0])
                     cp = cp if not s.closed else np.append(cp, cp[0])
                     mid = 0.5 * (cp[:-1] + cp[1:])
-                    k = np.clip((cp_color_t(mid, self.lo) * BINS).astype(int), 0, BINS - 1)
+                    k = cp_bins(mid, self.lo)
                     for b in np.unique(k[np.isfinite(mid)]):
                         idx = np.nonzero(k == b)[0]
                         seg = np.empty(3 * idx.size, complex)          # a, b, NaN for every segment
@@ -248,7 +255,7 @@ class SurfaceLayer(PlotLayer):
     def color_of(self, cp) -> list:
         """RGB colors (0–255) of Cp values on this layer's scale, in its BINS steps (the panel's curve)."""
         stops = self.theme["surface_cp"]
-        k = np.clip((cp_color_t(cp, self.lo) * BINS).astype(int), 0, BINS - 1)
+        k = cp_bins(cp, self.lo)
         table = [ramp(stops, (b + 0.5) / BINS) for b in range(BINS)]
         return [table[b] for b in k]
 

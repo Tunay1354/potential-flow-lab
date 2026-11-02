@@ -209,3 +209,13 @@ def test_closed_channel_far_zoomed_out_keeps_its_points_and_no_noise():
         pts = find_stagnation_points(els, (-half, half, -half, half), scale=2 * half)
         found.append(sorted((round(p.x, 4), round(p.y, 4)) for p in pts))
     assert len(found[0]) == 4 and found[0] == found[1] == found[2]
+
+
+def test_dividing_lines_start_in_the_slow_corner_of_a_sector_flow():
+    """Found by scripts/random_test.py: a source in a 45° sector flow makes a body in the corner; its branches
+    start where the flow (∝ r³ there) is slower than the 3× region's "too slow" speed, so they stopped at
+    once and the body was missing in the Fit view but there 4× closer. Now traced from where they start."""
+    els = [SectorFlow(V=2.6034, theta1=-65.4987, theta2=-20.4987), Source(m=1.8196, x0=0.41019, y0=-0.38249)]
+    for half in (2.0, 13.0):                                # about the view 4× closer, and 3× the Fit view
+        feats = flow_features(els, (-half + 0.4, half + 0.4, -half - 0.3, half - 0.3), scale=half)
+        assert len(feats.inner) == 2

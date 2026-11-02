@@ -131,13 +131,20 @@ class StreamlineField:
             out.arrows = _place_arrows(out.lines, out.tapers, self.d, arrow_density, arrow_box)
         return out
 
-    def free_trace(self, seeds, sign: float, box):
+    def free_trace(self, seeds, sign: float, box, slowest: float | None = None):
         """Streamlines from `seeds` in one direction inside `box` = (x0, x1, y0, y1), WITHOUT avoiding
-        other lines (used for dividing streamlines and the 'inside a body?' test).
+        other lines (used for dividing streamlines and the 'inside a body?' test). `slowest`: a lower
+        "too slow = stopped" speed for these lines only (default: the region's, v_min).
         Returns (point arrays, closed, left_box) — left_box True = the line reached the box border."""
         x0, x1, y0, y1 = map(float, box)
         if self.v_min is None:
             self.v_min = _stagnation_speed(self.els, self.flows, (x0, x1, y0, y1)) or 0.0
+        if slowest is not None and slowest < self.v_min:
+            saved, self.v_min = self.v_min, slowest
+            try:
+                return self.free_trace(seeds, sign, box)
+            finally:
+                self.v_min = saved
         self.box = (x0, x1, y0, y1)
         self.n_max = int(4.0 * (x1 - x0 + y1 - y0) / self.h) + 1
         self.near_stop = _OwnerRaster(x0, y0, x1 - x0, y1 - y0, max(x1 - x0, y1 - y0) / 4.0)

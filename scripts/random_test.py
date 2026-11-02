@@ -17,8 +17,8 @@ whole folder (or zip it) to the assistant.
 
 While it runs, one line shows: the part (physics / window), the bar and %, time gone and left, the clock time it
 ends, what it is doing now and the failures so far. The clock on that line moves every second; a long scene shows
-"working N s" — still moving = still working. If the line does not change at all for 5 minutes: frozen (Ctrl+C,
-send the folder).
+"working N s" — still moving = still working; after 2 minutes on one thing it writes where every thread is to
+failures/STACK-….txt by itself. If the line does not change at all for 5 minutes: frozen (Ctrl+C, send the folder).
 
 PART 1 — physics (no window). Random scenes of six kinds:
     free      a uniform flow (any angle) + 1–5 sources / sinks / vortices / doublets (aligned or turned)
@@ -1047,13 +1047,16 @@ def _clock(seconds):
 
 class _Status:
     """The one line that shows what the test does, rewritten every second by a thread of its own: its clock keeps
-    moving while a long scene is computed, so a still-moving line means still working."""
+    moving while a long scene is computed, so a still-moving line means still working. One thing busy for
+    STACK_AFTER_S: where every thread is right then goes to failures/STACK-….txt (where it hangs)."""
 
     WIDTH = 116                                                   # (a longer line would wrap and break the \r)
+    STACK_AFTER_S = 120.0
 
-    def __init__(self, total_s):
-        self.t0, self.total = time.perf_counter(), total_s
+    def __init__(self, total_s, out_dir):
+        self.t0, self.total, self.out_dir = time.perf_counter(), total_s, out_dir
         self.phase, self.item, self.t_item, self.failures = "start", "", self.t0, 0
+        self.dumped = None                                        # t_item of the last stack written
         self._stop = threading.Event()
         threading.Thread(target=self._run, name="random-test-status", daemon=True).start()
 
@@ -1068,6 +1071,18 @@ class _Status:
     def _run(self):
         while not self._stop.wait(1.0):
             self.show()
+            t_item = self.t_item
+            if time.perf_counter() - t_item > self.STACK_AFTER_S and self.dumped != t_item:
+                self.dumped = t_item
+                self._write_stacks()
+
+    def _write_stacks(self):
+        names = {t.ident: t.name for t in threading.enumerate()}
+        path = os.path.join(self.out_dir, "failures", f"STACK-{datetime.datetime.now():%H%M%S}.txt")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(f"{self.phase}: {self.item} — busy for {time.perf_counter() - self.t_item:.0f} s\n")
+            for ident, frame in sys._current_frames().items():
+                fh.write(f"\n--- thread {names.get(ident, ident)}\n{''.join(traceback.format_stack(frame))}")
 
     def show(self):
         now = time.perf_counter()
@@ -1099,7 +1114,7 @@ def run(args):
           f"(physics {phys_s / 60:.0f} min, window {gui_s / 60:.0f} min)\nresults: {out_dir}\n")
     app = _settings_sandbox() if not args.no_gui else None
     from physics import warmup
-    status = _Status(phys_s + gui_s)
+    status = _Status(phys_s + gui_s, out_dir)
     status.set("prepare", "compiling the fast kernels (once per installation)")
     for _label, fn in warmup.steps():
         fn()

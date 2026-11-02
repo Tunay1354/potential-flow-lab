@@ -166,6 +166,10 @@ Physics / numerics
 - **Closed channel zoomed out: no stagnation points at 10×, 8 false ones at 100×** (his first random-test run):
   the flow dies out like e^(−πx/H), the view's median speed → 0. Speed scale = max(median, 1e-6 × `_scene_speed`)
   and `_above_noise` (NOISE_FLOOR = 1e-12) in `stagnation.py`. Random-test checks use the same scene floor.
+- **Bodies 10⁵ apart: Surface pressure minutes then out of memory** (seed-2 run): one search box round all bodies →
+  `surface._groups` (GROUP_GAP), each group its own box; `origin._trace_staged` first stage ≤ MAX_STAGE_SPAN scales.
+  **Source in a 45° sector: body missing at Fit** (flow ∝ r³ in the corner, dividing lines stopped at once) →
+  `free_trace(..., slowest)` from `flow_features`. Particles that cross into a body by a step's error → respawned.
 - **Stagnation point in a 90° walled corner** is a *triple* zero of w (w ∝ z³) → position only defined to
   (1e-16)^(1/3) ≈ 5e-6; verification tolerance 1e-5 for that reason. ψ constancy along drawn lines: 0.2–0.3 % of
   the line spacing, tolerance 1 %.

@@ -34,12 +34,13 @@ import numpy as np
 from .field import active, complex_velocity, fluid_mask, singular_points
 from .images import resolve
 from .bodies import PROBE_CELLS, body_map
-from .origin import BODY, _encloses, bodies_box, body_size, has_free_stream, trace_ends
+from .origin import BODY, _encloses, body_size, has_free_stream, trace_ends
 from .stagnation import _runs, flow_features
 
 POINTS_PER_SIZE = 240           # surface points per body size (cylinder radius, half-body width …)
 MAX_POINTS = 4000
 WALL_POINTS = 600               # points along the visible part of a wall
+GROUP_GAP = 50.0                # bodies farther apart than this × (their sizes) are found apart, each at its scale
 
 
 @dataclass
@@ -98,18 +99,47 @@ def body_surfaces(elements) -> list[Surface]:
     of it, so two parts that both end there are joined through the point. Parts of the same body region
     go together first (where two bodies meet at one stagnation point — a thin channel of free stream
     between two half-bodies — each keeps its own outline). One outline = one body: closed (a cylinder,
-    an oval) or open (a half-body; it ends where the search region ends)."""
+    an oval) or open (a half-body; it ends where the search region ends). Groups of bodies far apart
+    (GROUP_GAP) are searched one by one, each in its own box: one box round bodies 10⁵ apart has every
+    body in one cell, and its lines took minutes (the random test)."""
     els = active(elements)
     if not has_free_stream(els):
         return []
-    box = bodies_box(els)
-    if box is None:
-        return []
-    sizes = [body_size(els, e, p) for e in els if e.TYPE in ("source", "doublet")
-             for p in e.singular_points()]
-    sizes = [s for s in sizes if s]
-    if not sizes:
-        return []
+    out = []
+    for box, sizes in _groups(els):
+        out += _group_surfaces(els, box, sizes)
+    for k, srf in enumerate(out, 1):
+        srf.name = f"Body {k}" + ("" if srf.closed else " (open)")
+    return out
+
+
+def _groups(els):
+    """[(box, body sizes)] of the groups of sources / doublets / vortices that are near each other (closer
+    than GROUP_GAP × their sizes): the box `bodies_box` would give for the group alone; the sizes of
+    its sources and doublets (a group without them makes no body: left out). One group normally."""
+    items = [(complex(p), size, e.TYPE != "vortex") for e in els if e.TYPE in ("source", "doublet", "vortex")
+             for p in e.singular_points() for size in [body_size(els, e, p)] if size]
+    group = list(range(len(items)))
+    def root(i):
+        while group[i] != i:
+            i = group[i]
+        return i
+    for i, (p, a, _m) in enumerate(items):
+        for j in range(i):
+            if abs(p - items[j][0]) <= GROUP_GAP * (a + items[j][1]):
+                group[root(i)] = root(j)
+    out = {}
+    for i, (p, size, mass) in enumerate(items):
+        r = 4.0 * size                                       # (bodies_box's margin)
+        b = (p.real - r, p.real + r, p.imag - r, p.imag + r)
+        box, sizes = out.get(root(i), (b, []))
+        out[root(i)] = ((min(box[0], b[0]), max(box[1], b[1]), min(box[2], b[2]), max(box[3], b[3])),
+                        sizes + [size] * mass)
+    return [(box, sizes) for box, sizes in out.values() if sizes]
+
+
+def _group_surfaces(els, box, sizes) -> list[Surface]:
+    """body_surfaces for one group of bodies (its box, the sizes of its bodies); unnamed."""
     x0, x1, y0, y1 = box
     L = max(x1 - x0, y1 - y0)
     scale = min(L, 8.0 * max(sizes))            # tracer step ≪ the bodies, stagnation search over the box
@@ -154,8 +184,6 @@ def body_surfaces(elements) -> list[Surface]:
         else:
             surf.note = "Open body (it goes on downstream without end): no closed surface, no force."
         out.append(surf)
-    for k, srf in enumerate(out, 1):
-        srf.name = f"Body {k}" + ("" if srf.closed else " (open)")
     return out
 
 

@@ -475,7 +475,13 @@ def flow_features(elements, region, dividing: bool = True, scale: float | None =
             sel = signs == sgn
             if not sel.any():
                 continue
-            lines, _closed, _left = _tracer_near(els, p.z, sing, L, tracer).free_trace(starts[sel], sgn, box)
+            # (lines start next to a stagnation point, where the flow is slow: in a corner of a sector flow
+            #  with n > 1 slower than the region's "too slow = stopped" — then they would stop at once,
+            #  and a body in the corner was missing in a view 4× wider; the random test)
+            with np.errstate(all="ignore"):
+                slowest = 0.01 * float(np.min(np.abs(complex_velocity(flows, starts[sel]))))
+            lines, _closed, _left = _tracer_near(els, p.z, sing, L, tracer).free_trace(starts[sel], sgn, box,
+                                                                                     slowest)
             for shown, ln in zip(keep[sel], lines):
                 pts = np.concatenate([[p.z], ln]) if sgn > 0 else np.concatenate([ln[::-1], [p.z]])
                 if pts.size >= 3:

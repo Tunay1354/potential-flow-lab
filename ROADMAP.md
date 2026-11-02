@@ -994,6 +994,24 @@ bırakıldı (kullanıcı kararı).
       bölüyordu, köşelerde 100× uzakta (akış ~1e-8) %12–35, kanalda %749 sanıyordu, gerçekte ≤ %0.02; bodies-zoom
       kenar toleransı iki haritanın da kenarına (90° köşede source'un yarım cisminin ince kuyruğu kaba haritada
       bilerek emiliyor, yakında görünüyor). 7 sahnenin hepsi artık temiz
+    - ✅ **23.6 Kullanıcının seed 2 koşusu (60 dk)** (2 Kasım): 1649 sahne, no-crash 32 679 / 0, slow 0; 7 failure,
+      hepsi burada tekrar üretildi, 4 gerçek bug: (1) **birbirinden çok uzak cisimler** (fareyle 180 000 birim
+      sürüklenen doublet + half-body): Surface pressure (`surface.body_surfaces`) tek kutuda arıyordu — her cisim bir
+      hücrede, dividing streamline'lar cisim ölçeğindeki adımla kutu boyunca → dakikalar, sonra bellek taşması (bu
+      makinede OOM; onda "slow (window)" 202 / 296 / 600+ s, sonraki boş sahneler de onun arkasında bekledi). Düzeltme:
+      `surface._groups` — GROUP_GAP = 50 × boyutlarından uzak cisim grupları ayrı, her biri kendi kutusunda
+      (`_group_surfaces`); tek grup = eskisiyle aynı kutu ve ölçek. 25 s + OOM → 0.2 s, half-body artık bulunuyor.
+      Ek güvenlik `origin._trace_staged`: ilk aşamanın kutusu en çok MAX_STAGE_SPAN = 200 izleme ölçeği (küçük adım +
+      dev bölge = kademeli; 12 çizgi ~3·10⁷ → < 10⁶ nokta). (2) **45° sector içinde source**: köşede akış ∝ r³,
+      dividing streamline'lar 3× bölgenin "çok yavaş = durdu" hızının altında başlıyordu → hemen duruyor, cisim Fit'te
+      yok 4× yakında var. `free_trace(…, slowest)` + `flow_features`: o çizgiler için eşik başladıkları hızın %1'i
+      (yalnızca bölgeninkinden düşükse). (3) **Particle'lar**: stagnation point yanında bir adımın hatasıyla dividing
+      streamline'ı geçen ~%0.5 cisim içinde kalıyordu (dolgunun üstünde çiziliyor) → adımdan sonra cisim içindeki her
+      particle yeniden başlıyor (`Particles.step`, önceden yalnız yeni başlayanlar). (4) `surface_layer`: NaN Cp'nin
+      int'e dönüşümü RuntimeWarning basıyordu → `cp_bins` (iki yerdeki tekrar da tek fonksiyon). Karşılaştırma:
+      21 preset bit bit aynı; 300 rastgele sahne × 3 view (stagnation tür / dividing / inner / yüzeyler, 1200 durum)
+      eski / yeni birebir aynı. 4 kalıcı test. random_test: bir iş 120 s'yi geçerse bütün thread'lerin nerede
+      olduğu `failures/STACK-….txt`'ye yazılıyor
 24. ☐ **Faz 5 — Paketleme** (seçim: A zip + C Inno Setup kurulum dosyası, ikisi birden): Python gerektirmeyen Windows 10/11 exe (zip içinde klasör), sürüm 1.0, GitHub
     Releases, kurulum dosyası (Inno Setup), Numba önbelleği, .pflow'a çift tıklayınca açılma, (isteğe bağlı)
     komut satırı için konsol exe'si; exe'de Help → Run verification 102 / 102, Python kurulu olmayan temiz bir

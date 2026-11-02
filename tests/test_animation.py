@@ -61,6 +61,20 @@ def test_particles_stay_in_the_fluid_and_in_the_view(monkeypatch, compiled, scen
         assert not (x_cross > 0.2).any()             # (going round the tip within one frame is fine)
 
 
+def test_particles_never_stay_inside_an_excluded_body():
+    """Found by scripts/random_test.py: ~0.5 % of the particles crossed a dividing streamline by a step's error
+    next to a stagnation point and went on inside the body (drawn on its fill). Now any particle that ends a
+    step inside an excluded region starts again elsewhere."""
+    p = Particles(800)
+    p.set_scene([Uniform(V=1.8), Source(m=2.9, x0=-1.0, y0=1.1), Doublet(mu=2.8, x0=0.9, y0=0.06)])
+    body = lambda z: np.abs(np.asarray(z) - 0.2) < 0.9                     # noqa: E731 - a disk as "the body"
+    p.set_view((-5, 5, -3, 4))
+    p.set_excluded(body)
+    for _ in range(40):
+        p.step(1 / 30)
+        assert not body(p.pos).any()
+
+
 def test_particles_restart_staggered_not_all_at_once():
     p = Particles(1000)
     p.set_scene([Uniform()])

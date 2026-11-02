@@ -167,6 +167,7 @@ def _trace_raw(els, z, region, scale, sign):
 
 
 STAGE_GROWTH = 8.0      # staged tracing: each stage's box (and step) this many times the one before
+MAX_STAGE_SPAN = 200.0   # the first stage's box at most this many tracing scales wide (~16 000 steps across)
 
 
 def _trace_staged(els, z, sign, region, scale):
@@ -177,11 +178,18 @@ def _trace_staged(els, z, sign, region, scale):
     window for seconds at every zoom step). Then the lines are traced in stages: in 3×
     the region at `scale`, those that leave it go on from where they left in a box STAGE_GROWTH× larger
     with a STAGE_GROWTH× larger step, and so on until the far-field box. A closed line is the loop of the
-    stage it closed in (it came back to where that stage began)."""
+    stage it closed in (it came back to where that stage began). The first stage's box is also kept
+    within MAX_STAGE_SPAN scales round the points: probes round a stagnation point (a scale of a few
+    units) in a scene whose elements are 10⁵ apart (its region as wide) took millions of steps per line
+    and gigabytes (the random test: Surface pressure computing for minutes, then out of memory)."""
     x0, x1, y0, y1 = region
     L = max(x1 - x0, y1 - y0)
     far = _far_field_box(region, els)
     box = (x0 - L, x1 + L, y0 - L, y1 + L)
+    if _box_size(box) > MAX_STAGE_SPAN * scale:
+        h = 0.5 * MAX_STAGE_SPAN * scale
+        box = (max(box[0], z.real.min() - h), min(box[1], z.real.max() + h),
+               max(box[2], z.imag.min() - h), min(box[3], z.imag.max() + h))
     n = z.size
     lines = [np.zeros(0, complex) for _ in range(n)]
     closed = np.zeros(n, bool)

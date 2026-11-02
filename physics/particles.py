@@ -133,10 +133,10 @@ class Particles:
                 kernel.advect_particles(self.pos, self.age, self.speed, self.fresh, *args)
         else:
             self._step_numpy(dt, dt_real, width)
-        if self.excluded is not None:                    # restarted inside a body: somewhere else
-            bad = self.fresh & self.excluded(self.pos)
-            if bad.any():
-                self._respawn(bad)
+        if self.excluded is not None:                    # inside a body: somewhere else — restarted there, or
+            bad = self.excluded(self.pos)                # crossed a dividing streamline by a step's error next
+            if bad.any():                                # to a stagnation point (~0.5 % of them in 40 frames
+                self._respawn(bad)                       # in busy scenes, drawn on the body: the random test)
 
     # ------------------------------------------------------------------ helpers
     def _typical_speed(self) -> float:

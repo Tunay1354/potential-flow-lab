@@ -321,3 +321,26 @@ def test_axis_choices_that_do_not_fit_are_not_offered(win, qapp):
     _settle(w, qapp)
     shown = [sp.c_axis.itemData(i) for i in range(sp.c_axis.count()) if not sp.c_axis.view().isRowHidden(i)]
     assert shown == ["theta", "s", "x"]
+
+
+def test_bodies_far_apart_are_searched_one_group_at_a_time():
+    """Found by scripts/random_test.py: a doublet dragged 180 000 units away from a half-body — one search box
+    round both had every body in one cell, and its dividing streamlines (steps of the bodies' scale across the
+    box) took minutes and gigabytes. Now each group in its own box: the half-body is found, at once."""
+    from physics.surface import _groups
+    near = [Uniform(V=2.26), Source(m=2.88, x0=0.75, y0=-0.12)]
+    far = near + [Doublet(mu=2.69, x0=-181630.0, y0=45830.0, delta=166.0)]
+    assert len(_groups(near)) == 1 and len(_groups(far)) == 2
+    a, b = body_surfaces(near), body_surfaces(far)
+    assert len(a) == len(b) == 1 and not b[0].closed
+    assert abs(np.mean(a[0].z) - np.mean(b[0].z)) < 1e-6 * abs(np.mean(a[0].z))
+
+
+def test_tracing_a_huge_region_at_a_small_scale_stays_bounded():
+    """Probes round a stagnation point (scale ~1) in a region 10⁵ wide: the first stage stays MAX_STAGE_SPAN
+    scales round the points, the lines grow coarser outwards (they took millions of points each)."""
+    from physics.origin import _trace_staged
+    els = [Uniform(V=2.26), Source(m=2.88, x0=0.75, y0=-0.12)]
+    ring = 0.75 - 0.12j + 0.3 * np.exp(2j * np.pi * np.arange(12) / 12)
+    lines, _closed, _left, _r = _trace_staged(els, ring, -1.0, (-2e5, 2e5, -1.2e5, 1.2e5), 1.0)
+    assert sum(len(ln) for ln in lines) < 1_000_000                # (before: ~10⁸, out of memory)
