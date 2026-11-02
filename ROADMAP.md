@@ -957,6 +957,28 @@ bırakıldı (kullanıcı kararı).
       bitiş saati, hata sayısı, şu anki iş; ayrı bir thread her saniye yazıyor, uzun süren işte "working N s" sayıyor
       (sayaç ilerliyorsa çalışıyor). Burada --quick: 57 sahne (9'u chaos, hepsi hesaplandı), 185 pencere aksiyonu,
       hata yok
+    - ✅ **23.4 Dikdörtgen kutu (4 duvar) kesin ve hızlı** (2 Kasım; kullanıcı buldu: lifting cylinder 4 duvarla
+      çevrilince Particles ~1–4 fps, zoom'da donma, φ çizgileriyle daha kötü; hata yok çünkü sahne geçerli).
+      Sebep: dikdörtgen genel BFS'le 16 seviyede 1088 image → 600'de kesiliyordu (yaklaşık + her hızda 600 terim).
+      `physics/images.py`: kanal kodu genelleşti (`_channel_layout`, `_channel`): iki paralel duvar + karşısında 0, 1
+      ya da 2 dik duvar. 1 duvar → satırların aynası (kesin, 4 satır); 2 duvar → satırlar `PeriodicRow.shift = 2L`
+      ile kanal boyunca tekrar, k = −K…K (`count`), K = ⌈ln(1/ROW_TOL)·H/(2πL)⌉, ROW_TOL = 1e-12 (dar çift kanal
+      seçiliyor: kopyalar e^(−πd/H) ile en hızlı sönsün; onun kutusunda K = 3). Kapalı kutuda Σm ≠ 0 → hata ("the
+      sources and sinks inside must add up to zero"; akışkanın gidecek yeri yok, satırların uzak alanı da sönmez).
+      `physics/kernel.py`: ROW1 / ROW2 satırı [kind, z, c, P, s, K] (s = Im(π·shift/P)); `_cot_sums` tüm kopyalar
+      için tek cos/sin + tek exp, gerçek aritmetik bölme (q = exp(±2iu): cot = (±2 Im q − i(1 − |q|²))/|1 − q|²), kutupta
+      NaN (ZeroDivisionError değil); yeni `_potential` / `potential_many` (ψ, φ). `physics/field.py`: büyük diziler
+      (≥ 20 000 nokta: field grid'leri, φ çizgileri) derlenmiş kernel'le (`_summer`; tablo `kernel.velocity_table`,
+      `compile_scene` de onu kullanıyor) — sayılar NumPy ile yuvarlama kadar aynı. `PeriodicRow` NumPy'da kopyaları
+      tek dizide topluyor. Generic image sınırı MAX_IMAGES 600 → 200 (geriye kalan: hatalı düzenler ve 60° üçgen gibi
+      nadir döşemeler). Kanal probu z = 0'da element varsa RuntimeWarning veriyordu → errstate.
+      Sonuçlar (bu 2 çekirdekli sunucu, onun sahnesi): duvarlarda V·n 3e-15 (önce 600 image, yaklaşık); particle adımı
+      85 → 26 ms; pencerede Particles karesi 77 → 28 ms (duvarsız aynı sahne 27 ms); 8 zoom adımı |V| + φ açıkken
+      4.65 → 1.71 s; field grid 0.41 → 0.09 s, φ grid 0.74 → 0.16 s. Snapshot (21 preset): streamline / stagnation /
+      dividing / yüzeyler kanal hariç bit bit aynı (kanal ≤ 4e-15, yeni satır formülü); field ve φ grid'leri ≤ 1e-15,
+      maskeler aynı. Yeni testler: dikdörtgen 0° / 90° / 27° (V·n < 1e-11, kernel = NumPy), ucu kapalı kanal, kutuda
+      Σm kuralı, `_cot_sums` = stable_cot toplamı, kernel ψ = NumPy ψ (tüm kernel sahneleri); random_test'in walls
+      türüne ucu kapalı kanal ve döndürülmüş dikdörtgen eklendi
 24. ☐ **Faz 5 — Paketleme** (seçim: A zip + C Inno Setup kurulum dosyası, ikisi birden): Python gerektirmeyen Windows 10/11 exe (zip içinde klasör), sürüm 1.0, GitHub
     Releases, kurulum dosyası (Inno Setup), Numba önbelleği, .pflow'a çift tıklayınca açılma, (isteğe bağlı)
     komut satırı için konsol exe'si; exe'de Help → Run verification 102 / 102, Python kurulu olmayan temiz bir

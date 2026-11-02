@@ -55,8 +55,9 @@ QUICK = dict(cache=True, nogil=False, error_model="numpy")
 #        CONST  [kind, c]                     uniform flows (summed)
 #        POLE1  [kind, z, c]                  c / (z − z_k)            source, vortex
 #        POLE2  [kind, z, c]                  −c / (z − z_k)²          doublet
-#        ROW1   [kind, z, c, P]               infinite image rows of poles in a channel (period P, complex)
-#        ROW2   [kind, z, c, P]               ... of doublets
+#        ROW1   [kind, z, c, P, s, K]         infinite image rows of poles in a channel (period P, complex),
+#                                             and their copies k = −K … K along it (s: see _cot_sums)
+#        ROW2   [kind, z, c, P, s, K]         ... of doublets
 #        SECTOR [kind, z, rot, half, n, V]    wedge flow
 #   R  fluid region (m, 6) complex: HALFPLANE [kind, p, normal], WEDGE [kind, z, rot, half, beta]
 #   W  the wedges of R (a step must not cross their cut)
@@ -75,23 +76,9 @@ def _table(rows) -> np.ndarray:
 def compile_scene(elements, flows):
     """Tables of the velocity (flows = resolve(elements)) and of the fluid region (elements).
     Returns (F, R, W) (see above) or None if Numba is missing or some element has no kernel form."""
-    if not HAVE_NUMBA:
+    F = velocity_table(flows)
+    if F is None:
         return None
-    c0 = 0j
-    rows = {k: [] for k in _TERM_KINDS.values() if k != CONST}
-    for e in flows:
-        terms = e.kernel_terms()
-        if terms is None:
-            return None
-        for t in terms:
-            kind = _TERM_KINDS.get(t[0])
-            if kind is None:
-                return None
-            if kind == CONST:
-                c0 += t[1]
-            else:
-                rows[kind].append((kind,) + tuple(t[1:]))
-    F = _table([(CONST, c0)] + [r for k in (POLE1, POLE2, ROW1, ROW2, SECTOR) for r in rows[k]])
     region = []
     for e in elements:
         if not e.enabled:
@@ -112,6 +99,27 @@ def compile_scene(elements, flows):
     return F, R, W
 
 
+def velocity_table(flows):
+    """The table F of the flows' terms (see above), or None if Numba is missing or a flow has no kernel form."""
+    if not HAVE_NUMBA:
+        return None
+    c0 = 0j
+    rows = {k: [] for k in _TERM_KINDS.values() if k != CONST}
+    for e in flows:
+        terms = e.kernel_terms()
+        if terms is None:
+            return None
+        for t in terms:
+            kind = _TERM_KINDS.get(t[0])
+            if kind is None:
+                return None
+            if kind == CONST:
+                c0 += t[1]
+            else:
+                rows[kind].append((kind,) + tuple(t[1:]))
+    return _table([(CONST, c0)] + [r for k in (POLE1, POLE2, ROW1, ROW2, SECTOR) for r in rows[k]])
+
+
 def _base_fluid_region():
     from .base import FlowElement
     return FlowElement.fluid_region
@@ -119,13 +127,31 @@ def _base_fluid_region():
 
 # ---------------------------------------------------------------------- compiled pieces
 @njit(**JIT)
-def _cot(u):
-    """cot(u) without overflow for large |Im u| (same as base.stable_cot)."""
-    if u.imag > 0:
-        q = cmath.exp(2j * u)
-        return 1j * (q + 1) / (q - 1)
-    q = cmath.exp(-2j * u)
-    return 1j * (1 + q) / (1 - q)
+def _cot_sums(u, s, count):
+    """Σ cot(u_k) and Σ (1 + cot²(u_k)) over u_k = u − i k s, k = −count … count (the copies of an image row
+    in a rectangle; count = 0: one row). Without overflow for large |Im u_k| (as base.stable_cot): with
+    q = exp(±2i u_k), |q| ≤ 1,  cot u_k = ∓i (1 + q)/(1 − q) = (±2 Im q − i(1 − |q|²)) / |1 − q|²  — one cosine /
+    sine pair and one exponential for all k (|q| changes by e^(2s) from one copy to the next). On a pole
+    (q = 1): NaN, never a ZeroDivisionError."""
+    c2, s2_ = math.cos(2.0 * u.real), math.sin(2.0 * u.real)
+    step = math.exp(2.0 * s)
+    m = math.exp(-2.0 * abs(u.imag + count * s))                # |q| of the first copy, k = −count
+    up = u.imag + count * s > 0
+    sum1, sum2 = 0j, 0j
+    for k in range(-count, count + 1):
+        a = u.imag - k * s
+        if (a > 0) != up:                                       # Im u_k changed sign: |q| from scratch
+            up = a > 0
+            m = math.exp(-2.0 * abs(a))
+        x, y = m * c2, (m * s2_ if up else -m * s2_)            # q = exp(2i u_k) above, exp(−2i u_k) below
+        den = (1.0 - x) ** 2 + y * y
+        if den == 0.0:
+            return complex(math.nan, math.nan), complex(math.nan, math.nan)
+        ct = complex((2.0 * y if up else -2.0 * y), -(1.0 - m * m) if up else (1.0 - m * m)) / den
+        sum1 += ct
+        sum2 += 1.0 + ct * ct
+        m = m * step if up else m / step                         # the next copy: Im u_k smaller by s
+    return sum1, sum2
 
 
 @njit(**JIT)
@@ -143,11 +169,12 @@ def _w(z, F):
             w += -F[k, 2] / (dz * dz)
         elif kind == ROW1:
             P = F[k, 3]                                      # complex: the period may point along y
-            w += F[k, 2] * (math.pi / P) * _cot(math.pi * (z - F[k, 1]) / P)
+            s1, _s2 = _cot_sums(math.pi * (z - F[k, 1]) / P, F[k, 4].real, int(F[k, 5].real))
+            w += F[k, 2] * (math.pi / P) * s1
         elif kind == ROW2:
             P = F[k, 3]
-            ct = _cot(math.pi * (z - F[k, 1]) / P)
-            w += -F[k, 2] * (math.pi / P) ** 2 * (1.0 + ct * ct)
+            _s1, s2 = _cot_sums(math.pi * (z - F[k, 1]) / P, F[k, 4].real, int(F[k, 5].real))
+            w += -F[k, 2] * (math.pi / P) ** 2 * s2
         else:                                                # SECTOR
             rot = F[k, 2]
             zeta = (z - F[k, 1]) * rot
@@ -157,6 +184,52 @@ def _w(z, F):
             n = F[k, 4].real
             w += n * F[k, 5].real * rot * r ** (n - 1.0) * cmath.exp(1j * (n - 1.0) * th)
     return w
+
+
+@njit(**JIT)
+def _log_sin_sum(u, s, count):
+    """Σ log(sin u_k), u_k = u − i k s (as base.stable_log_sin, up to multiples of 2πi; NaN on a pole)."""
+    phase = complex(math.cos(2.0 * u.real), math.sin(2.0 * u.real))
+    total = 0j
+    for k in range(-count, count + 1):
+        uk = u - 1j * k * s
+        if uk.imag > 0:
+            q = phase * math.exp(-2.0 * uk.imag)             # exp(2i u_k)
+            if q == 1.0:
+                return complex(math.nan, math.nan)
+            total += -1j * uk + cmath.log((q - 1.0) / 2j)
+        else:
+            q = phase.conjugate() * math.exp(2.0 * uk.imag)  # exp(−2i u_k)
+            if q == 1.0:
+                return complex(math.nan, math.nan)
+            total += 1j * uk + cmath.log((1.0 - q) / 2j)
+    return total
+
+
+@njit(**JIT)
+def _potential(z, F):
+    """Complex potential F = φ + i ψ at one point (the same branches as the elements' complex_potential)."""
+    f = 0j
+    for k in range(F.shape[0]):
+        kind = int(F[k, 0].real)
+        if kind == CONST:
+            f = F[k, 1] * z
+        elif kind == POLE1:
+            f += F[k, 2] * cmath.log(z - F[k, 1])
+        elif kind == POLE2:
+            f += F[k, 2] / (z - F[k, 1])
+        elif kind == ROW1:
+            P = F[k, 3]
+            f += F[k, 2] * _log_sin_sum(math.pi * (z - F[k, 1]) / P, F[k, 4].real, int(F[k, 5].real))
+        elif kind == ROW2:
+            P = F[k, 3]
+            s1, _s2 = _cot_sums(math.pi * (z - F[k, 1]) / P, F[k, 4].real, int(F[k, 5].real))
+            f += F[k, 2] * (math.pi / P) * s1
+        else:                                                # SECTOR
+            r = abs((z - F[k, 1]) * F[k, 2])
+            n = F[k, 4].real
+            f += F[k, 5].real * r ** n * cmath.exp(1j * n * _local_angle(z, F[k, 1], F[k, 2], F[k, 3].real))
+    return f
 
 
 @njit(**JIT)
@@ -262,10 +335,19 @@ def _isfinite_c(z):
 
 @njit(**JIT)
 def velocity_many(z, F):
-    """w at many points (used by the tests to compare with the NumPy field)."""
+    """w at many points (field grids, see field.py); NaN on a singular point."""
     out = np.empty(z.size, np.complex128)
     for i in range(z.size):
-        out[i] = _w(z[i], F)
+        out[i] = complex(math.nan, math.nan) if _at_singularity(z[i], F) else _w(z[i], F)
+    return out
+
+
+@njit(**JIT)
+def potential_many(z, F):
+    """F = φ + i ψ at many points (field grids); NaN on a singular point."""
+    out = np.empty(z.size, np.complex128)
+    for i in range(z.size):
+        out[i] = complex(math.nan, math.nan) if _at_singularity(z[i], F) else _potential(z[i], F)
     return out
 
 

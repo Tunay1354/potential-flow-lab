@@ -156,8 +156,13 @@ Physics / numerics
 - **ZeroDivisionError in Newton** when a seed lands exactly on a singular point (free vortex centre, view symmetric about it) → `kernel._at_singularity` makes that seed NaN.
 - **ZeroDivisionError at a corner of two walls** (velocity exactly 0) → `kernel._direction` returns NaN.
 - **Minutes per picture with 3 walls at random angles** (found by `scripts/random_test.py`): walls that do not tile
-  the plane multiply the images at every level (185 364 after 16) → `images.MAX_IMAGES = 600`; the rest of the time
+  the plane multiply the images at every level (185 364 after 16) → `images.MAX_IMAGES` (600, now 200); the rest of the time
   was ψ summed element by element in Python → `batch_complex_potential` per type, like the velocity (`field._group_sum`).
+- **A lifting cylinder boxed in by 4 walls: ~1–4 fps, zoom froze** (he found it): a rectangle went through the
+  generic image BFS (1088 images, capped). Now `images._channel` = channel + 0 / 1 / 2 walls across: rows in closed
+  form, mirrored in a wall across, repeated every 2L with `PeriodicRow.shift / count` (a few copies; kernel
+  `_cot_sums`, one exp for all copies); Σm = 0 required in a closed box. Large arrays (field grids, φ lines) are
+  summed by the kernel (`field._summer`, `kernel.potential_many`). Generic MAX_IMAGES = 200.
 - **Stagnation point in a 90° walled corner** is a *triple* zero of w (w ∝ z³) → position only defined to
   (1e-16)^(1/3) ≈ 5e-6; verification tolerance 1e-5 for that reason. ψ constancy along drawn lines: 0.2–0.3 % of
   the line spacing, tolerance 1 %.

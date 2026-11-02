@@ -15,13 +15,14 @@ from typing import Iterable, Sequence
 
 import numpy as np
 
-from . import parallel
+from . import kernel, parallel
 from .base import FlowElement, as_complex_array
 from .images import resolve
 
 
 PARALLEL_MIN_POINTS = 20_000            # smaller arrays: one core (a thread costs more than it saves)
 BATCH_CELLS = 1_000_000                 # points × elements of one type summed at once (≈ 16 MB per batch sum)
+KERNEL_MIN_POINTS = PARALLEL_MIN_POINTS  # arrays this large (field grids) are summed by the compiled kernel
 
 
 # ---------------------------------------------------------------------------
@@ -38,7 +39,17 @@ def complex_velocity(elements: Iterable[FlowElement], z) -> np.ndarray:
     point is computed exactly as on one core."""
     z = as_complex_array(z)
     flows = resolve(elements)
-    return _on_cores(lambda part: _group_sum(flows, part, "batch_complex_velocity"), z)
+    return _on_cores(_summer(flows, z.size, kernel.velocity_many, "batch_complex_velocity"), z)
+
+
+def _summer(flows, size, compiled, batch):
+    """fn(points) → the sum over the flows. Large arrays (field grids) go to the compiled kernel when the
+    scene has a kernel form: several times faster with wall images (a rectangle's rows), the same numbers
+    up to rounding (NaN instead of inf on a singular point). Otherwise NumPy, one sum per element type."""
+    table = kernel.velocity_table(flows) if size >= KERNEL_MIN_POINTS else None
+    if table is None:
+        return lambda part: _group_sum(flows, part, batch)
+    return lambda part: compiled(np.ascontiguousarray(part.reshape(-1)), table).reshape(part.shape)
 
 
 def _group_sum(flows, z, batch: str) -> np.ndarray:
@@ -75,7 +86,7 @@ def complex_potential(elements: Iterable[FlowElement], z) -> np.ndarray:
     """F(z) = Σ F_k(z) = φ + i ψ  (ψ of sources and φ of vortices contain branch cuts)."""
     z = as_complex_array(z)
     flows = resolve(elements)
-    return _on_cores(lambda part: _group_sum(flows, part, "batch_complex_potential"), z)
+    return _on_cores(_summer(flows, z.size, kernel.potential_many, "batch_complex_potential"), z)
 
 
 # ---------------------------------------------------------------------------

@@ -143,3 +143,32 @@ def test_compiled_and_numpy_streamlines_have_the_same_quality(monkeypatch):
     _numpy_path(monkeypatch)
     b = trace_streamlines(els, *view)
     assert abs(len(a.lines) - len(b.lines)) <= 2 and a.separation == b.separation
+
+
+def test_row_sums_match_numpy_cot():
+    """kernel._cot_sums (copies of an image row, one exponential for all) = the sum of base.stable_cot."""
+    from physics.base import stable_cot
+    rng = np.random.default_rng(0)
+    for _ in range(2000):
+        u = complex(rng.uniform(-10, 10), rng.uniform(-30, 30) * rng.choice([1.0, 0.01]))
+        s, count = float(rng.choice([0.0, rng.uniform(0.1, 8.0)])), int(rng.integers(0, 6))
+        ct = stable_cot(u - 1j * np.arange(-count, count + 1) * s)
+        s1, s2 = kernel._cot_sums(u, s, count)
+        assert abs(s1 - ct.sum()) <= 1e-12 * max(1.0, abs(ct.sum()))
+        assert abs(s2 - (1 + ct ** 2).sum()) <= 1e-12 * max(1.0, abs((1 + ct ** 2).sum()))
+
+
+@pytest.mark.parametrize("name", ALL)
+def test_potential_matches_numpy(name):
+    """Field grids (φ lines, ψ) are summed by the kernel: the same F = φ + iψ, the same branches."""
+    from physics.field import _group_sum
+    els, ((x0, x1), (y0, y1)) = ALL[name]
+    flows = resolve(active(els))
+    rng = np.random.default_rng(2)
+    z = rng.uniform(x0, x1, 2000) + 1j * rng.uniform(y0, y1, 2000)
+    with np.errstate(all="ignore"):
+        f_np = _group_sum(flows, z, "batch_complex_potential")
+    f_k = kernel.potential_many(z, kernel.velocity_table(flows))
+    fin = np.isfinite(f_np)
+    assert np.array_equal(fin, np.isfinite(f_k))
+    np.testing.assert_allclose(f_k[fin], f_np[fin], rtol=1e-12, atol=1e-12 * np.abs(f_np[fin]).max())

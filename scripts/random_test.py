@@ -23,7 +23,8 @@ send the folder).
 PART 1 — physics (no window). Random scenes of six kinds:
     free      a uniform flow (any angle) + 1–5 sources / sinks / vortices / doublets (aligned or turned)
     classic   cylinder, lifting cylinder (also |Γ| > 4πV∞a), Rankine oval, half-body, two bodies close together
-    walls     one wall, a corner (π/k), a channel, with elements on the fluid side and a parallel uniform flow
+    walls     one wall, a corner (π/k), a channel (also closed at one end, or a rectangle of 4 walls, turned),
+              with elements on the fluid side and (open ones) a parallel uniform flow
     sector    sector flows (β = 90°, 60°, 45°, 180°, 360°, any) alone or with a source / vortex inside
     edge      the strange ones: tiny and huge strengths and coordinates, elements almost on top of each other,
               an element on / behind a wall, zero strengths, hidden elements, crowded scenes (8–16 elements)
@@ -157,18 +158,27 @@ def random_scene(rng, kind: str) -> list:
         gap = float(rng.uniform(0.05, 1.5))
         return [Uniform(V=V), Doublet(mu=0.5, x0=-gap - 0.7), Doublet(mu=0.5, x0=gap + 0.7)]
     if kind == "walls":
-        which = int(rng.integers(3))
+        which = int(rng.integers(5))
         if which == 0:                                            # one wall
             th = float(rng.choice([0.0, 90.0, rng.uniform(-80, 80)]))
             walls = [SymmetryWall(xw=0.0, yw=-1.0, theta_w=th, side=0)]
         elif which == 1:                                          # a corner of π/k
             k = int(rng.choice([2, 3, 4]))
             walls = [SymmetryWall(yw=0.0, theta_w=0.0, side=0), SymmetryWall(theta_w=180.0 / k, side=1)]
-        else:                                                     # a channel
+        elif which == 2:                                          # a channel
             h = float(rng.uniform(1.0, 4.0))
             walls = [SymmetryWall(yw=0.0, side=0), SymmetryWall(yw=h, side=1)]
+        else:                                                     # a channel closed at one end / a rectangle
+            h, w, th = float(rng.uniform(1.0, 4.0)), float(rng.uniform(1.0, 6.0)), float(rng.choice([0.0, rng.uniform(-90, 90)]))
+            t = complex(math.cos(math.radians(th)), math.sin(math.radians(th)))
+            at = lambda x, y: t * complex(x, y)                   # noqa: E731
+            walls = [SymmetryWall(xw=at(0, -h / 2).real, yw=at(0, -h / 2).imag, theta_w=th, side=0),
+                     SymmetryWall(xw=at(0, h / 2).real, yw=at(0, h / 2).imag, theta_w=th, side=1),
+                     SymmetryWall(xw=at(-w / 2, 0).real, yw=at(-w / 2, 0).imag, theta_w=th + 90.0, side=1)]
+            if which == 4:
+                walls.append(SymmetryWall(xw=at(w / 2, 0).real, yw=at(w / 2, 0).imag, theta_w=th + 90.0, side=0))
         els = list(walls)
-        if which != 1 and rng.random() < 0.7:
+        if which < 3 and which != 1 and rng.random() < 0.7:
             els.append(Uniform(V=float(rng.uniform(0.3, 2.0)), alpha=walls[0].theta_w))
         for _ in range(int(rng.integers(1, 4))):
             for _try in range(20):                                # a point on the fluid side of every wall
@@ -389,7 +399,7 @@ def _moved_particles(els, view, bmap, count=600, steps=40):
     return p
 
 
-def _away(els, z, view, res, v_mask=None):
+def _away(els, z, view, res):
     """Points far enough from singular points and stagnation points for the line checks."""
     W = view[0][1] - view[0][0]
     keep = np.ones(z.shape, bool)

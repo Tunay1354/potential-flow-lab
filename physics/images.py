@@ -14,7 +14,9 @@ The process stops when no new image appears ("closed"), or after `max_levels` le
     * two walls meeting at π/k          -> closes, 2k − 1 images (exact), e.g. 90° corner: 3 images
     * other angles                      -> some image falls INSIDE the fluid region: the boundary
                                            condition cannot be met exactly (error)
-    * 3 or more walls                   -> truncated series if it does not close (warning); walls that do
+    * a channel (two parallel walls),   -> rows in closed form (exact), see below
+      with 1 or 2 walls across it
+    * 3 or more walls otherwise         -> truncated series if it does not close (warning); walls that do
                                            not tile the plane multiply the images at every level (16 levels
                                            of 3 walls: ~185 000, minutes per picture), so the series also
                                            stops after max_images
@@ -28,6 +30,14 @@ Two parallel walls (a channel of width H) need infinitely many images: every ele
 mirror image e' in the first wall repeat with period P = 2H along the wall normal. These infinite
 rows are summed in closed form, e.g.  Σ_n 1/(z − a − nP) = (π/P) cot(π(z − a)/P),  so the
 channel is also exact (see PeriodicRow and the elements' periodic_* methods).
+
+Walls ACROSS a channel (perpendicular to it) are mirrors for these rows: one wall across (a channel with a
+closed end) adds the rows' mirror images — exact again; two walls across, a distance L apart (a rectangle),
+repeat everything every T = 2L along the channel. Those copies of the rows are summed one by one, but a row
+of a vortex with its opposite image, or of doublets, dies out like e^(−π d/H) along the channel, so a few
+copies on each side reach ROW_TOL (the narrower pair of walls is taken as the channel). Summed point by point
+instead, a rectangle needed hundreds of images and was still only approximate. Sources in a rectangle must
+add up to zero: otherwise the fluid has nowhere to go (and the rows' far fields would not cancel).
 """
 from __future__ import annotations
 
@@ -39,9 +49,11 @@ import numpy as np
 from .base import FlowElement, Issue, normalize_angle
 
 DEFAULT_MAX_LEVELS = 16
-MAX_IMAGES = 600           # every image is one more term in every evaluation: 3 walls at random angles + a source
-                           # made 185 364 images (> 10 min per picture), capped ~1.5 s; a rectangle of 4 walls
-                           # with one source has 544 images after 16 levels (not capped)
+MAX_IMAGES = 200           # every image is one more term in every evaluation: 3 walls at random angles + a source
+                           # made 185 364 images (> 10 min per picture); such scenes are errors (or rare tilings
+                           # such as a 60° triangle, only approximate anyway), so few images: they stay fluid
+ROW_TOL = 1e-12            # rectangle: the copies of a row left out are smaller than this (relative)
+PARALLEL_TOL = 1e-12       # |sin| of the angle between two walls counted as parallel (or as perpendicular: |cos|)
 
 
 class ResolvedFlows(list):
@@ -59,34 +71,45 @@ class ResolvedFlows(list):
 
 @dataclass(kw_only=True)
 class PeriodicRow(FlowElement):
-    """Internal element: `base` repeated every `period` (infinitely many copies, closed-form sum)."""
+    """Internal element: `base` repeated every `period` (infinitely many copies, closed-form sum), and that
+    row again at k·`shift` for k = −count … count (a rectangle; shift is perpendicular to the period)."""
     TYPE = "periodic_row"
     NAME = "Periodic image row"
 
     base: FlowElement | None = None
     period: complex = 0j
+    shift: complex = 0j
+    count: int = 0
+
+    def _copies(self, z):
+        """z − k·shift for every copy k (a last axis of length 2·count + 1)."""
+        return np.asarray(z, dtype=np.complex128)[..., None] - np.arange(-self.count, self.count + 1) * self.shift
 
     def complex_velocity(self, z):
-        return self.base.periodic_complex_velocity(z, self.period)
+        with np.errstate(all="ignore"):                 # (on a copy: inf / NaN, as for any pole)
+            return self.base.periodic_complex_velocity(self._copies(z), self.period).sum(axis=-1)
 
     def complex_potential(self, z):
-        return self.base.periodic_complex_potential(z, self.period)
+        with np.errstate(all="ignore"):
+            return self.base.periodic_complex_potential(self._copies(z), self.period).sum(axis=-1)
 
     def singular_points(self):
         return self.base.singular_points()          # the copies are outside the fluid
 
     def kernel_terms(self):
         """Rows of poles in closed form:  Σ c/(z − z0 − nP) = c (π/P) cot(π(z − z0)/P),
-        Σ −c/(z − z0 − nP)² = −c (π/P)² (1 + cot²(π(z − z0)/P))."""
+        Σ −c/(z − z0 − nP)² = −c (π/P)² (1 + cot²(π(z − z0)/P)); with the copies at k·shift the argument
+        becomes u − i k s,  s = Im(π·shift/P)  (shift ⟂ P: π·shift/P is imaginary)."""
         terms = self.base.kernel_terms()
         if terms is None:
             return None
+        s = (math.pi * self.shift / self.period).imag
         out = []
         for t in terms:
             if t[0] == "pole1":
-                out.append(("row1", t[1], t[2], self.period))
+                out.append(("row1", t[1], t[2], self.period, s, self.count))
             elif t[0] == "pole2":
-                out.append(("row2", t[1], t[2], self.period))
+                out.append(("row2", t[1], t[2], self.period, s, self.count))
             else:
                 return None
         return out
@@ -159,8 +182,9 @@ def build_image_system(elements, max_levels: int = DEFAULT_MAX_LEVELS, max_image
                     "error", f"{e.NAME} (α = {math.degrees(math.atan2(fv.imag, fv.real)):.4g}°) is not "
                              f"parallel to the wall (θ_w = {w.theta_w:.4g}°): V·n = 0 cannot hold far away."))
 
-    if len(walls) == 2 and abs((np.conj(walls[0].direction) * walls[1].direction).imag) < 1e-12:
-        return _channel(system, originals, walls)
+    layout = _channel_layout(walls)
+    if layout:
+        return _channel(system, originals, *layout)
 
     seen = {_key(e) for e in originals}
     frontier = list(originals)
@@ -213,15 +237,55 @@ def build_image_system(elements, max_levels: int = DEFAULT_MAX_LEVELS, max_image
     return system
 
 
-def _channel(system: ImageSystem, originals, walls) -> ImageSystem:
-    """Two parallel walls facing each other: exact closed-form periodic images."""
-    a, b = walls
-    width = float(a.signed_distance(b.point))
-    facing = (a.normal * np.conj(b.normal)).real < 0 and width > 0
-    if not facing:
+def _channel_layout(walls):
+    """(a, b, across) when the walls are a channel — two parallel walls a, b — with 0, 1 or 2 walls across it
+    (perpendicular; two of them parallel to each other), else None. A rectangle has two such pairs: the
+    narrower one is the channel (its rows die out fastest along the other direction)."""
+    def turn(u, v):                                     # cos + i sin of the angle between two walls
+        return np.conj(u.direction) * v.direction
+    best = None
+    for i, a in enumerate(walls):
+        for b in walls[i + 1:]:
+            if abs(turn(a, b).imag) >= PARALLEL_TOL:
+                continue
+            across = [w for w in walls if w is not a and w is not b]
+            if len(across) > 2 or any(abs(turn(a, w).real) >= PARALLEL_TOL for w in across):
+                continue
+            width = abs(float(a.signed_distance(b.point)))
+            if best is None or width < best[0]:
+                best = (width, a, b, across)
+    return best[1:] if best else None
+
+
+def _facing(a, b) -> float | None:
+    """Distance between two parallel walls with the fluid between them, else None."""
+    gap = float(a.signed_distance(b.point))
+    return gap if (a.normal * np.conj(b.normal)).real < 0 and gap > 0 else None
+
+
+def _channel(system: ImageSystem, originals, a, b, across) -> ImageSystem:
+    """Two parallel walls facing each other (+ up to two walls across): exact closed-form periodic images."""
+    width = _facing(a, b)
+    if width is None:
         system.issues.append(Issue("error", "Two parallel walls must face each other (fluid between them)."))
         return system
     period = 2.0 * width * a.normal
+    shift, count = 0j, 0
+    if len(across) == 2:
+        length = _facing(*across)
+        if length is None:
+            system.issues.append(Issue("error", "The two walls across the channel must face each other (fluid "
+                                                "between them)."))
+            return system
+        shift = 2.0 * length * across[0].normal
+        # a row d away along the channel adds ~e^(−π d / H); the nearest one left out (copy K + 1 of a row
+        # mirrored in the wall across) is ≥ 2KL away from the box: e^(−2πKL/H) < ROW_TOL
+        count = max(0, math.ceil(math.log(1.0 / ROW_TOL) * width / (2.0 * math.pi * length)))
+        sources = [e.m for e in originals if e.TYPE == "source"]
+        if abs(sum(sources)) > 1e-9 * sum(abs(m) for m in sources):
+            system.issues.append(Issue(
+                "error", f"The walls close the fluid in: the sources and sinks inside must add up to zero "
+                         f"(now Σm = {sum(sources):.4g}), otherwise the fluid has nowhere to go."))
     flows = []
     for e in originals:
         try:
@@ -229,12 +293,15 @@ def _channel(system: ImageSystem, originals, walls) -> ImageSystem:
             if m is None:                       # freestream (checked parallel above): not imaged
                 flows.append(e)
                 continue
-            e.periodic_complex_velocity(np.array([0j]), period)     # raises if not supported
+            with np.errstate(all="ignore"):                         # (z = 0 may be the element itself)
+                e.periodic_complex_velocity(np.array([0j]), period)     # raises if not supported
         except NotImplementedError as exc:
             system.issues.append(Issue("error", str(exc)))
             continue
-        flows.append(PeriodicRow(base=e, period=period))
-        flows.append(PeriodicRow(base=m, period=period))
+        bases = [e, m]
+        if across:                              # a wall across mirrors the rows (their period lies along it)
+            bases += [x.mirrored(across[0]) for x in bases]
+        flows += [PeriodicRow(base=x, period=period, shift=shift, count=count) for x in bases]
     system.flows = flows
     system.periodic = True
     system.closed = True

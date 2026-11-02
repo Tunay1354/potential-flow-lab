@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from physics import (Doublet, Source, SymmetryWall, Uniform, Vortex, build_image_system, check_scene,
-                     complex_potential, compute_field, complex_velocity, velocity)
+                     complex_potential, compute_field, complex_velocity, resolve, velocity)
 from physics.streamlines import trace_streamlines
 
 W = SymmetryWall
@@ -163,9 +163,53 @@ def test_three_walls_at_random_angles_stay_a_few_hundred_images():
     system = build_image_system(els)
     assert system.n_images == MAX_IMAGES and not system.closed
     assert any(i.is_error and "180°/k" in i.message for i in check_scene(els))
-    rect = [W(yw=0.0, side=0), W(yw=3.0, side=1), W(xw=0.0, theta_w=90.0, side=1), W(xw=4.0, theta_w=90.0, side=0),
-            Source(m=1.0, x0=1.0, y0=1.0)]                # a rectangle tiles the plane: all 16 levels fit
-    assert build_image_system(rect).n_images == 544 < MAX_IMAGES
+
+
+def _box(theta=0.0, width=3.56, height=2.1):
+    """Four walls round a rectangle (turned by theta degrees about the origin): fluid inside."""
+    t = np.exp(1j * np.radians(theta))
+    corner = lambda x, y: complex(t * complex(x, y))                    # noqa: E731
+    a, b, c, d = corner(0, -height / 2), corner(0, height / 2), corner(-width / 2, 0), corner(width / 2, 0)   # mid-sides
+    return [W(xw=a.real, yw=a.imag, theta_w=theta, side=0), W(xw=b.real, yw=b.imag, theta_w=theta, side=1),
+            W(xw=c.real, yw=c.imag, theta_w=theta + 90.0, side=1), W(xw=d.real, yw=d.imag, theta_w=theta + 90.0, side=0)]
+
+
+@pytest.mark.parametrize("theta", [0.0, 90.0, 27.0])
+def test_rectangle_is_exact_with_a_few_rows(theta):
+    """Found by the owner (2 Nov): a lifting cylinder boxed in by 4 walls was summed as 600 images (truncated,
+    about 1 fps with particles). Now the narrower pair is a channel (closed form) and the rows repeat along it,
+    a few copies each side: V·n = 0 on all four walls to rounding, and the kernel agrees."""
+    t = np.exp(1j * np.radians(theta))
+    els = [Doublet(mu=0.3, x0=(0.2 * t).real, y0=(0.2 * t).imag, delta=theta), Vortex(Gamma=-2.0)] + _box(theta)
+    system = build_image_system(els)
+    assert system.periodic and system.exact and len(system.flows) == 8
+    assert not [i for i in check_scene(els) if i.severity in ("error", "warning")]
+    for w in _box(theta):
+        assert np.max(np.abs(normal_velocity(els, w, half_length=1.0))) < 1e-11
+    from physics import kernel
+    if kernel.HAVE_NUMBA:
+        rng = np.random.default_rng(3)
+        z = t * (rng.uniform(-1.7, 1.7, 500) + 1j * rng.uniform(-1.0, 1.0, 500))
+        F = kernel.velocity_table(resolve(els))
+        np.testing.assert_allclose(kernel.velocity_many(z, F), complex_velocity(els, z), rtol=1e-11, atol=1e-12)
+
+
+def test_channel_with_a_closed_end_is_exact():
+    els = [Vortex(Gamma=1.0, x0=0.5, y0=0.4), Source(m=1.0, x0=-0.6, y0=-0.3)] + _box()[:3]
+    system = build_image_system(els)
+    assert system.exact and len(system.flows) == 8 and all(f.count == 0 for f in system.flows)
+    for w in _box()[:3]:
+        assert np.max(np.abs(normal_velocity(els, w, half_length=1.0))) < 1e-12
+
+
+def test_sources_in_a_rectangle_must_add_up_to_zero():
+    """In a closed box the fluid from a source has nowhere to go (and the rows' far fields would not cancel)."""
+    alone = [Source(m=1.0, x0=-0.5, y0=0.2)] + _box()
+    assert any(i.is_error and "add up to zero" in i.message for i in check_scene(alone))
+    pair = [Source(m=1.0, x0=-0.5, y0=0.2), Source(m=-1.0, x0=0.8, y0=-0.4)] + _box()
+    assert not [i for i in check_scene(pair) if i.is_error]
+    for w in _box():
+        assert np.max(np.abs(normal_velocity(pair, w, half_length=1.0))) < 1e-11
 
 
 def test_channel_is_exact():

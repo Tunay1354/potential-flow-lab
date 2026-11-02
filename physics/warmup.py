@@ -71,6 +71,7 @@ def warm_up() -> bool:
         return False
     from .bodies import body_map
     from .elements import Doublet, Uniform
+    from .images import resolve
     from .particles import Particles, travel_times
     scene = [Uniform(), Doublet(mu=1.0)]
     box = (-3.0, 3.0, -2.0, 2.0)
@@ -91,4 +92,7 @@ def warm_up() -> bool:
                                   np.ones(4), keep, 0, 4)
     travel_times([axis, circle], scene, 0.1, 1e-3)
     body_map(scene, box, (24, 36), [circle, axis])                   # solid bodies
+    table = kernel.velocity_table(resolve(scene))                    # field maps and φ lines (field.py)
+    kernel.velocity_many(np.ascontiguousarray(circle[:, 0] + 2j), table)
+    kernel.potential_many(np.ascontiguousarray(circle[:, 0] + 2j), table)
     return True

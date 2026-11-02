@@ -38,7 +38,7 @@ yükleme ekranı söyler); sonraki açılışlar birkaç saniye.
 ## Özellikler (kısa)
 
 - **Elementler:** uniform flow, source / sink, vortex, doublet, sector (wedge) flow, symmetry wall (method of
-  images; π/k köşeler ve kanal kapalı formda). Ekle: soldaki palette (tıkla ya da plota sürükle) veya
+  images; π/k köşeler, kanal, ucu kapalı kanal ve dikdörtgen kutu kesin — kapalı form satırlar). Ekle: soldaki palette (tıkla ya da plota sürükle) veya
   Elements → Add. Dialog, değerlerin sahnede yaratacağı sorunları canlı gösterir; durum çubuğundaki sahne
   kontrolü (✓ / ⚠ / ✖) tıklanınca hepsini listeler.
 - **Plot:** eşit aralıklı streamline'lar ve oklar, stagnation point'ler (⊗, tıklayınca dividing streamline'lar),
@@ -116,7 +116,9 @@ bir alan, slider'ı varsa `app/canvas/settings.py` → `SLIDERS`'a bir satır, `
 - Doublet: F = μ e^{iδ}/(z − z₀); uniform + doublet (δ = α) → cylinder, a = √(μ/V∞)
 - Cp = 1 − (V/V∞)²
 - Symmetry wall: image'lar plane theorem'den: source → aynı m, vortex → −Γ, doublet → δ* = 2θ_w − δ; uniform
-  flow duvara paralel olmalı
+  flow duvara paralel olmalı. Kanal (iki paralel duvar): image satırları kapalı formda, (π/P) cot(π(z − z₀)/P);
+  karşısına dik 1 duvar → satırların aynası, 2 duvar (dikdörtgen) → satırlar kanal boyunca 2L arayla tekrar
+  (birkaç kopya yeter, e^(−πd/H) ile sönüyor). Kapalı kutuda source'ların toplamı Σm = 0 olmalı
 - Sector flow: ζ = (z − z₀)e^{−iθ₁}, F = Vζⁿ, n = π/β; akışkan sadece wedge'in içi. Wedge kenarları diğer
   elementler için duvardır; β = 180°/k ise source / vortex / doublet köşe image'larıyla tam eklenir, diğer
   durumlar hata verir (ayrıntı: User guide → Adding elements)
