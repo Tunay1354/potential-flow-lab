@@ -155,6 +155,9 @@ Physics / numerics
   sin(πφ/Δφ), each point Newton-snapped (`vortex_step`, `fields`).
 - **ZeroDivisionError in Newton** when a seed lands exactly on a singular point (free vortex centre, view symmetric about it) → `kernel._at_singularity` makes that seed NaN.
 - **ZeroDivisionError at a corner of two walls** (velocity exactly 0) → `kernel._direction` returns NaN.
+- **Minutes per picture with 3 walls at random angles** (found by `scripts/random_test.py`): walls that do not tile
+  the plane multiply the images at every level (185 364 after 16) → `images.MAX_IMAGES = 600`; the rest of the time
+  was ψ summed element by element in Python → `batch_complex_potential` per type, like the velocity (`field._group_sum`).
 - **Stagnation point in a 90° walled corner** is a *triple* zero of w (w ∝ z³) → position only defined to
   (1e-16)^(1/3) ≈ 5e-6; verification tolerance 1e-5 for that reason. ψ constancy along drawn lines: 0.2–0.3 % of
   the line spacing, tolerance 1 %.
@@ -244,7 +247,7 @@ GUI / Qt
   zoom-independent bodies, forces vs Kutta–Joukowski / d'Alembert, save → reopen, particles stay in the fluid) +
   random window actions (undo-all / redo-all exact, exports, error log and excepthook watched). He runs it on Windows
   and sends `random_test_results/<run>/`; `--replay file.pflow` repeats one failing scene. Still missing: recovery
-  from autosave. Every bug found → fix + permanent test; final run after 22 →
+  from autosave. Every bug found → fix + permanent test (23.2: the 3-wall image explosion); final run after 22 →
   24 packaging — **he chose both A (zip: Flowy\Flowy.exe + _internal\) and C (Inno Setup installer: Start menu,
   .pflow association, uninstaller)**, version 1.0, GitHub Releases, test on a PC without Python, SmartScreen note
   ("More info → Run anyway"). To do there: bundle imageio-ffmpeg's ffmpeg binary in the spec; Numba's cache goes to

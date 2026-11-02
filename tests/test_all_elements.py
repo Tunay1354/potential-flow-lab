@@ -94,7 +94,7 @@ FLOW_TYPES = [t for t in TYPES if not ELEMENT_TYPES[t].IS_BOUNDARY]
 
 
 @pytest.mark.parametrize("type_key", FLOW_TYPES)
-def test_batch_velocity_equals_sum_of_singles(type_key):
+def test_batch_velocity_and_potential_equal_sum_of_singles(type_key):
     a, b = make(type_key), make(type_key)
     for p in ELEMENT_TYPES[type_key].PARAMS:
         if p.key == "x0":
@@ -102,6 +102,8 @@ def test_batch_velocity_equals_sum_of_singles(type_key):
     z = PX + 1j * PY
     np.testing.assert_allclose(type(a).batch_complex_velocity([a, b], z),
                                a.complex_velocity(z) + b.complex_velocity(z), rtol=1e-12, atol=1e-14)
+    np.testing.assert_allclose(type(a).batch_complex_potential([a, b], z),
+                               a.complex_potential(z) + b.complex_potential(z), rtol=1e-12, atol=1e-14)
 
 
 @pytest.mark.parametrize("type_key", FLOW_TYPES)

@@ -927,8 +927,23 @@ bırakıldı (kullanıcı kararı).
       kenar pikselleri → 3 piksel tolerans; görüntünün neredeyse tamamı cismin içindeyse yeni particle 16 denemede
       akışkan bulamıyor → izin (1 − f)^16'ya göre). **İlk gerçek bulgu:** üç duvar rastgele açılarla + bir source
       (sahne kontrolü zaten ✖ "an image falls inside the fluid" diyor) → 185 364 image → pencere streamline'ları
-      8–10+ dk hesaplıyor (bir düzenlemeden sonra 10 dk'da da bitmedi), o sırada kapatmak da bekliyor. Düzeltme kullanıcıya soruldu (henüz kod değişmedi). Kalan: kullanıcının Windows'ta tam koşusu (25 dk+), bulunan
-      her hata → düzeltme + kalıcı test; otomatik kayıttan geri getirme henüz scriptte değil; son koşu 22'den sonra
+      8–10+ dk hesaplıyor (bir düzenlemeden sonra 10 dk'da da bitmedi), o sırada kapatmak da bekliyor → 23.2. Kalan:
+      kullanıcının Windows'ta tam koşusu (25 dk+), bulunan her hata → düzeltme + kalıcı test; otomatik kayıttan geri
+      getirme henüz scriptte değil; son koşu 22'den sonra
+    - ✅ **23.2 Çok duvarlı sahnede dakikalarca hesap** (2 Kasım; `physics/images.py`, `field.py`, `base.py`,
+      `elements/source, vortex, doublet`): (1) image sayısına üst sınır `images.MAX_IMAGES = 600` (seri 16 seviyede
+      ya da 600 image'da kesilir; uyarı metni artık kaç image olduğunu da söylüyor: "truncated after N reflections
+      (M images)"). Düzlemi döşeyen duvarlar etkilenmiyor: dikdörtgen (4 duvar) + 1 source 16 seviyede 544 image, aynı
+      kaldı; random_test'in 3000 duvarlı / uç sahnesinde de hiçbiri sınıra değmedi, sonuçları birebir aynı. (2) Kalan
+      süre ψ'deydi (dividing streamline başlangıçlarını ψ ile oturtan `_onto_separatrix`, nokta başına 600 element
+      Python döngüsü, 362 000 çağrı) → `complex_potential` artık velocity gibi element tipi başına tek NumPy toplamı
+      (`batch_complex_potential`; ikisi de `field._group_sum`'dan geçiyor, nokta × element ≤ 1 M'lik dilimlerle: büyük
+      grid × çok image belleği şişirmesin). Sonuç: o sahne pencerede 8–10+ dk → **1.5 s** (bu 2 çekirdekli sunucuda),
+      hesap sürerken kapatma 3 s. Snapshot (21 preset: streamline, stagnation, dividing, ψ grid, yüzeyler): 16'sı bit
+      bit aynı; aynı tipten birden çok elementi olan 5'inde (Rankine oval, cylinder above ground, köşede source, 60°
+      köşe, kanal) toplama sırası değişti → fark ≤ 2e-13 (yuvarlama), çizgi / nokta sayıları aynı. Yeni testler:
+      `test_three_walls_at_random_angles_stay_a_few_hundred_images` (random_test'in bulduğu sahne),
+      `test_batch_velocity_and_potential_equal_sum_of_singles`
 24. ☐ **Faz 5 — Paketleme** (seçim: A zip + C Inno Setup kurulum dosyası, ikisi birden): Python gerektirmeyen Windows 10/11 exe (zip içinde klasör), sürüm 1.0, GitHub
     Releases, kurulum dosyası (Inno Setup), Numba önbelleği, .pflow'a çift tıklayınca açılma, (isteğe bağlı)
     komut satırı için konsol exe'si; exe'de Help → Run verification 102 / 102, Python kurulu olmayan temiz bir

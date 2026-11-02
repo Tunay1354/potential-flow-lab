@@ -140,6 +140,15 @@ class FlowElement:
             w += e.complex_velocity(z)
         return w
 
+    @classmethod
+    def batch_complex_potential(cls, elements: list, z: np.ndarray) -> np.ndarray:
+        """Σ F_k(z) for several elements of THIS type (as batch_complex_velocity)."""
+        z = as_complex_array(z)
+        F = np.zeros(z.shape, dtype=np.complex128)
+        for e in elements:
+            F += e.complex_potential(z)
+        return F
+
     # ------------------------------------------------------------------ checks
     def check(self) -> list[Issue]:
         """Generic checks from PARAMS (finite values, min/max). Subclasses add their own."""

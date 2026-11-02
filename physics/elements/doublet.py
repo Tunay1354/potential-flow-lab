@@ -74,6 +74,14 @@ class Doublet(FlowElement):
         with np.errstate(divide="ignore", invalid="ignore"):
             return np.sum(-c / (z[..., None] - z0) ** 2, axis=-1)
 
+    @classmethod
+    def batch_complex_potential(cls, elements, z):
+        z = as_complex_array(z)
+        z0 = np.array([e.z0 for e in elements])
+        c = np.array([e._c() for e in elements])
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return np.sum(c / (z[..., None] - z0), axis=-1)
+
     def check(self):
         issues = super().check()
         if self.mu == 0:

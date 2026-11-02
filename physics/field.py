@@ -21,6 +21,7 @@ from .images import resolve
 
 
 PARALLEL_MIN_POINTS = 20_000            # smaller arrays: one core (a thread costs more than it saves)
+BATCH_CELLS = 1_000_000                 # points × elements of one type summed at once (≈ 16 MB per batch sum)
 
 
 # ---------------------------------------------------------------------------
@@ -37,14 +38,21 @@ def complex_velocity(elements: Iterable[FlowElement], z) -> np.ndarray:
     point is computed exactly as on one core."""
     z = as_complex_array(z)
     flows = resolve(elements)
-    return _on_cores(lambda part: _velocity_sum(flows, part), z)
+    return _on_cores(lambda part: _group_sum(flows, part, "batch_complex_velocity"), z)
 
 
-def _velocity_sum(flows, z) -> np.ndarray:
-    w = np.zeros(z.shape, dtype=np.complex128)
-    for cls, group in flows.groups.items():
-        w += cls.batch_complex_velocity(group, z)
-    return w
+def _group_sum(flows, z, batch: str) -> np.ndarray:
+    """Σ of cls.<batch>(group, z) over the element types: one NumPy sum per type, which matters when walls
+    create hundreds of images. Done in slices of points (a slice × the largest group ≤ BATCH_CELLS); every
+    point's value is the same whatever slice it is in."""
+    flat = z.reshape(-1)
+    out = np.zeros(flat.shape, dtype=np.complex128)
+    step = max(1, BATCH_CELLS // max((len(g) for g in flows.groups.values()), default=1))
+    for a in range(0, flat.size, step):
+        part = flat[a:a + step]
+        for cls, group in flows.groups.items():
+            out[a:a + step] += getattr(cls, batch)(group, part)
+    return out.reshape(z.shape)
 
 
 def _on_cores(fn, z) -> np.ndarray:
@@ -67,13 +75,7 @@ def complex_potential(elements: Iterable[FlowElement], z) -> np.ndarray:
     """F(z) = Σ F_k(z) = φ + i ψ  (ψ of sources and φ of vortices contain branch cuts)."""
     z = as_complex_array(z)
     flows = resolve(elements)
-
-    def potential(part):
-        F = np.zeros(part.shape, dtype=np.complex128)
-        for e in flows:
-            F += e.complex_potential(part)
-        return F
-    return _on_cores(potential, z)
+    return _on_cores(lambda part: _group_sum(flows, part, "batch_complex_potential"), z)
 
 
 # ---------------------------------------------------------------------------

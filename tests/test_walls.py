@@ -154,6 +154,20 @@ def test_corner_with_other_angle_is_reported():
     assert any(i.is_error and "180°/k" in i.message for i in system.issues)
 
 
+def test_three_walls_at_random_angles_stay_a_few_hundred_images():
+    """Found by scripts/random_test.py: three walls that do not tile the plane doubled the images at every
+    level (185 364 after 16 levels) and the window drew the scene for more than 10 minutes."""
+    from physics.images import MAX_IMAGES
+    els = [W(xw=1.5521, yw=0.4966, theta_w=61.085, side=1), W(xw=-1.5051, yw=-1.8834, theta_w=-31.349, side=0),
+           Source(m=3.7228, x0=2.4309, y0=0.9906), W(xw=2.3427, yw=0.0940, theta_w=-52.874, side=0)]
+    system = build_image_system(els)
+    assert system.n_images == MAX_IMAGES and not system.closed
+    assert any(i.is_error and "180°/k" in i.message for i in check_scene(els))
+    rect = [W(yw=0.0, side=0), W(yw=3.0, side=1), W(xw=0.0, theta_w=90.0, side=1), W(xw=4.0, theta_w=90.0, side=0),
+            Source(m=1.0, x0=1.0, y0=1.0)]                # a rectangle tiles the plane: all 16 levels fit
+    assert build_image_system(rect).n_images == 544 < MAX_IMAGES
+
+
 def test_channel_is_exact():
     """Two parallel walls: infinite image rows summed in closed form."""
     a, b = W(yw=0.0, side=0), W(yw=2.0, side=1)
