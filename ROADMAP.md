@@ -1036,7 +1036,20 @@ bırakıldı (kullanıcı kararı).
       zip 168 MB, derleme ~5 dk. Geçici `ci-try` dalı silinemedi (proxy izni yok): kullanıcı GitHub → Branches'tan
       silebilir. Bu sunucudan etiket pushlanamıyor (proxy bağlantıyı kesiyor) ama API ile workflow başlatılabiliyor →
       workflow'a "release" girişi: işaretliyse `v` + APP_VERSION etiketini ve Release'i workflow kendisi oluşturuyor.
-      v1.0.0 böyle yayınlandı
+      v1.0.0 böyle yayınlandı. Kullanıcı zip'i **6 farklı bilgisayarda** denedi: hepsinde hatasız açıldı
+    - ✅ **24.2 Kurulum dosyası (C, Inno Setup 6)** (2 Kasım; `packaging/installer.iss`, isimler `app_info.py`'den
+      `/D` ile): dil seçimi (English / Türkçe), kimin için (yalnız ben — yönetici gerekmez, `%LOCALAPPDATA%\Programs` /
+      tüm kullanıcılar), klasör seçimi, Başlat menüsü klasörü (ya da hiç), görevler: masaüstü kısayolu (işaretli),
+      .pflow'u Flowy ile aç (işaretli; ProgId `Flowy.Scene`, ikon, OpenWithProgids), Windows açılınca başlat
+      (işaretsiz); çalışan kopyayı kapatır (Restart Manager), güncellemede aynı klasör + eski `_internal` önce
+      silinir, Uygulamalar listesinde ad / sürüm / yayıncı / ikon, sonda "Launch Flowy". Kaldırıcı: programı,
+      kısayolları ve .pflow bağını siler; **"ayarlar ve veriler de silinsin mi?"** diye sorar (varsayılan Hayır):
+      Evet → `%LOCALAPPDATA%\IZTECH\Flowy` (son dosyalar, otomatik kopyalar, log'lar, GPU ölçümleri), registry
+      `HKCU\Software\IZTECH\Flowy`, Numba önbelleği `%LOCALAPPDATA%\numba\Cache\physics_*`; kaydedilmiş .pflow'lara
+      asla dokunmaz. Workflow: Inno Setup runner'da hazır, ISCC → `Flowy-v1.0.0-setup.exe` (114 MB; zip 168 MB); sonra
+      sessiz kurulum (bu kullanıcı, kısayol + .pflow), kurulan exe'den `--verify` 102 / 102, .pflow bağı kontrol,
+      sessiz kaldırma (veri sorusu sessizde sorulmaz: kalır), program ve bağ gitmiş mi kontrol — ilk denemede geçti.
+      Release adımı: o sürümün Release'i varsa dosyaları değiştirir (`--clobber`) ve notu günceller
 25. ☐ **Faz 3 — Rapor ve user guide**: 4–6 sayfa rapor (figürler, tablolar, doğrulama Paket V'den; sector
     kuralının açıklaması), user guide (Help → User guide, F1)
 26. ☐ **Son kontrol**: ödev metni madde madde, tüm testler, verification, exe tekrar, README, sürüm numarası

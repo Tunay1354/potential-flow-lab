@@ -80,7 +80,10 @@ Hata (dosya yok, bilinmeyen katman…) → çıkış kodu 2; `--verify`'da tutma
 - **Exe (Windows, ROADMAP 24):** GitHub kendi Windows bilgisayarında derler (`.github/workflows/windows-build.yml`):
   Actions → **Windows build** → **Run workflow** (zip o çalışmanın Artifacts'ında; "release" işaretlenirse
   `app_info.APP_VERSION` sürümüyle — v1.0.0 — **Releases** sayfasına da konur; bir `v*` etiketi pushlamak da aynısı). Derleme exe'yi de dener: pencere olmadan doğrulama
-  102 / 102, preset'ten figür, pencere açılıyor ve log'da hata yok. Kendi bilgisayarında:
+  102 / 102, preset'ten figür, pencere açılıyor ve log'da hata yok; sonra **kurulum dosyası** (Inno Setup,
+  `packaging/installer.iss`: dil, kimin için, klasör, Başlat menüsü, masaüstü kısayolu, .pflow ile açma, Windows'la
+  başlatma; kaldırırken kullanıcı verisini sorar) — o da sessizce kurulup kurulan yerden doğrulanır ve kaldırılır.
+  Releases'ta ikisi de: `Flowy-v…-setup.exe` ve taşınabilir `Flowy-v…-windows.zip`. Kendi bilgisayarında:
   `pyinstaller --noconfirm packaging/build_exe.spec` → `dist/Flowy/` (Flowy.exe + `_internal\`; adı ve sürümü
   `app_info.py`'den, ikon logodan: `packaging/make_icon.py`).
 
@@ -103,7 +106,7 @@ Hata (dosya yok, bilinmeyen katman…) → çıkış kodu 2; `--verify`'da tutma
 | `app/user_guide*.py`, `app/conventions_dialog.py`, `app/verification_dialog.py` | Help menüsü: User guide, Sign conventions, Run verification |
 | `presets/` | Hazır sahneler (klasör = menüdeki grup) |
 | `assets/` | Fontlar, ikonlar |
-| `packaging/`, `.github/workflows/` | Exe tarifi (`build_exe.spec`), ikon (`make_icon.py`), Releases notu; GitHub'ın Windows derlemesi |
+| `packaging/`, `.github/workflows/` | Exe tarifi (`build_exe.spec`), ikon (`make_icon.py`), kurulum dosyası (`installer.iss`), Releases notu; GitHub'ın Windows derlemesi |
 | `scripts/`, `benchmarks/` | Ölçüm scriptleri; son tam ölçüm (`windows_full_nvidia.json`) |
 | `tests/` | Otomatik testler (`pytest`) |
 | `CLAUDE.md`, `ROADMAP.md` | AI asistan için devir notu; yapılanlar ve sıradaki işler |
