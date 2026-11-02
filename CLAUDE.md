@@ -253,7 +253,12 @@ GUI / Qt
   at the limit, Fit); 144 fps in Pulses / Particles; the tour from start to end; the beaver's feel.
 - **Next, in this order**:
   (22 and 23 done, see above; he may run one --quick random test on the final code) →
-  24 packaging — **he chose both A (zip: Flowy\Flowy.exe + _internal\) and C (Inno Setup installer: Start menu,
+  24 packaging — **24.1 done (A, the zip)**: `.github/workflows/windows-build.yml` builds on windows-latest and
+  checks the exe itself (`--verify` 102 / 102, `--figure`, window 90 s with no ERROR in the log); a `v*` tag →
+  GitHub Release with the zip (`packaging/release_notes.md`); APP_VERSION 1.0.0; icon from the logo
+  (`packaging/make_icon.py`). This server reaches the GitHub API through the proxy (curl api.github.com: runs,
+  jobs, logs) but cannot delete refs (403; the old `ci-try` branch is left for him to delete). Still to do: C
+  (Inno Setup) when he asks; his test on a PC without Python. Original plan: **he chose both A (zip: Flowy\Flowy.exe + _internal\) and C (Inno Setup installer: Start menu,
   .pflow association, uninstaller)**, version 1.0, GitHub Releases, test on a PC without Python, SmartScreen note
   ("More info → Run anyway"). To do there: bundle imageio-ffmpeg's ffmpeg binary in the spec; Numba's cache goes to
   %LOCALAPPDATA%\numba by itself; settings (registry …\IZTECH\Flowy) and data (%LOCALAPPDATA%\IZTECH\Flowy) are per

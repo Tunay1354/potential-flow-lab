@@ -1019,10 +1019,22 @@ bırakıldı (kullanıcı kararı).
     - ✅ **Sonuç** (2 Kasım): düzeltmelerden sonra seed 2 (60 dk) ve seed 3 (60 dk) kullanıcının PC'sinde **0 failure** —
       ~3200 temiz sahne: kalan bir hata varsa %95 güvenle binde birden seyrek. 22'deki değişiklik yalnız başlık
       görünümü (hesaplara dokunmuyor): ayrı tura gerek yok, isterse son kodla bir --quick
-24. ☐ **Faz 5 — Paketleme** (seçim: A zip + C Inno Setup kurulum dosyası, ikisi birden): Python gerektirmeyen Windows 10/11 exe (zip içinde klasör), sürüm 1.0, GitHub
+24. ▶ **Faz 5 — Paketleme** (seçim: A zip + C Inno Setup kurulum dosyası, ikisi birden): Python gerektirmeyen Windows 10/11 exe (zip içinde klasör), sürüm 1.0, GitHub
     Releases, kurulum dosyası (Inno Setup), Numba önbelleği, .pflow'a çift tıklayınca açılma, (isteğe bağlı)
     komut satırı için konsol exe'si; exe'de Help → Run verification 102 / 102, Python kurulu olmayan temiz bir
     Windows'ta deneme. Yedek plan: kaynak kod + kurulum talimatı / demo kendi bilgisayarından
+    - ✅ **24.1 Exe (A: zip), GitHub'da derleniyor** (2 Kasım; kullanıcı önce yalnız A'yı istedi, C sonra):
+      `.github/workflows/windows-build.yml` — windows-latest, Python 3.13, `pip install -r requirements-dev.txt`,
+      PyInstaller, sonra exe'nin kendisini dener: pencere olmadan `--verify` (102 / 102, exit code), preset'ten
+      `--figure`, pencere 90 s açık kalıyor ve log'da ERROR / Traceback yok; zip + artifact; `v*` etiketiyle
+      GitHub Release (`packaging/release_notes.md`: indir, Extract All, Flowy.exe, SmartScreen → More info → Run
+      anyway). Elle de başlatılabilir (Run workflow). `build_exe.spec`: ikon logodan (`packaging/make_icon.py`,
+      header'ın `draw_logo`'su, 16–256 px .ico), kullanılmayan Qt parçaları dışarıda (QML / Quick / PDF / WebEngine /
+      VirtualKeyboard, yaml). Sürüm `app_info.APP_VERSION` = 1.0.0. Önce burada Linux'ta PyInstaller ile denendi
+      (Numba önbelleği exe'de çalışıyor: ilk koşu 14 s, sonra 0.5 s; `--verify` 102 / 102; pencere offscreen hatasız).
+      GitHub'daki ilk derleme ilk denemede geçti: Windows Server 2025, 102 / 102, pencere açıldı (yazılım OpenGL),
+      zip 168 MB, derleme ~5 dk. Geçici `ci-try` dalı silinemedi (proxy izni yok): kullanıcı GitHub → Branches'tan
+      silebilir
 25. ☐ **Faz 3 — Rapor ve user guide**: 4–6 sayfa rapor (figürler, tablolar, doğrulama Paket V'den; sector
     kuralının açıklaması), user guide (Help → User guide, F1)
 26. ☐ **Son kontrol**: ödev metni madde madde, tüm testler, verification, exe tekrar, README, sürüm numarası

@@ -77,7 +77,12 @@ Hata (dosya yok, bilinmeyen katman…) → çıkış kodu 2; `--verify`'da tutma
   rastgele / uç sahnelerde fizik check'leri ve pencerede rastgele işlemler; sonuç `random_test_results/<tarih-saat>/`
   (`summary.md`, hatalı sahneler `failures/` altında .pflow olarak; `--replay DOSYA` tek sahneyi tekrar dener).
 - `python scripts/streamline_quality.py` (çizgi kalitesi), `python scripts/smoothness.py` (pan / zoom akıcılığı).
-- Exe (ROADMAP 24): `pyinstaller packaging/build_exe.spec` → `dist/Flowy/` (adı `app_info.py`'den).
+- **Exe (Windows, ROADMAP 24):** GitHub kendi Windows bilgisayarında derler (`.github/workflows/windows-build.yml`):
+  bir sürüm etiketi (`v1.0.0`) pushlanınca zip **Releases** sayfasına konur; elle başlatmak: Actions → Windows
+  build → Run workflow (zip o çalışmanın Artifacts'ında). Derleme exe'yi de dener: pencere olmadan doğrulama
+  102 / 102, preset'ten figür, pencere açılıyor ve log'da hata yok. Kendi bilgisayarında:
+  `pyinstaller --noconfirm packaging/build_exe.spec` → `dist/Flowy/` (Flowy.exe + `_internal\`; adı ve sürümü
+  `app_info.py`'den, ikon logodan: `packaging/make_icon.py`).
 
 ## Klasör yapısı
 
@@ -98,7 +103,7 @@ Hata (dosya yok, bilinmeyen katman…) → çıkış kodu 2; `--verify`'da tutma
 | `app/user_guide*.py`, `app/conventions_dialog.py`, `app/verification_dialog.py` | Help menüsü: User guide, Sign conventions, Run verification |
 | `presets/` | Hazır sahneler (klasör = menüdeki grup) |
 | `assets/` | Fontlar, ikonlar |
-| `packaging/` | Exe tarifi (`build_exe.spec`) |
+| `packaging/`, `.github/workflows/` | Exe tarifi (`build_exe.spec`), ikon (`make_icon.py`), Releases notu; GitHub'ın Windows derlemesi |
 | `scripts/`, `benchmarks/` | Ölçüm scriptleri; son tam ölçüm (`windows_full_nvidia.json`) |
 | `tests/` | Otomatik testler (`pytest`) |
 | `CLAUDE.md`, `ROADMAP.md` | AI asistan için devir notu; yapılanlar ve sıradaki işler |
