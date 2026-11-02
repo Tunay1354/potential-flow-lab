@@ -259,7 +259,12 @@ GUI / Qt
   (`packaging/make_icon.py`). This server reaches the GitHub API through the proxy (curl api.github.com: runs,
   jobs, logs) but cannot delete refs (403; the old `ci-try` branch is left for him to delete). C (installer)
   done too (24.2, `packaging/installer.iss`; the workflow installs it silently, verifies the installed exe,
-  checks the .pflow link, uninstalls). He tested the zip on 6 PCs: no error. Original plan: **he chose both A (zip: Flowy\Flowy.exe + _internal\) and C (Inno Setup installer: Start menu,
+  checks the .pflow link, uninstalls). He tested the zip on 6 PCs: no error. **24.3 (submission zips)**: the
+  Release now holds only `Flowy-v1.0.0-portable.zip` and `Flowy-v1.0.0-setup.zip`, each the complete hand-in
+  (`packaging/make_submission.py`): one folder `ME470_Project1_300203046_Bacaksiz/` with `1_Report.pdf`,
+  `2_User_Guide.pdf` (from `submission/`, placeholders until the real PDFs are committed there), `3_Program\`,
+  `4_Source_Code\`, `5_Verification\`, `README.txt`. **He wants the version to stay 1.0.0**: when the report and the
+  guide are done, run the workflow with "release" again — the same Release's zips are replaced. Original plan: **he chose both A (zip: Flowy\Flowy.exe + _internal\) and C (Inno Setup installer: Start menu,
   .pflow association, uninstaller)**, version 1.0, GitHub Releases, test on a PC without Python, SmartScreen note
   ("More info → Run anyway"). To do there: bundle imageio-ffmpeg's ffmpeg binary in the spec; Numba's cache goes to
   %LOCALAPPDATA%\numba by itself; settings (registry …\IZTECH\Flowy) and data (%LOCALAPPDATA%\IZTECH\Flowy) are per

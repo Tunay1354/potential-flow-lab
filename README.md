@@ -83,7 +83,12 @@ Hata (dosya yok, bilinmeyen katman…) → çıkış kodu 2; `--verify`'da tutma
   102 / 102, preset'ten figür, pencere açılıyor ve log'da hata yok; sonra **kurulum dosyası** (Inno Setup,
   `packaging/installer.iss`: dil, kimin için, klasör, Başlat menüsü, masaüstü kısayolu, .pflow ile açma, Windows'la
   başlatma; kaldırırken kullanıcı verisini sorar) — o da sessizce kurulup kurulan yerden doğrulanır ve kaldırılır.
-  Releases'ta ikisi de: `Flowy-v…-setup.exe` ve taşınabilir `Flowy-v…-windows.zip`. Kendi bilgisayarında:
+  Sonra **teslim zip'leri** (`packaging/make_submission.py`): Releases'ta iki dosya, ikisi de hocaya olduğu gibi
+  verilecek tam teslim — `Flowy-v…-portable.zip` (programın klasörü, kurulumsuz) ve `Flowy-v…-setup.zip` (kurulum
+  dosyası); ikisinde de tek klasör `ME470_Project1_…/`: `1_Report.pdf`, `2_User_Guide.pdf` (`submission/`'dan; şimdilik
+  yer tutucu), `3_Program\`, `4_Source_Code\` (repo'nun dosyaları), `5_Verification\` (exe'nin `--verify` raporu),
+  `README.txt` (`submission/README.txt`'den). Rapor / kılavuz bitince PDF'leri `submission/`'a konur, workflow
+  "release" ile tekrar çalıştırılır: aynı sürümün zip'leri yenilenir. Kendi bilgisayarında:
   `pyinstaller --noconfirm packaging/build_exe.spec` → `dist/Flowy/` (Flowy.exe + `_internal\`; adı ve sürümü
   `app_info.py`'den, ikon logodan: `packaging/make_icon.py`).
 
@@ -106,7 +111,8 @@ Hata (dosya yok, bilinmeyen katman…) → çıkış kodu 2; `--verify`'da tutma
 | `app/user_guide*.py`, `app/conventions_dialog.py`, `app/verification_dialog.py` | Help menüsü: User guide, Sign conventions, Run verification |
 | `presets/` | Hazır sahneler (klasör = menüdeki grup) |
 | `assets/` | Fontlar, ikonlar |
-| `packaging/`, `.github/workflows/` | Exe tarifi (`build_exe.spec`), ikon (`make_icon.py`), kurulum dosyası (`installer.iss`), Releases notu; GitHub'ın Windows derlemesi |
+| `packaging/`, `.github/workflows/` | Exe tarifi (`build_exe.spec`), ikon (`make_icon.py`), kurulum dosyası (`installer.iss`), teslim zip'leri (`make_submission.py`), Releases notu; GitHub'ın Windows derlemesi |
+| `submission/` | Teslimin rapor ve user guide PDF'leri, teslim zip'inin README.txt şablonu |
 | `scripts/`, `benchmarks/` | Ölçüm scriptleri; son tam ölçüm (`windows_full_nvidia.json`) |
 | `tests/` | Otomatik testler (`pytest`) |
 | `CLAUDE.md`, `ROADMAP.md` | AI asistan için devir notu; yapılanlar ve sıradaki işler |

@@ -1050,6 +1050,15 @@ bırakıldı (kullanıcı kararı).
       sessiz kurulum (bu kullanıcı, kısayol + .pflow), kurulan exe'den `--verify` 102 / 102, .pflow bağı kontrol,
       sessiz kaldırma (veri sorusu sessizde sorulmaz: kalır), program ve bağ gitmiş mi kontrol — ilk denemede geçti.
       Release adımı: o sürümün Release'i varsa dosyaları değiştirir (`--clobber`) ve notu günceller
+    - ✅ **24.3 Teslim zip'leri** (2 Kasım; `packaging/make_submission.py`, `submission/`): Releases'ta artık iki
+      dosya, ikisi de olduğu gibi hocaya verilecek tam teslim: `Flowy-v1.0.0-portable.zip` (programın klasörü) ve
+      `Flowy-v1.0.0-setup.zip` (kurulum dosyası). İçlerinde tek klasör `ME470_Project1_300203046_Bacaksiz/`:
+      `1_Report.pdf`, `2_User_Guide.pdf` (`submission/`'dan; şimdilik "not added yet" yer tutucuları — başlıklarında
+      PLACEHOLDER, workflow uyarı yazar), `3_Program\`, `4_Source_Code\` (`git ls-files`, `submission/` hariç),
+      `5_Verification\` (derlenen exe'nin `--verify` raporu: html, md, csv, figürler), `README.txt` (İngilizce:
+      içerik, çalıştırma, kaynak koddan çalıştırma). Eski tek zip / setup.exe adımı kalktı; Release adımı artık
+      olmayan eski dosyaları siler. Sürüm 1.0.0 kalır: rapor ve kılavuz gelince aynı Release'in zip'leri yenilenir.
+      En uzun yol klasör içinde 156 karakter (Downloads'a açılınca ~210 < 260). Test: `tests/test_submission.py`.
 25. ☐ **Faz 3 — Rapor ve user guide**: 4–6 sayfa rapor (figürler, tablolar, doğrulama Paket V'den; sector
     kuralının açıklaması), user guide (Help → User guide, F1)
 26. ☐ **Son kontrol**: ödev metni madde madde, tüm testler, verification, exe tekrar, README, sürüm numarası

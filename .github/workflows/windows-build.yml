@@ -1,10 +1,11 @@
 # Builds the Windows program on GitHub's own Windows computer (ROADMAP 24): the exe folder from
 # packaging/build_exe.spec, checked (the verification report without a window must be 102 / 102, the window
-# must start and log no error), zipped; then the installer from packaging/installer.iss, checked too (installed
-# silently, verified from where it was installed, .pflow linked, uninstalled). Started by hand (Actions → Windows
-# build → Run workflow; tick "release" to publish it as v<APP_VERSION> of app_info.py) or by a version tag
-# (v1.0.0): a release puts the zip and the installer on the Releases page (an existing release of that version
-# gets the files replaced).
+# must start and log no error); then the installer from packaging/installer.iss, checked too (installed
+# silently, verified from where it was installed, .pflow linked, uninstalled); then the two zips handed in for the
+# assignment (packaging/make_submission.py: report, user guide, the program as a folder or as the installer,
+# source code, verification report). Started by hand (Actions → Windows build → Run workflow; tick "release" to
+# publish it as v<APP_VERSION> of app_info.py) or by a version tag (v1.0.0): a release puts the two zips on the
+# Releases page (an existing release of that version gets its files replaced; files it no longer has are removed).
 name: Windows build
 
 on:
@@ -73,11 +74,6 @@ jobs:
           if (-not $running) { throw "the window closed by itself (exit code $($p.ExitCode))" }
           if ($log -and (Select-String -Path $log.FullName -Pattern "ERROR|Traceback" -Quiet)) { throw "errors in the log" }
 
-      - name: Zip
-        run: |
-          Compress-Archive -Path "dist\$env:APP" -DestinationPath "$env:APP-$env:LABEL-windows.zip"
-          Get-ChildItem *.zip | Format-Table Name, Length
-
       - name: Installer (Inno Setup)
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
@@ -106,13 +102,19 @@ jobs:
           if (Test-Path "HKCU:\Software\Classes\$env:APP.Scene") { throw "the uninstaller left the .pflow link" }
           "installed, verified, uninstalled: OK"
 
+      - name: Submission zips (the folder handed in, packaging/make_submission.py)
+        run: |
+          $setup = (Get-ChildItem *-setup.exe).FullName
+          python packaging/make_submission.py --program "dist\$env:APP" --setup $setup --verify exe-check\verify `
+            --name "$env:APP-$env:LABEL" --out submission-out
+          if ($LASTEXITCODE -ne 0) { throw "make_submission: exit code $LASTEXITCODE" }
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: windows-build
           path: |
-            *-windows.zip
-            *-setup.exe
+            submission-out
             exe-check
           retention-days: 14
 
@@ -121,10 +123,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $files = (Get-ChildItem *-windows.zip, *-setup.exe).FullName
+          $files = (Get-ChildItem submission-out\*.zip).FullName
+          $names = $files | ForEach-Object { Split-Path $_ -Leaf }
           gh release view $env:TAG *> $null
           if ($LASTEXITCODE -eq 0) {
             gh release upload $env:TAG $files --clobber
+            foreach ($old in (gh release view $env:TAG --json assets --jq ".assets[].name")) {
+              if ($names -notcontains $old) { gh release delete-asset $env:TAG $old --yes }   # files of an older layout
+            }
             gh release edit $env:TAG --notes-file packaging/release_notes.md
           } else {
             gh release create $env:TAG $files --target $env:GITHUB_SHA `
