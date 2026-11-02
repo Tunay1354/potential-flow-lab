@@ -245,7 +245,9 @@ GUI / Qt
   23 exhaustive random test with the final code — `scripts/random_test.py` (23.1, 2 Nov): physics checks on random
   and extreme scenes in 4 views (no exceptions, V = 0 at stagnation points, lines along V, ψ constant, no crossings,
   zoom-independent bodies, forces vs Kutta–Joukowski / d'Alembert, save → reopen, particles stay in the fluid) +
-  random window actions (undo-all / redo-all exact, exports, error log and excepthook watched). He runs it on Windows
+  random window actions (undo-all / redo-all exact, exports, error log and excepthook watched; 23.3: "chaos" scenes =
+  walls / streams / sectors at any angle, scenes with errors computed too (crash + slow only), real wheel bursts,
+  mouse pan / drag, wall storms, actions that do not wait for the computation, a live one-line status). He runs it on Windows
   and sends `random_test_results/<run>/`; `--replay file.pflow` repeats one failing scene. Still missing: recovery
   from autosave. Every bug found → fix + permanent test (23.2: the 3-wall image explosion); final run after 22 →
   24 packaging — **he chose both A (zip: Flowy\Flowy.exe + _internal\) and C (Inno Setup installer: Start menu,

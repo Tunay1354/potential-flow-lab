@@ -944,6 +944,19 @@ bırakıldı (kullanıcı kararı).
       köşe, kanal) toplama sırası değişti → fark ≤ 2e-13 (yuvarlama), çizgi / nokta sayıları aynı. Yeni testler:
       `test_three_walls_at_random_angles_stay_a_few_hundred_images` (random_test'in bulduğu sahne),
       `test_batch_velocity_and_potential_equal_sum_of_singles`
+    - ✅ **23.3 Test daha sert + canlı durum satırı** (2 Kasım; sadece `scripts/random_test.py`): (1) yeni sahne türü
+      **chaos** — 1–3 duvar her açıda / yerde, her açıda uniform flow (duvarlara paralel değil), her yerde source /
+      vortex / doublet / sector flow (birden çok sector, duvarlı sector de). (2) Hatalı sahneler (sahne kontrolü ✖) de
+      artık hesaplanıyor (pencere de onları kırmızı şeridin altında çiziyor): Fit + 50× yakın view'da streamline,
+      stagnation, field grid, Solid bodies, travel times, particles, yüzeyler + kuvvet — no-crash ve slow (fizik
+      doğruluğu orada geçerli değil). (3) Pencerede hızlı işler, gerçek fare / tekerlek olaylarıyla: wheel burst
+      (5–80 çentik bir anda, çoğu zaman zoom sınırına kadar), fareyle pan, fareyle element sürükleme, wall storm (2–3
+      rastgele açılı duvar bir anda, yarısında üstüne uniform), Static / Particles / Pulses hızlı değiştirme; eklenen
+      elementler her açıda; aksiyonların ~%30'u pencerenin hesabı bitmeden geliyor. Modal dialog açılmasın diye
+      QDialog.exec test sırasında hemen kapanıyor. (4) Tek satırlık canlı durum: bölüm, bar, %, geçen / kalan süre,
+      bitiş saati, hata sayısı, şu anki iş; ayrı bir thread her saniye yazıyor, uzun süren işte "working N s" sayıyor
+      (sayaç ilerliyorsa çalışıyor). Burada --quick: 57 sahne (9'u chaos, hepsi hesaplandı), 185 pencere aksiyonu,
+      hata yok
 24. ☐ **Faz 5 — Paketleme** (seçim: A zip + C Inno Setup kurulum dosyası, ikisi birden): Python gerektirmeyen Windows 10/11 exe (zip içinde klasör), sürüm 1.0, GitHub
     Releases, kurulum dosyası (Inno Setup), Numba önbelleği, .pflow'a çift tıklayınca açılma, (isteğe bağlı)
     komut satırı için konsol exe'si; exe'de Help → Run verification 102 / 102, Python kurulu olmayan temiz bir

@@ -15,13 +15,21 @@ Results: random_test_results/<date-time>/ — summary.md (read this first), resu
 failures/ (each failing scene as a .pflow you can open in the program, and a .txt with what went wrong). Send the
 whole folder (or zip it) to the assistant.
 
-PART 1 — physics (no window). Random scenes of five kinds:
+While it runs, one line shows: the part (physics / window), the bar and %, time gone and left, the clock time it
+ends, what it is doing now and the failures so far. The clock on that line moves every second; a long scene shows
+"working N s" — still moving = still working. If the line does not change at all for 5 minutes: frozen (Ctrl+C,
+send the folder).
+
+PART 1 — physics (no window). Random scenes of six kinds:
     free      a uniform flow (any angle) + 1–5 sources / sinks / vortices / doublets (aligned or turned)
     classic   cylinder, lifting cylinder (also |Γ| > 4πV∞a), Rankine oval, half-body, two bodies close together
     walls     one wall, a corner (π/k), a channel, with elements on the fluid side and a parallel uniform flow
     sector    sector flows (β = 90°, 60°, 45°, 180°, 360°, any) alone or with a source / vortex inside
     edge      the strange ones: tiny and huge strengths and coordinates, elements almost on top of each other,
               an element on / behind a wall, zero strengths, hidden elements, crowded scenes (8–16 elements)
+    chaos     what the scene check calls errors, mixed freely: 1–3 walls at any angle and place, a uniform flow
+              at any angle (not parallel to the walls), sources / vortices / doublets / sector flows anywhere, also
+              several sector flows or a sector flow with walls
   Each valid scene is computed in four views (the Fit view, 50× closer at a random point, 100× wider, panned) and
   checked:
     no-crash     streamlines, stagnation points, dividing streamlines, bodies, surfaces, forces, particles,
@@ -37,15 +45,20 @@ PART 1 — physics (no window). Random scenes of five kinds:
     forces       a closed body alone in a uniform stream: lift = −ρV∞Γ (Kutta–Joukowski), drag = 0 (d'Alembert)
     save-open    saved and opened again: the same elements, and the same streamlines bit for bit
     particles    tracer particles stay in the fluid (never behind a wall, never inside a body)
-  Invalid scenes (the scene check reports an error) are only checked for crashes of the scene check itself.
+  Invalid scenes (the scene check reports an error: the window still draws them, under the red strip) are
+  computed too, in the Fit view and 50× closer: no-crash and slow only (the physics checks do not hold there).
 
 PART 2 — the window (offscreen: nothing appears on the screen). The program's own window gets random actions:
-  add / edit / move / hide / delete elements, undo / redo, presets, clear, layers on and off, Static / Particles /
-  Pulses with frames, zoom (also to the limits), Fit, pan, theme, sliders, the beaver dropped on the plot, export
-  (PNG / SVG / CSV), save and open again. After every action: no error (anything that reaches the error window
-  or the log counts), the window is done computing within 30 s (slow (window): how long it took in the end), and
-  every few actions: undo all the way back gives exactly the scene of the start, redo all
-  the way gives exactly the scene of the end.
+  add (walls at any angle, uniform flows at any angle, sector flows of any β) / edit / move / hide / delete
+  elements, undo / redo, presets, clear, layers on and off, Static / Particles / Pulses with frames, zoom (also to
+  the limits), Fit, pan, theme, sliders, the beaver dropped on the plot, export (PNG / SVG / CSV), save and open
+  again — and the fast ones, with real mouse and wheel events: a wheel burst (5–80 notches at once, often to a zoom
+  limit), panning with the mouse, dragging an element with the mouse, a wall storm (2–3 walls at random angles
+  added at once, maybe a uniform flow across them), flipping Static / Particles / Pulses quickly. About one action
+  in three does not wait for the window to finish computing (the next one comes while it still computes).
+  After every action: no error (anything that reaches the error window or the log counts), the window is done
+  computing within 30 s (slow (window): how long it took in the end), and every few actions: undo all the way back
+  gives exactly the scene of the start, redo all the way gives exactly the scene of the end.
 """
 from __future__ import annotations
 
@@ -58,6 +71,7 @@ import os
 import platform
 import sys
 import tempfile
+import threading
 import time
 import traceback
 
@@ -80,7 +94,7 @@ from physics.stagnation import find_stagnation_points, flow_features  # noqa: E4
 from physics.streamlines import StreamlineCache  # noqa: E402
 from physics.surface import body_surfaces, pressure_force  # noqa: E402
 
-KINDS = ("free", "classic", "walls", "sector", "edge")
+KINDS = ("free", "classic", "walls", "sector", "edge", "chaos")
 CHECKS = ("no-crash", "slow", "stagnation", "tangent", "psi", "crossing", "bodies-zoom", "forces", "save-open",
           "particles")
 TOL = {"stagnation": 1e-5,            # |V| / typical speed at a stagnation point
@@ -180,6 +194,22 @@ def random_scene(rng, kind: str) -> list:
             z = r * complex(math.cos(mid), math.sin(mid))
             els.append((Source(m=_strength(rng), x0=z.real, y0=z.imag) if rng.random() < 0.5
                         else Vortex(Gamma=_strength(rng), x0=z.real, y0=z.imag)))
+        return els
+    if kind == "chaos":
+        els = [SymmetryWall(xw=float(rng.uniform(-3, 3)), yw=float(rng.uniform(-2, 2)),
+                            theta_w=float(rng.uniform(-180, 180)), side=int(rng.integers(2)))
+               for _ in range(int(rng.integers(1, 4)))]
+        if rng.random() < 0.8:
+            els.append(Uniform(V=float(rng.uniform(0.3, 3.0)), alpha=float(rng.uniform(-180, 180))))
+        for _ in range(int(rng.integers(1, 5))):
+            x, y = _point(rng)
+            th = float(rng.uniform(-180, 180))
+            choice = [Source(m=_strength(rng), x0=x, y0=y), Vortex(Gamma=_strength(rng, 0.3, 8.0), x0=x, y0=y),
+                      Doublet(mu=float(rng.uniform(0.2, 4.0)), x0=x, y0=y, delta=th),
+                      SectorFlow(V=float(rng.uniform(0.3, 3.0)), x0=x, y0=y, theta1=th,
+                                 theta2=th + float(rng.uniform(20, 360)))]
+            els.append(choice[int(rng.integers(4))])
+        rng.shuffle(els)
         return els
     # edge
     which = int(rng.integers(7))
@@ -282,8 +312,11 @@ def _guard(f, check, view, fn):
 def check_scene_physics(els, rng, f: Findings, quick=False):
     """Every check of PART 1 for one scene (see the module text)."""
     issues = _guard(f, "scene check", "-", lambda: check_scene(els))
-    if issues is None or any(s.severity == "error" for s in issues) or not active(els):
-        return "invalid" if issues else "skipped"
+    if not active(els):
+        return "skipped"
+    if issues is None or any(s.severity == "error" for s in issues):
+        _compute_only(els, rng, f, quick)
+        return "invalid"
     flows = resolve(active(els))
     fit = fit_view(els)
     views = {"fit": fit, "closer": scaled(fit, 0.02, rng), "wider": scaled(fit, 100.0), "panned": panned(fit, 0.6, -0.3)}
@@ -323,6 +356,37 @@ def check_scene_physics(els, rng, f: Findings, quick=False):
         _check_particles(els, res, fit, f)
     _check_forces(els, f)
     return "valid"
+
+
+def _compute_only(els, rng, f, quick):
+    """A scene with errors is still drawn by the window: everything it computes must end without an exception
+    (and in time — the slow check around the scene). Accuracy is not checked: it does not hold there."""
+    fit = fit_view(els)
+    views = {"fit": fit} if quick else {"fit": fit, "closer": scaled(fit, 0.02, rng)}
+    for name, view in views.items():
+        W = view[0][1] - view[0][0]
+        res = _guard(f, "streamlines", name, lambda: StreamlineCache(tuple(active(els)), 1.0).update(view, 1.0, force=True))
+        _guard(f, "stagnation points", name, lambda: find_stagnation_points(els, box(view), scale=W))
+        _guard(f, "field grid", name, lambda: compute_field(els, view[0], view[1], 60, 40))
+        if res is not None:
+            bmap = _guard(f, "solid bodies", name, lambda: _map(els, view, res))
+            _guard(f, "travel times", name, lambda: travel_times(res.lines[:40], els, 0.01 * W, 1e-9))
+            _guard(f, "particles", name, lambda: _moved_particles(els, view, bmap))
+    surfs = _guard(f, "body surfaces", "scene", lambda: body_surfaces(els))
+    for srf in surfs or []:
+        _guard(f, "pressure force", srf.name, lambda: pressure_force(srf, els, reference_speed(els) or 1.0))
+
+
+def _moved_particles(els, view, bmap, count=600, steps=40):
+    """Tracer particles as the Particles mode moves them: 40 frames of 1/30 s."""
+    p = Particles(count, seed=1)
+    p.set_scene(els)
+    p.set_view(box(view), restart=True)
+    if bmap is not None:
+        p.set_excluded(bmap.contains)
+    for _ in range(steps):
+        p.step(1 / 30)
+    return p
 
 
 def _away(els, z, view, res, v_mask=None):
@@ -510,14 +574,8 @@ def _check_save_open(els, view, f):
 
 def _check_particles(els, res, view, f):
     f.ran("particles")
-    p = Particles(600, seed=1)
-    p.set_scene(els)
-    p.set_view(box(view), restart=True)
     bmap = _map(els, view, res)
-    if bmap is not None:
-        p.set_excluded(bmap.contains)
-    for _ in range(40):
-        p.step(1 / 30)
+    p = _moved_particles(els, view, bmap)
     keep = ~p.fresh & np.isfinite(p.pos)
     if not keep.any():
         return
@@ -557,9 +615,11 @@ class _Errors(logging.Handler):
         self.items.append("".join(traceback.format_exception(exc_type, exc, tb)))
 
 
-def gui_part(seconds, rng, out_dir, progress):
+def gui_part(seconds, rng, out_dir, status, failures_before=0):
     """Random actions in the real window (offscreen). Returns a dict with counts and failures."""
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
+    from PySide6.QtGui import QMouseEvent, QWheelEvent
+    from PySide6.QtWidgets import QApplication, QDialog
     from app.main_window import MainWindow
     from app.scene import list_presets
     from app.theme import DARK, LIGHT
@@ -574,6 +634,8 @@ def gui_part(seconds, rng, out_dir, progress):
     win._notify_user = lambda kind, title, text: errors.items.append(f"message box: {title}: {text}") \
         if kind == "warning" else None
     win._run_dialog = lambda dlg: True
+    old_exec = QDialog.exec
+    QDialog.exec = lambda dlg: QDialog.Rejected                   # (a double click must not open a modal dialog)
     win.resize(1536, 830)
     win.show()
     presets = [p for _g, items in list_presets() for p in items]
@@ -597,15 +659,42 @@ def gui_part(seconds, rng, out_dir, progress):
     def snapshot():
         return [_element_to_data(e) for e in win.elements]
 
-    def random_element():
-        kind = rng.choice(["uniform", "source", "vortex", "doublet", "wall", "sector"])
+    def random_element(kind=None):
+        kind = kind or rng.choice(["uniform", "source", "vortex", "doublet", "wall", "sector"])
         x, y = _point(rng)
-        return {"uniform": lambda: Uniform(V=float(rng.uniform(0.2, 3)), alpha=float(rng.uniform(-60, 60))),
+        th = float(rng.choice([0.0, 90.0, rng.uniform(-180, 180)]))
+        return {"uniform": lambda: Uniform(V=float(rng.uniform(0.2, 3)), alpha=th),
                 "source": lambda: Source(m=_strength(rng), x0=x, y0=y),
                 "vortex": lambda: Vortex(Gamma=_strength(rng, 0.3, 8), x0=x, y0=y),
-                "doublet": lambda: Doublet(mu=float(rng.uniform(0.2, 3)), x0=x, y0=y, delta=float(rng.uniform(-90, 90))),
-                "wall": lambda: SymmetryWall(xw=x, yw=y, theta_w=float(rng.uniform(-90, 90)), side=int(rng.integers(2))),
-                "sector": lambda: SectorFlow(V=1.0, x0=x, y0=y, theta1=0.0, theta2=float(rng.choice([90, 180, 360])))}[kind]()
+                "doublet": lambda: Doublet(mu=float(rng.uniform(0.2, 3)), x0=x, y0=y, delta=th),
+                "wall": lambda: SymmetryWall(xw=x, yw=y, theta_w=th, side=int(rng.integers(2))),
+                "sector": lambda: SectorFlow(V=1.0, x0=x, y0=y, theta1=th,
+                                             theta2=th + float(rng.choice([90, 180, 360, rng.uniform(20, 360)])))}[kind]()
+
+    vp = win.canvas.plot.viewport()
+
+    def vp_point(x, y):
+        """Data point → viewport pixel."""
+        return QPointF(win.canvas.plot.mapFromScene(win.canvas.vb.mapViewToScene(QPointF(x, y))))
+
+    def random_pixel():
+        return QPointF(float(rng.uniform(0.05, 0.95)) * vp.width(), float(rng.uniform(0.05, 0.95)) * vp.height())
+
+    def mouse(kind, pos, buttons):
+        app.sendEvent(vp, QMouseEvent(kind, pos, QPointF(vp.mapToGlobal(pos.toPoint())), Qt.LeftButton, buttons,
+                                      Qt.NoModifier))
+
+    def mouse_drag(a, b, steps):
+        """Press, move in steps without waiting, release — a fast hand (after a pause: never a double click)."""
+        t = time.perf_counter()
+        while time.perf_counter() - t < 0.45:
+            app.processEvents()
+        mouse(QEvent.MouseButtonPress, a, Qt.LeftButton)
+        for k in range(1, steps + 1):
+            mouse(QEvent.MouseMove, a + (b - a) * (k / steps), Qt.LeftButton)
+            app.processEvents()
+        mouse(QEvent.MouseButtonRelease, b, Qt.NoButton)
+        app.processEvents()
 
     def act_add():
         win.model.add(random_element())
@@ -712,6 +801,47 @@ def gui_part(seconds, rng, out_dir, progress):
         else:
             render_figure(cv, path, fmt, 1.0, "paper")
 
+    def act_wheel_burst():
+        c = random_pixel()
+        notch = int(rng.choice([120, -120]))
+        for _ in range(int(rng.integers(5, 81))):                # mostly one way, now and then back
+            d = notch if rng.random() < 0.85 else -notch
+            app.sendEvent(vp, QWheelEvent(c, QPointF(vp.mapToGlobal(c.toPoint())), QPoint(0, 0), QPoint(0, d),
+                                          Qt.NoButton, Qt.NoModifier, Qt.NoScrollPhase, False))
+            app.processEvents()
+
+    def act_pan_drag():
+        win.canvas.set_mode("pan")
+        mouse_drag(random_pixel(), random_pixel(), int(rng.integers(2, 41)))
+        win.canvas.set_mode("select")
+
+    def act_drag_element():
+        (x0, x1), (y0, y1) = win.canvas.view()
+        seen = [e for e in win.elements if e.POSITION_KEYS and x0 < getattr(e, e.POSITION_KEYS[0]) < x1
+                and y0 < getattr(e, e.POSITION_KEYS[1]) < y1]
+        if not seen:
+            return act_move()
+        e = seen[int(rng.integers(len(seen)))]
+        win.canvas.set_mode("move")
+        mouse_drag(vp_point(getattr(e, e.POSITION_KEYS[0]), getattr(e, e.POSITION_KEYS[1])), random_pixel(),
+                   int(rng.integers(2, 41)))
+        win.canvas.set_mode("select")
+
+    def act_wall_storm():
+        for _ in range(int(rng.integers(2, 4))):
+            win.model.add(random_element("wall"))
+            app.processEvents()
+        if rng.random() < 0.5:
+            win.model.add(random_element("uniform"))
+
+    def act_mode_flip():
+        for _ in range(int(rng.integers(4, 13))):
+            win.canvas.set_view_mode(str(rng.choice(["static", "particles", "pulses"])))
+            for _ in range(int(rng.integers(0, 6))):
+                if win.canvas.animated:
+                    win.canvas.animation.advance(1 / 30)
+            app.processEvents()
+
     def act_save_open():
         path = os.path.join(tmp, "scene.pflow")
         before = snapshot()
@@ -723,11 +853,12 @@ def gui_part(seconds, rng, out_dir, progress):
                "delete": (act_delete, 3), "undo/redo": (act_undo_redo, 4), "preset": (act_preset, 2),
                "clear": (act_clear, 1), "layer": (act_layer, 4), "view mode": (act_view_mode, 3),
                "zoom": (act_zoom, 4), "pan": (act_pan, 2), "theme": (act_theme, 1), "slider": (act_slider, 2),
-               "beaver": (act_beaver, 1), "export": (act_export, 1), "save/open": (act_save_open, 1)}
+               "beaver": (act_beaver, 1), "export": (act_export, 1), "save/open": (act_save_open, 1),
+               "wheel burst": (act_wheel_burst, 3), "pan drag": (act_pan_drag, 2), "drag element": (act_drag_element, 3),
+               "wall storm": (act_wall_storm, 2), "mode flip": (act_mode_flip, 1)}
     names = list(actions)
     weights = np.array([w for _f, w in actions.values()], float)
     weights /= weights.sum()
-    model_actions = {"add", "edit", "move", "hide", "delete", "preset", "clear"}
     t0 = time.perf_counter()
     try:
         pump(1.0)
@@ -735,7 +866,7 @@ def gui_part(seconds, rng, out_dir, progress):
             # one sequence: from a known scene, 6–20 actions, then undo all / redo all must give back exactly
             win.model.reset([random_element() for _ in range(int(rng.integers(0, 4)))])
             pump()
-            start, done_model, seq = snapshot(), 0, []
+            start, seq = snapshot(), []
             for _ in range(int(rng.integers(6, 21))):
                 name = str(rng.choice(names, p=weights))
                 if name == "undo/redo" or name == "save/open":
@@ -743,9 +874,14 @@ def gui_part(seconds, rng, out_dir, progress):
                 n_before = len(errors.items)
                 idle = True
                 t_act = time.perf_counter()
+                status.set("window", f"action {stats['actions'] + 1}: {name}",
+                           failures=failures_before + len(stats["failures"]))
                 try:
                     actions[name][0]()
-                    idle = pump()
+                    if rng.random() < 0.3:                       # the next action while it still computes
+                        app.processEvents()
+                    else:
+                        idle = pump()
                 except Exception as exc:                         # noqa: BLE001
                     errors.items.append(f"{name}: {type(exc).__name__}: {exc}\n{traceback.format_exc()}")
                 stats["actions"] += 1
@@ -761,13 +897,13 @@ def gui_part(seconds, rng, out_dir, progress):
                     took = time.perf_counter() - t_act
                     stats["failures"][k]["message"] = (f"the window computed {took:.0f} s after '{name}'" if done else
                                                        f"the window still computed after {took:.0f} s ('{name}'): a hang?")
-                done_model += name in model_actions
                 if len(errors.items) > n_before:
                     _gui_failure(stats, out_dir, win, "no-crash (window)", f"after '{name}'",
                                  "\n\n".join(errors.items[n_before:]), seq)
-                progress(min(1.0, (time.perf_counter() - t0) / seconds))
+            pump()
             end = snapshot()
             n_before = len(errors.items)
+            status.set(item="undo all / redo all")
             while win.model.can_undo:
                 win.model.undo()
             pump()
@@ -796,6 +932,7 @@ def gui_part(seconds, rng, out_dir, progress):
                     _gui_failure(stats, out_dir, win, "no-crash (window)", f"after '{name}'",
                                  "\n\n".join(errors.items[n_before:]), seq + [name])
     finally:
+        QDialog.exec = old_exec
         sys.excepthook = old_hook
         logging.getLogger(LOGGER).removeHandler(errors)
         win.model.mark_clean()
@@ -841,7 +978,6 @@ class _Watchdog:
     slow check records it as usual). If the test seems stuck: Ctrl+C and send the folder."""
 
     def __init__(self, out_dir):
-        import threading
         self.stem = os.path.join(out_dir, "failures", "RUNNING-slow")
         self.job, self.lock = None, threading.Lock()
         threading.Thread(target=self._run, name="random-test-watchdog", daemon=True).start()
@@ -879,9 +1015,56 @@ class _Watchdog:
                     fh.write(f"  {_element_to_data(e)}\n")
 
 
-def _bar(frac, width=30):
-    n = int(round(frac * width))
+def _bar(frac, width=20):
+    n = int(round(min(max(frac, 0.0), 1.0) * width))
     return "[" + "#" * n + "." * (width - n) + "]"
+
+
+def _clock(seconds):
+    m, s = divmod(int(max(seconds, 0)), 60)
+    return f"{m}:{s:02d}"
+
+
+class _Status:
+    """The one line that shows what the test does, rewritten every second by a thread of its own: its clock keeps
+    moving while a long scene is computed, so a still-moving line means still working."""
+
+    WIDTH = 116                                                   # (a longer line would wrap and break the \r)
+
+    def __init__(self, total_s):
+        self.t0, self.total = time.perf_counter(), total_s
+        self.phase, self.item, self.t_item, self.failures = "start", "", self.t0, 0
+        self._stop = threading.Event()
+        threading.Thread(target=self._run, name="random-test-status", daemon=True).start()
+
+    def set(self, phase=None, item=None, failures=None):
+        if phase is not None:
+            self.phase = phase
+        if item is not None and item != self.item:
+            self.item, self.t_item = item, time.perf_counter()
+        if failures is not None:
+            self.failures = failures
+
+    def _run(self):
+        while not self._stop.wait(1.0):
+            self.show()
+
+    def show(self):
+        now = time.perf_counter()
+        gone = now - self.t0
+        left = self.total - gone
+        end = (datetime.datetime.now() + datetime.timedelta(seconds=max(left, 0))).strftime("%H:%M")
+        busy = now - self.t_item
+        when = f"~{_clock(left)} left (ends ~{end})" if left > 0 else "finishing the last one"
+        line = (f"{self.phase:<7} {_bar(gone / self.total)} {min(100, 100 * gone / self.total):3.0f} %  "
+                f"{_clock(gone)} gone, {when}  failures {self.failures}  | {self.item}"
+                + (f" — working {busy:.0f} s" if busy >= 10 else ""))
+        print("\r" + line[:self.WIDTH].ljust(self.WIDTH), end="", flush=True)
+
+    def stop(self):
+        self._stop.set()
+        self.show()
+        print()
 
 
 def run(args):
@@ -896,6 +1079,8 @@ def run(args):
           f"(physics {phys_s / 60:.0f} min, window {gui_s / 60:.0f} min)\nresults: {out_dir}\n")
     app = _settings_sandbox() if not args.no_gui else None
     from physics import warmup
+    status = _Status(phys_s + gui_s)
+    status.set("prepare", "compiling the fast kernels (once per installation)")
     for _label, fn in warmup.steps():
         fn()
     t_start = time.perf_counter()
@@ -909,21 +1094,22 @@ def run(args):
         scene_seed = seed * 1_000_003 + n
         rng = np.random.default_rng(scene_seed)
         els = random_scene(rng, kind)
+        status.set("physics", f"scene {n + 1} ({kind}, {len(els)} elements)")
         f = Findings()
         t = time.perf_counter()
         watch.start(kind, scene_seed, els)
         try:
-            status = check_scene_physics(els, rng, f, quick=args.quick)
+            outcome = check_scene_physics(els, rng, f, quick=args.quick)
         except Exception as exc:                                 # noqa: BLE001 - a bug of this script or the program
             f.fail("no-crash", "-", f"{type(exc).__name__}: {exc}", traceback.format_exc())
-            status = "valid"
+            outcome = "valid"
         watch.stop()
         f.ran("slow")
         if time.perf_counter() - t > TOL["slow_scene_s"]:
             f.fail("slow", "-", f"the scene took {time.perf_counter() - t:.0f} s (all views and checks; tolerance "
                                 f"{TOL['slow_scene_s']:g} s)")
         by_kind[kind]["scenes"] += 1
-        by_kind[kind][status if status in ("valid", "invalid") else "invalid"] += 1
+        by_kind[kind][outcome if outcome in ("valid", "invalid") else "invalid"] += 1
         for c in CHECKS:
             total[c][0] += f.counts[c][0]
             total[c][1] += f.counts[c][1]
@@ -931,16 +1117,11 @@ def run(args):
             by_kind[kind]["failed"] += 1
             failures += _save_failure(out_dir, len(failures), kind, scene_seed, els, f, time.perf_counter() - t)
         n += 1
-        frac = min(1.0, (time.perf_counter() - t_start) / max(phys_s, 1e-9))
-        print(f"\rphysics {_bar(frac)} {100 * frac:3.0f} %   scenes {n}   failed {sum(v['failed'] for v in by_kind.values())}",
-              end="", flush=True)
-    print()
+        status.set(failures=len(failures))
     gui = None
     if gui_s > 0:
-        def progress(frac):
-            print(f"\rwindow  {_bar(frac)} {100 * frac:3.0f} %", end="", flush=True)
-        gui = gui_part(gui_s, np.random.default_rng(seed + 1), out_dir, progress)
-        print(f"   actions {gui['actions']}   failed {len(gui['failures'])}")
+        gui = gui_part(gui_s, np.random.default_rng(seed + 1), out_dir, status, len(failures))
+    status.stop()
     elapsed = time.perf_counter() - t_start
     report = {"program": f"{APP_NAME} {APP_VERSION}", "seed": seed, "minutes": round(elapsed / 60, 1),
               "computer": f"{platform.platform()} · Python {platform.python_version()} · {os.cpu_count()} threads",
@@ -1014,8 +1195,8 @@ def replay(path):
     for e in els:
         print("  ", _element_to_data(e))
     f = Findings()
-    status = check_scene_physics(els, np.random.default_rng(0), f)
-    print(f"scene: {status}")
+    outcome = check_scene_physics(els, np.random.default_rng(0), f)
+    print(f"scene: {outcome}")
     for c in CHECKS:
         print(f"  {c:<12} run {f.counts[c][0]:>3}  failed {f.counts[c][1]}")
     for check, view, message, detail in f.items:
