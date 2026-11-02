@@ -199,7 +199,7 @@ lists every option.</p>
 
     ("verification", "Verification", """
 <h2>Verification</h2>
-<p><b>Help → Run verification…</b> checks the program against the theory (102 checks, about 15 s, in the
+<p><b>Help → Run verification…</b> checks the program against the theory (108 checks, about 15 s, in the
 background):</p>
 <ol>
 <li><b>Analytic formulas</b>: velocities, flux, circulation, forces, wall images, sector flow — to round-off.</li>

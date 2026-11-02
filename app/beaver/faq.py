@@ -32,6 +32,6 @@ FAQ = [
      "File -> Save (Ctrl+S) keeps your scene as a .pflow file. EXPORT (top right of the plot) writes a figure "
      "(PNG, SVG, PDF), an animation (GIF, MP4) or the data (CSV) for your report."),
     ("Is the program right?",
-     "Help -> Run verification compares the program with the theory: 102 checks, each with how it is "
+     "Help -> Run verification compares the program with the theory: 108 checks, each with how it is "
      "computed. All of them pass."),
 ]

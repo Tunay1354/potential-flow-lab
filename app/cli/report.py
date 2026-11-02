@@ -13,15 +13,16 @@ report.py — the verification report: every check of the program in one place. 
 
 Every check carries `how`: the theory, what the program computes and why the tolerance is what it is.
 
-Written to the output folder: verification.html (the report for a browser: figures, and under every
-check its explanation, folded), verification.md (Markdown, the same tables), verification.csv (one row
-per check) and figures/*.png.
+Written to the output folder: verification.html (the report for a browser: the figures inside the page, so it
+can be opened alone, and under every check its explanation, folded), verification.md (Markdown, the same
+tables), verification.csv (one row per check) and figures/*.png.
 
 The work is split into steps (check_jobs: pure computation, may run in a background thread;
 render_figure: Qt, in the GUI thread), so the window can show progress.
 """
 from __future__ import annotations
 
+import base64
 import csv
 import datetime
 import glob
@@ -322,7 +323,13 @@ def _html_table(checks, with_case: bool) -> list[str]:
     return out
 
 
-def html_report(rep: Report, out_dir: str) -> str:
+def _inline_png(path: str) -> str:
+    """The figure inside the page (data: URL): the HTML shows it wherever it is opened, also alone."""
+    with open(path, "rb") as f:
+        return "data:image/png;base64," + base64.b64encode(f.read()).decode("ascii")
+
+
+def html_report(rep: Report) -> str:
     lines = ["<!doctype html><html lang='en'><head><meta charset='utf-8'>",
              "<meta name='viewport' content='width=device-width, initial-scale=1'>",
              "<title>Verification report</title>", f"<style>{_CSS}</style></head><body>",
@@ -342,8 +349,8 @@ def html_report(rep: Report, out_dir: str) -> str:
                 lines += [f"<h3>{k}.{j} {html.escape(sc.title)}</h3>",
                           f"<p class='muted'>Scene file: <code>{html.escape(sc.name)}</code></p>"]
                 if sc.title in rep.figures:
-                    rel = os.path.relpath(rep.figures[sc.title], out_dir).replace(os.sep, "/")
-                    lines.append(f"<p><img src='{html.escape(rel)}' alt='{html.escape(sc.title)}' loading='lazy'></p>")
+                    lines.append(f"<p><img src='{_inline_png(rep.figures[sc.title])}' alt='{html.escape(sc.title)}'"
+                                 " loading='lazy'></p>")
                 lines += _html_table([c for c in rows if c.case == sc.title], False)
         else:
             lines += _html_table(rows, True)
@@ -357,7 +364,7 @@ def write(rep: Report, out_dir: str) -> dict:
     os.makedirs(out_dir, exist_ok=True)
     paths = {ext: os.path.join(out_dir, f"verification.{ext}") for ext in ("html", "md", "csv")}
     with open(paths["html"], "w", encoding="utf-8") as f:
-        f.write(html_report(rep, out_dir))
+        f.write(html_report(rep))
     with open(paths["md"], "w", encoding="utf-8") as f:
         f.write(markdown(rep, out_dir))
     write_csv(paths["csv"], rep.checks)

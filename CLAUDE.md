@@ -54,12 +54,12 @@ ask him for it when exact wording matters (e.g. for the report or the final chec
 python main.py                     # GUI (python main.py scene.pflow opens a scene)
 python main.py --first-run         # start as a first-time user (the beaver offers the tour)
 python -m pytest -q                # all tests (~50 min on this 2-core server: run in the background); offscreen GUI
-python main.py --verify            # verification report → verification/ (102 checks, must stay 102 / 102)
+python main.py --verify            # verification report → verification/ (108 checks, must stay 108 / 108)
 python main.py scene.pflow --figure out.png --data out.csv     # export without a window
 python scripts/benchmark.py --full --out benchmarks/NAME.json             # speed of everything (he runs it on Windows)
 python scripts/streamline_quality.py   /   python scripts/smoothness.py    # measurements
 ```
-- **Before every commit: full test suite green and verification 102 / 102.**
+- **Before every commit: full test suite green and verification 108 / 108.**
 - Tests write to Qt's test folders (`QStandardPaths.setTestModeEnabled(True)`) and set
   `beaver/tour_offered = True` (no first-start question during tests) — keep that in `tests/conftest.py`.
 - Requirements: `requirements.txt` (PySide6, pyqtgraph, numpy, contourpy, numba, pillow, imageio-ffmpeg),
@@ -218,7 +218,7 @@ GUI / Qt
 ## 8. Current status and what comes next (keep this section up to date)
 
 - **Done: ROADMAP 1–23** (2 Nov 2026; 22 = only the header: no REV, the SHEET pill `chrome/header.SheetTag`;
-  23 = the random test, seeds 2 and 3 clean on his PC after the fixes 23.2–23.6). Tests green, verification 102 / 102. The full history with measured numbers is
+  23 = the random test, seeds 2 and 3 clean on his PC after the fixes 23.2–23.6). Tests green, verification 108 / 108. The full history with measured numbers is
   in ROADMAP (Turkish); this section keeps only what the next session needs.
 - **Item 21 = cleanup in 13 packages** (one commit each, ROADMAP 21.1–21.13; he tested between them). Behaviour
   unchanged — checked by snapshots (bit / pixel identical before / after) — except the bugs found on the way:
@@ -254,7 +254,7 @@ GUI / Qt
 - **Next, in this order**:
   (22 and 23 done, see above; he may run one --quick random test on the final code) →
   24 packaging — **24.1 done (A, the zip)**: `.github/workflows/windows-build.yml` builds on windows-latest and
-  checks the exe itself (`--verify` 102 / 102, `--figure`, window 90 s with no ERROR in the log); a `v*` tag →
+  checks the exe itself (`--verify` 108 / 108, `--figure`, window 90 s with no ERROR in the log); a `v*` tag →
   GitHub Release with the zip (`packaging/release_notes.md`); APP_VERSION 1.0.0; icon from the logo
   (`packaging/make_icon.py`). This server reaches the GitHub API through the proxy (curl api.github.com: runs,
   jobs, logs) but cannot delete refs (403; the old `ci-try` branch is left for him to delete). C (installer)
@@ -263,7 +263,10 @@ GUI / Qt
   Release now holds only `Flowy-v1.0.0-portable.zip` and `Flowy-v1.0.0-setup.zip`, each the complete hand-in
   (`packaging/make_submission.py`): one folder `ME470_Project1_300203046_Bacaksiz/` with `1_Report.pdf`,
   `2_User_Guide.pdf` (from `submission/`, placeholders until the real PDFs are committed there), `3_Program\`,
-  `4_Source_Code\`, `5_Verification\`, `README.txt`. **He wants the version to stay 1.0.0**: when the report and the
+  `4_Source_Code\`, `5_Verification\`, `README.txt`. 24.4 (his review): program folder `Flowy 1.0.0\`; source =
+  only `make_submission.SOURCE` (program + tests + one requirements.txt; no CLAUDE/ROADMAP/README.md, .github,
+  packaging, scripts, benchmarks); verification.html has its figures inside (data: URLs) + `figures\`, .md/.csv in
+  `other_formats_optional\`; a 10th verification scene `10_sector_90.pflow` (3 sector checks) → **108 / 108**. **He wants the version to stay 1.0.0**: when the report and the
   guide are done, run the workflow with "release" again — the same Release's zips are replaced. Original plan: **he chose both A (zip: Flowy\Flowy.exe + _internal\) and C (Inno Setup installer: Start menu,
   .pflow association, uninstaller)**, version 1.0, GitHub Releases, test on a PC without Python, SmartScreen note
   ("More info → Run anyway"). To do there: bundle imageio-ffmpeg's ffmpeg binary in the spec; Numba's cache goes to

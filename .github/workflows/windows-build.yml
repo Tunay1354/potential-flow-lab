@@ -1,5 +1,5 @@
 # Builds the Windows program on GitHub's own Windows computer (ROADMAP 24): the exe folder from
-# packaging/build_exe.spec, checked (the verification report without a window must be 102 / 102, the window
+# packaging/build_exe.spec, checked (the verification report without a window must be 108 / 108, the window
 # must start and log no error); then the installer from packaging/installer.iss, checked too (installed
 # silently, verified from where it was installed, .pflow linked, uninstalled); then the two zips handed in for the
 # assignment (packaging/make_submission.py: report, user guide, the program as a folder or as the installer,

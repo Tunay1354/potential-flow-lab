@@ -9,6 +9,8 @@ program_checks.py — what the PROGRAM computes, checked against the theory (ver
                               is the circle r = a; Cp on it; lift and drag from the pressure integral
                               against Kutta–Joukowski and d'Alembert
       source above a wall     no flow through the wall; the stagnation point on the wall under the source
+      sector flow only        no flow through its two walls; the drawn streamlines are the curves
+                              ψ = V rⁿ sin(n(θ − θ₁)) = const; the speed on them is nV rⁿ⁻¹
   accuracy_checks()                     the numerical methods on their own: ψ constant along the drawn streamlines,
                           the stagnation point search, body shapes from the surfaces, lift for several Γ
 
@@ -91,6 +93,19 @@ HOW = {
     "wall stag": "Theory: on the wall under the source the source and its image push in opposite directions along "
                  "the wall: V = 0 at the foot of the source.\n" + _STAG + " The distance from the foot to the "
                  "nearest point found.",
+    "sector walls": "Theory: sector flow F = V ζⁿ with ζ = (z − z₀) e^(−iθ₁) and n = π/β: on both walls (θ = θ₁ "
+                    "and θ = θ₂) ψ = Im F = V rⁿ sin(n(θ − θ₁)) = 0, so the walls are streamlines: V·n = 0.\n"
+                    "Program: the velocity of the scene at 2001 points along each wall, from the vertex to the edge "
+                    "of the view; the largest |V·n| divided by the largest |V| on the walls.\n"
+                    "Tolerance: the formula is exact — only round-off.",
+    "sector psi": "Theory: the streamlines of sector flow are the curves ψ = V rⁿ sin(n(θ − θ₁)) = const "
+                  "(r, θ from the vertex), e.g. the hyperbolas xy = const in a 90° corner.\n" + _LINES + " This "
+                  "closed-form ψ at every point of every drawn line; for each line (ψ_max − ψ_min) / Δψ, Δψ = "
+                  "typical speed × line spacing; the largest over all lines.\n"
+                  "Tolerance: as for ψ along the lines in the accuracy section: 1 % of the gap to the next line.",
+    "sector speed": "Theory: |V| = |dF/dz| = nV rⁿ⁻¹ (r = distance from the vertex).\n"
+                    "Program: the velocity of the scene at every point of the drawn lines; the largest relative "
+                    "difference from nV rⁿ⁻¹.\nTolerance: the formula is exact — only round-off.",
     "psi": "Theory: the stream function ψ = Im F is constant along a streamline; neighbouring drawn lines differ "
            "by about Δψ = V × (line spacing).\n" + _LINES + " ψ = Im F computed exactly (from the elements) at "
            "every point of every drawn line; for each line (ψ_max − ψ_min) / Δψ, the largest over all lines.\n"
@@ -196,6 +211,43 @@ def scene_checks(title, elements, view) -> list[Check]:
         found = [p.z for p in res.stagnation]
         add("stagnation point on the wall under the source: distance to it [m]", 0.0,
             min(abs(p - foot) for p in found) if found else np.inf, 1e-8, "wall stag")
+    elif kinds == ["sector"]:
+        rows += _sector_rows(title, els[0], els, view)
+    return rows
+
+
+def _sector_rows(title, sec, els, view) -> list[Check]:
+    rows = []
+
+    def add(quantity, analytic, numerical, tol, how):
+        rows.append(Check(title, quantity, float(analytic), float(numerical), tol, SCENES, HOW[how]))
+
+    (x0, x1), (y0, y1) = view
+    reach = max(abs(complex(x, y) - sec.z0) for x in (x0, x1) for y in (y0, y1))
+    r = np.linspace(0.0, reach, 2002)[1:]
+    worst, vmax = 0.0, 0.0
+    for theta in (sec.theta1, sec.theta2):
+        d = np.exp(1j * np.radians(theta))
+        vel = _velocity(els, sec.z0 + r * d)
+        worst = max(worst, float(np.max(np.abs((vel * np.conj(1j * d)).real))))
+        vmax = max(vmax, float(np.max(np.abs(vel))))
+    add(f"no flow through the walls θ₁ = {sec.theta1:g}°, θ₂ = {sec.theta2:g}°: max |V·n| / max |V| (2 × 2001 points)",
+        0.0, worst / vmax, 1e-12, "sector walls")
+    res, lines = _lines(els, view)
+    n, V = sec.n, sec.V
+    step = _psi_step(els, lines, res)
+    worst = 0.0
+    for z in lines:
+        psi = V * np.abs(z - sec.z0) ** n * np.sin(n * sec.local_angle(z))          # θ − θ₁ in [0, β]
+        worst = max(worst, float(np.ptp(psi)) / step)
+    add(f"drawn streamlines on ψ = V rⁿ sin(n(θ − θ₁)) = const (n = {n:g}): max (ψ_max − ψ_min) / Δψ", 0.0, worst,
+        1e-2, "sector psi")
+    z = np.concatenate(lines)
+    rr = np.abs(z - sec.z0)
+    exact = n * V * rr ** (n - 1.0)
+    ok = exact > 0
+    add("speed on the drawn lines vs nV rⁿ⁻¹: max relative error", 0.0,
+        float(np.max(np.abs(np.abs(_velocity(els, z[ok])) - exact[ok]) / exact[ok])), 1e-9, "sector speed")
     return rows
 
 

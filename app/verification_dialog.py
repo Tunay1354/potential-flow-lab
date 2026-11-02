@@ -2,10 +2,10 @@
 verification_dialog.py — Help → Run verification…: the verification report (app/cli/report.py) made from
 inside the program.
 
-The checks run in a background thread (the window stays usable), the figures of the 9 assignment scenes
+The checks run in a background thread (the window stays usable), the figures of the 10 assignment scenes
 are drawn afterwards in the GUI thread on a canvas that is never shown. Then the result:
 
-  - one line: "102 of 102 checks OK"
+  - one line: "108 of 108 checks OK"
   - a tree, folded: the 3 sections with their counts → the cases → the checks (analytic, program, error)
   - on the right, for the selected row: how it is computed (theory, what the program does, why that
     tolerance, the numbers), the figure of a scene, the description of a section
@@ -111,7 +111,7 @@ class VerificationDialog(QDialog):
         title.setObjectName("DialogTitle")
         lay.addWidget(title)
         note = QLabel("Every check of the program against the theory: (1) the analytic formulas, (2) the "
-                      "assignment's 9 verification scenes — what the program draws and computes, and saving / "
+                      "assignment's 10 verification scenes — what the program draws and computes, and saving / "
                       "reopening — and (3) the accuracy of the numerical methods.")
         note.setObjectName("Muted")
         note.setWordWrap(True)

@@ -3,7 +3,7 @@
 Interactive 2D potential-flow simulator (Aerodynamics semester project, IZTECH Mechanical Engineering).
 
 **Durum:** ROADMAP 1–21 tamam (fizik, streamline'lar, duvarlar, sector flow, undo / redo, stagnation point'ler,
-alan katmanları, animasyon, export, Solid bodies, Surface pressure, GPU, `--verify` 102 / 102, kunduz, kod
+alan katmanları, animasyon, export, Solid bodies, Surface pressure, GPU, `--verify` 108 / 108, kunduz, kod
 temizliği). Sıradaki işler ve her paketin ayrıntısı: `ROADMAP.md`. Programın kullanımı: **Help → User guide (F1)**.
 
 ## Kurulum (Windows, VS Code) — bir kez
@@ -27,7 +27,7 @@ temizliği). Sıradaki işler ve her paketin ayrıntısı: `ROADMAP.md`. Program
 python main.py                     # programı aç   (python main.py sahne.pflow: sahneyle aç)
 python main.py --first-run         # ilk açılış gibi (kunduz turu önerir)
 pytest                             # tüm testler
-python main.py --verify            # doğrulama raporu → verification/ (102 / 102 olmalı)
+python main.py --verify            # doğrulama raporu → verification/ (108 / 108 olmalı)
 ```
 Güncelleme: GitHub Desktop → **Fetch origin → Pull origin**. `requirements*.txt` değiştiyse
 `pip install -r requirements-dev.txt` komutunu tekrar çalıştır.
@@ -80,14 +80,16 @@ Hata (dosya yok, bilinmeyen katman…) → çıkış kodu 2; `--verify`'da tutma
 - **Exe (Windows, ROADMAP 24):** GitHub kendi Windows bilgisayarında derler (`.github/workflows/windows-build.yml`):
   Actions → **Windows build** → **Run workflow** (zip o çalışmanın Artifacts'ında; "release" işaretlenirse
   `app_info.APP_VERSION` sürümüyle — v1.0.0 — **Releases** sayfasına da konur; bir `v*` etiketi pushlamak da aynısı). Derleme exe'yi de dener: pencere olmadan doğrulama
-  102 / 102, preset'ten figür, pencere açılıyor ve log'da hata yok; sonra **kurulum dosyası** (Inno Setup,
+  108 / 108, preset'ten figür, pencere açılıyor ve log'da hata yok; sonra **kurulum dosyası** (Inno Setup,
   `packaging/installer.iss`: dil, kimin için, klasör, Başlat menüsü, masaüstü kısayolu, .pflow ile açma, Windows'la
   başlatma; kaldırırken kullanıcı verisini sorar) — o da sessizce kurulup kurulan yerden doğrulanır ve kaldırılır.
   Sonra **teslim zip'leri** (`packaging/make_submission.py`): Releases'ta iki dosya, ikisi de hocaya olduğu gibi
   verilecek tam teslim — `Flowy-v…-portable.zip` (programın klasörü, kurulumsuz) ve `Flowy-v…-setup.zip` (kurulum
   dosyası); ikisinde de tek klasör `ME470_Project1_…/`: `1_Report.pdf`, `2_User_Guide.pdf` (`submission/`'dan; şimdilik
-  yer tutucu), `3_Program\`, `4_Source_Code\` (repo'nun dosyaları), `5_Verification\` (exe'nin `--verify` raporu),
-  `README.txt` (`submission/README.txt`'den). Rapor / kılavuz bitince PDF'leri `submission/`'a konur, workflow
+  yer tutucu), `3_Program\` (`Flowy 1.0.0\` klasörü ya da kurulum dosyası), `4_Source_Code\` (sadece programın
+  dosyaları ve testleri, tek `requirements.txt`; geliştirme notları, build dosyaları, scriptler yok), `5_Verification\`
+  (exe'nin `--verify` raporu: resimleri içinde `verification.html`, `figures\`, `other_formats_optional\` içinde .md /
+  .csv), `README.txt` (`submission/README.txt`'den). Rapor / kılavuz bitince PDF'leri `submission/`'a konur, workflow
   "release" ile tekrar çalıştırılır: aynı sürümün zip'leri yenilenir. Kendi bilgisayarında:
   `pyinstaller --noconfirm packaging/build_exe.spec` → `dist/Flowy/` (Flowy.exe + `_internal\`; adı ve sürümü
   `app_info.py`'den, ikon logodan: `packaging/make_icon.py`).

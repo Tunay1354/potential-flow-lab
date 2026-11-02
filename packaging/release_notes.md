@@ -11,7 +11,7 @@ Inside: `1_Report.pdf`, `2_User_Guide.pdf`, `3_Program\`, `4_Source_Code\`, `5_V
 own verification report) and `README.txt`.
 
 1. Right-click the zip → **Extract All…** → Extract (the program does not run from inside a zip).
-2. *Portable*: open `3_Program\Flowy` and double-click **Flowy.exe**. *Setup*: double-click
+2. *Portable*: open `3_Program\Flowy …` and double-click **Flowy.exe**. *Setup*: double-click
    `3_Program\Flowy-…-setup.exe`, choose the language, for whom, the folder and the options → Install → Finish.
 3. If Windows says *"Windows protected your PC"*: **More info → Run anyway** (the program is not signed).
 

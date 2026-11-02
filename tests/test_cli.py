@@ -24,7 +24,7 @@ def _bad(rows):
 # ---------------------------------------------------------------------- the checks
 def test_every_assignment_scene_has_its_checks_and_they_hold():
     scenes = assignment_scenes()
-    assert len(scenes) == 9
+    assert len(scenes) == 10
     for name, doc in scenes:
         rows = scene_checks(doc.title, doc.elements, doc.view)
         assert len(rows) >= 2, name                      # every verification scene is recognised
@@ -162,7 +162,7 @@ def test_html_report_folds_the_explanation_under_each_check(tmp_path):
     with open(tmp_path / "verification.csv", encoding="utf-8-sig", newline="") as f:
         rows = list(csv.DictReader(f))
     assert text.count("<details>") == len(rows)                 # folded: <details> without "open"
-    assert text.count("<b>Theory:</b>") == len(rows) - 18        # (2 save → reopen rows per scene: no theory)
+    assert text.count("<b>Theory:</b>") == len(rows) - 2 * len(assignment_scenes())   # save → reopen: no theory
     assert all(r["how"] for r in rows)
 
 
@@ -182,8 +182,10 @@ def test_run_verification_from_the_help_menu(qapp):
             qapp.processEvents()
             time.sleep(0.01)
         assert not dlg.running and dlg.report is not None and dlg.report.ok
-        assert "102 of 102" in dlg.result.text() or "checks OK" in dlg.result.text()
-        assert os.path.exists(dlg.paths["html"]) and len(dlg.report.figures) == 9
+        assert "108 of 108" in dlg.result.text() or "checks OK" in dlg.result.text()
+        assert os.path.exists(dlg.paths["html"]) and len(dlg.report.figures) == 10
+        page = open(dlg.paths["html"], encoding="utf-8").read()
+        assert page.count("<img src='data:image/png;base64,") == 10                # the figures inside the page
         assert dlg.tree.topLevelItemCount() == 3
         assert not any(dlg.tree.topLevelItem(i).isExpanded() for i in range(3))     # folded at first
         lifting = dlg.tree.topLevelItem(1).child(7)

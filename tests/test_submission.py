@@ -21,6 +21,8 @@ def _inputs(tmp_path):
     verify = tmp_path / "verify"
     (verify / "figures").mkdir(parents=True)
     (verify / "verification.html").write_text("<html></html>")
+    (verify / "verification.md").write_text("![a](figures/a.png)")
+    (verify / "verification.csv").write_text("a,b")
     (verify / "figures" / "a.png").write_bytes(b"png")
     return program, setup, verify
 
@@ -38,16 +40,24 @@ def test_both_zips(tmp_path):
             assert f"{top}/{d}" in names
         assert f"{top}/5_Verification/verification.html" in names
         assert f"{top}/5_Verification/figures/a.png" in names
-        assert f"{top}/4_Source_Code/main.py" in names
-        assert f"{top}/4_Source_Code/physics/field.py" in names
-        assert not any(n.startswith(f"{top}/4_Source_Code/submission/") for n in names)
+        other = f"{top}/5_Verification/{ms.OTHER_FORMATS}"
+        assert {f"{other}/verification.md", f"{other}/verification.csv"} <= names
+        md = zipfile.ZipFile(out / f"X-{kind}.zip").read(f"{other}/verification.md").decode("utf-8")
+        assert "](../figures/a.png)" in md                                 # its pictures one folder up
+        src = f"{top}/4_Source_Code/"
+        for f in ("main.py", "app_info.py", "requirements.txt", "physics/field.py", "tests/conftest.py"):
+            assert src + f in names, f
+        tops = {n[len(src):].split("/")[0] for n in names if n.startswith(src)}
+        assert tops == {"app", "physics", "model", "presets", "assets", "tests", "main.py", "app_info.py",
+                        "requirements.txt", "pyproject.toml"}             # no notes, build files, scripts
+        assert src + "tests/test_submission.py" not in names
         assert not any("__pycache__" in n or "/.venv/" in n for n in names)
         readme = zipfile.ZipFile(out / f"X-{kind}.zip").read(f"{top}/README.txt").decode("utf-8")
         assert "{" not in readme and app_info.APP_VERSION in readme
         program_files = {n for n in names if n.startswith(f"{top}/3_Program/")}
         if kind == "portable":
-            assert program_files == {f"{top}/3_Program/{app_info.APP_NAME}/{app_info.APP_NAME}.exe",
-                                     f"{top}/3_Program/{app_info.APP_NAME}/_internal/lib.dll"}
+            folder = f"{top}/3_Program/{app_info.APP_NAME} {app_info.APP_VERSION}"
+            assert program_files == {f"{folder}/{app_info.APP_NAME}.exe", f"{folder}/_internal/lib.dll"}
         else:
             assert program_files == {f"{top}/3_Program/{setup.name}"}
             assert setup.name in readme

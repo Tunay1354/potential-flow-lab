@@ -1059,6 +1059,17 @@ bırakıldı (kullanıcı kararı).
       içerik, çalıştırma, kaynak koddan çalıştırma). Eski tek zip / setup.exe adımı kalktı; Release adımı artık
       olmayan eski dosyaları siler. Sürüm 1.0.0 kalır: rapor ve kılavuz gelince aynı Release'in zip'leri yenilenir.
       En uzun yol klasör içinde 156 karakter (Downloads'a açılınca ~210 < 260). Test: `tests/test_submission.py`.
+    - ✅ **24.4 Teslim zip'i, onun gözden geçirmesiyle** (3 Kasım): README.txt daha net ("nothing has to be
+      installed: no Python, no libraries, no internet"; kaynak koddan çalıştırma adım adım: Python 3.13 + PATH, klasörde
+      terminal, tek `requirements.txt`, `python main.py`; testler opsiyonel `pip install pytest`). Program klasörü
+      `3_Program\Flowy 1.0.0\`. `4_Source_Code\` artık sadece programın dosyaları + testler (`make_submission.SOURCE`:
+      app, physics, model, presets, assets, tests, main.py, app_info.py, requirements.txt, pyproject.toml; CLAUDE.md,
+      ROADMAP.md, README.md, .github, packaging, scripts, benchmarks, requirements-dev.txt GitHub'da kalır, zip'e girmez).
+      `verification.html` resimleri içinde taşır (data: URL; zip'in içinden tek başına açılınca da görünür — önce kırık
+      görünüyordu), `figures\` yine ayrı; .md / .csv `5_Verification\other_formats_optional\` altında (md'nin resim
+      yolları `../figures/`). **10. verification sahnesi: sector flow** (`10_sector_90.pflow`, 90° köşe, n = 2): duvarlardan
+      akış yok (max |V·n| / max |V| = 1.2e-16), çizilen çizgiler ψ = V rⁿ sin(n(θ − θ₁)) = const üzerinde (2.1e-7 Δψ),
+      hız nV rⁿ⁻¹ (3e-16) + kaydet → aç 3 check → **108 / 108** (30°–150°, −40°–230°, 10°–40° kamalarında da geçti).
 25. ☐ **Faz 3 — Rapor ve user guide**: 4–6 sayfa rapor (figürler, tablolar, doğrulama Paket V'den; sector
     kuralının açıklaması), user guide (Help → User guide, F1)
 26. ☐ **Son kontrol**: ödev metni madde madde, tüm testler, verification, exe tekrar, README, sürüm numarası

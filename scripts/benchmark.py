@@ -39,7 +39,7 @@ Sections
   limits    the heaviest a user can do (a few seconds each): 16 elements at the densest streamlines with every
             layer — computing, pan / zoom / dragging an element, the most particles the slider allows and the
             longest, densest pulses (with the card: as fast as the screen), PNG 4× and MP4 2× of it
-  verify    Help → Run verification (102 checks), without and with figures
+  verify    Help → Run verification (108 checks), without and with figures
 """
 from __future__ import annotations
 
@@ -644,8 +644,8 @@ w.model.mark_clean(); w.close()
     def verify(self):
         from app.cli import report
         out = tempfile.mkdtemp(prefix="pfl-verify-")
-        row = {"102 checks, no figures": timed(lambda: report.collect(None, log=lambda *a: None), 1, warm=0),
-               "102 checks + 9 figures": timed(lambda: report.collect(os.path.join(out, "figures"),
+        row = {"108 checks, no figures": timed(lambda: report.collect(None, log=lambda *a: None), 1, warm=0),
+               "108 checks + 10 figures": timed(lambda: report.collect(os.path.join(out, "figures"),
                                                                       log=lambda *a: None), 1, warm=0)}
         self.record("verify", "Help → Run verification", row)
 
