@@ -1070,8 +1070,15 @@ bırakıldı (kullanıcı kararı).
       yolları `../figures/`). **10. verification sahnesi: sector flow** (`10_sector_90.pflow`, 90° köşe, n = 2): duvarlardan
       akış yok (max |V·n| / max |V| = 1.2e-16), çizilen çizgiler ψ = V rⁿ sin(n(θ − θ₁)) = const üzerinde (2.1e-7 Δψ),
       hız nV rⁿ⁻¹ (3e-16) + kaydet → aç 3 check → **108 / 108** (30°–150°, −40°–230°, 10°–40° kamalarında da geçti).
-25. ☐ **Faz 3 — Rapor ve user guide**: 4–6 sayfa rapor (figürler, tablolar, doğrulama Paket V'den; sector
-    kuralının açıklaması), user guide (Help → User guide, F1)
+25. ✅ **Faz 3 — Rapor ve user guide** (3 Kasım): ikisi de Word'de (onun rapor kuralları: kapak, Roma rakamlı TOC /
+    LOF / LOT, Times New Roman, SEQ caption'lar, OMML denklemler, gri-beyaz tablolar), o kontrol edip logoları koydu ve
+    PDF'e çevirdi → `submission/1_Report.pdf` (13 sayfa; ana metin 8 sayfa — ödev 4–6 diyor, o "8 de olur" dedi:
+    equations, architecture, validation, examples; sector domain kuralları (i)–(vi); 5 minimum case + sector tablosu;
+    lifting cylinder / half-body / oval adım adım hesap ve özet tablo; kaynaklar Anderson (denklem numaraları onun
+    PDF'inden doğrulandı), Kundu Sec. 7.4, Milne-Thomson, Jobard & Lefer) ve `submission/2_User_Guide.pdf` (18
+    sayfa; emir kipinde adımlar, kunduz Introduction'da "hemen başlamak isteyen turu izlesin, detay için okuyun",
+    13 figür, 6 tablo, ödevin 5 case'i için preset tablosu, 3 worked example). Belgeleri üreten scriptler oturumun
+    scratchpad'indeydi (repo'da değil). Release v1.0.0 zip'leri bu PDF'lerle yenilendi.
 26. ☐ **Son kontrol**: ödev metni madde madde, tüm testler, verification, exe tekrar, README, sürüm numarası
 27. ☐ **Demo provası**
 

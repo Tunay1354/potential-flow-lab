@@ -273,7 +273,8 @@ GUI / Qt
   %LOCALAPPDATA%\numba by itself; settings (registry …\IZTECH\Flowy) and data (%LOCALAPPDATA%\IZTECH\Flowy) are per
   user, the same for A and C, kept across updates; the exe has no console (the CLI prints nothing, exit codes work);
   `startup.prepared_signature` sees no physics/*.py in the exe → only the version decides "first start" there →
-  25 report (4–6 pages; figures and tables from `--verify`; read his report preferences in memory first) + user
-  guide as a document → 26 final check against the assignment text, item by item → 27 demo rehearsal.
+  25 report + user guide **done** (3 Nov: his PDFs in `submission/`, Release v1.0.0 rebuilt with them; report body
+  8 pages, he accepted it over the 4–6 asked) → 26 final check against the assignment text, item by item → 27 demo
+  rehearsal.
 - **Maybe** (not dropped): dye rake (streaklines), Joukowski airfoil (conformal mapping, Kutta condition).
 - Suggestions he did not take yet: GitHub Actions (Windows tests + automatic exe), test on another PC, macOS.
